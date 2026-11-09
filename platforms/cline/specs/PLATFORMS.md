@@ -221,3 +221,20 @@ Tiers (`haiku`, `sonnet`, `opus`) are Claude names. Other platforms inherit the 
 ## 8. Budgets and hardware
 
 The `hardware-researcher` is a normal haiku subagent on tiers A-C. On tier D the lead runs `loops hw --write` itself (WORKFLOW §2.1). Token budgets (`--budget`, WORKFLOW §4a) are measured from each agent's own transcript (`agent_transcript_path` on SubagentStop). Claude Code sends that field. Codex and Copilot are measured only if their SubagentStop payload carries it *(unverified)*. On every other platform, token budgets are advisory. Agent-count, role and concurrency limits are enforced by the lead on every platform.
+
+## 9. Updates
+
+Mechanism: the hook asks the Go module proxy for `@latest` of `github.com/arxdsilva/ai-loops`, at most once per 24h, and announces each version once. State lives in `~/.local/state/loops/update.json`. Opt-outs: `LOOPS_NO_UPDATE_CHECK=1`, `"update_check": false` in `.loops/config.json`, and `CI=true`. The notice carries the command below; `loops update [platform]` prints it.
+
+Verified 2026-11-09:
+
+| Platform | Command | Source |
+|---|---|---|
+| Claude Code | `claude plugin marketplace update ai-loops && claude plugin update loops@ai-loops` (in-app `/plugin marketplace update <name>`) | https://code.claude.com/docs/en/discover-plugins |
+| Copilot CLI | `copilot plugin marketplace update ai-loops && copilot plugin update loops` | https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference |
+| Codex | `codex plugin marketplace upgrade [name]` refreshes Git marketplaces only; no CLI plugin-update command is documented, so the plugin is updated in the desktop app and the binary and agents via the installer route | https://learn.chatgpt.com/docs/developer-commands?surface=cli , https://learn.chatgpt.com/docs/plugins |
+| Cursor | No update command. Team marketplaces: Dashboard > Plugins & MCPs > Refresh (or Enable Auto Refresh); running agents keep old versions | https://cursor.com/docs/plugins |
+| Gemini CLI | `git -C ai-loops pull && gemini extensions update loops` (`update --all` also exists; installs are copies) | https://geminicli.com/docs/extensions/reference/ |
+| OpenCode, Amp, Windsurf, Cline | `go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target <p> --force` | this repo |
+
+Unverified: that `gemini extensions update` works for a local-path install (docs imply it); Copilot's plugin name after `arxdsilva/ai-loops` install (assumed `loops`); the Codex marketplace name (omitted, so all are refreshed); that the Cursor marketplace entry auto-refreshes without the GitHub App.

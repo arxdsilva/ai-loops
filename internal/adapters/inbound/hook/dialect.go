@@ -120,15 +120,26 @@ func (d dialect) emit(out io.Writer, v any) {
 	}
 }
 
-func (d dialect) sessionContext(out io.Writer, text string) {
+// sessionContext emits the session-start context; msg, when non-empty, is
+// also shown to the user on platforms with a user-visible message field
+// (Claude, Codex, Copilot: top-level systemMessage).
+func (d dialect) sessionContext(out io.Writer, text, msg string) {
+	var v map[string]any
 	switch {
 	case d.platform == "cursor":
-		d.emit(out, map[string]string{"additional_context": text})
+		v = map[string]any{"additional_context": text}
 	case d.camel:
-		d.emit(out, map[string]string{"additionalContext": text})
+		v = map[string]any{"additionalContext": text}
 	default:
-		d.emit(out, map[string]any{"hookSpecificOutput": map[string]string{"hookEventName": "SessionStart", "additionalContext": text}})
+		v = map[string]any{"hookSpecificOutput": map[string]string{"hookEventName": "SessionStart", "additionalContext": text}}
 	}
+	switch d.platform {
+	case "claude", "codex", "copilot":
+		if msg != "" {
+			v["systemMessage"] = msg
+		}
+	}
+	d.emit(out, v)
 }
 
 func (d dialect) postEditFailure(out io.Writer, reason string) {

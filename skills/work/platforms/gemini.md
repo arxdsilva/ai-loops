@@ -40,3 +40,6 @@ gemini extensions install ./ai-loops/platforms/gemini   # no subdirectory instal
 
 ## Hardware and budgets
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
+
+## Update
+`git -C ai-loops pull && gemini extensions update loops` (or run `loops update gemini`).

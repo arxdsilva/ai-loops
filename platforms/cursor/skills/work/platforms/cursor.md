@@ -38,3 +38,6 @@ Cursor marketplace / team marketplace import of `arxdsilva/ai-loops` (package `p
 
 ## Hardware and budgets
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
+
+## Update
+Dashboard > Plugins & MCPs > marketplace > Refresh, then start a new agent (or run `loops update cursor`).

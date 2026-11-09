@@ -39,3 +39,6 @@ Writes `.opencode/agents/loops/`, `.opencode/commands/loops/`, `.opencode/plugin
 
 ## Hardware and budgets
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
+
+## Update
+`go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target opencode --force` (or run `loops update opencode`).

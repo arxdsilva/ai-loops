@@ -143,3 +143,4 @@ Then stop any remaining agents and give the user a summary of at most 10 lines: 
 - If a hook denies a read (`guard_deny`), do not retry the same call; use a range or search.
 - Agents that stall: message it once with the specific question; then stop it and relaunch with a tighter block.
 - Record decisions worth keeping: `loops run event --kind note --note "<text>"`.
+- If the session context contains a `loops ... is available` update notice, tell the user once in your first message; do not block work.

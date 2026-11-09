@@ -43,3 +43,6 @@ Verify: `loops version` resolves (the root shim builds from the checkout; needs 
 
 ## Hardware and budgets
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are measured from agent transcripts on this platform.
+
+## Update
+`claude plugin marketplace update ai-loops && claude plugin update loops@ai-loops` (or run `loops update claude`).

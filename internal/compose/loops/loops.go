@@ -15,16 +15,19 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/adapters/inbound/hook"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/fsys"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/goparse"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/goproxy"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gotool"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/htmlreport"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/hwprobe"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/portfs"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runstore"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/updatestate"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/vcs"
 	"github.com/arxdsilva/ai-loops/internal/application/archcheck"
 	"github.com/arxdsilva/ai-loops/internal/application/gate"
 	"github.com/arxdsilva/ai-loops/internal/application/ticket"
 	"github.com/arxdsilva/ai-loops/internal/application/tracker"
+	"github.com/arxdsilva/ai-loops/internal/application/updatecheck"
 	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 	"github.com/arxdsilva/ai-loops/internal/platform/projroot"
 )
@@ -82,6 +85,10 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 	gates := gate.New(gotool.New(), archGate{svc: arch, layers: cfg.Layers}, trk, clock)
 	tickets := ticket.New(vcs.New(root))
 
+	upState := updatestate.New()
+	updates := updatecheck.New(goproxy.New("github.com/arxdsilva/ai-loops"), upState, clock)
+	updateOff := cfg.UpdateCheck != nil && !*cfg.UpdateCheck
+
 	app := &cli.App{
 		Tracker: trk,
 		Gate:    gates,
@@ -90,20 +97,24 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Report:  htmlreport.New(),
 		Hooks: hook.New(hook.Deps{
 			Rec: trk, Files: fsys.New(), Cmd: gotool.New(), Env: os.Getenv, Getwd: os.Getwd,
+			Update: updates, Version: cli.Version, UpdateOff: updateOff,
 		}),
-		HW:         hwprobe.New(),
-		Parallel:   cfg.Parallel,
-		Limits:     cfg.Limits,
-		Source:     ailoops.Source,
-		Packages:   portfs.New(),
-		Root:       root,
-		PluginRoot: os.Getenv("LOOPS_PLUGIN_ROOT"),
-		Layers:     cfg.Layers,
-		GateSkip:   cfg.Gate.Skip,
-		GateVuln:   cfg.Gate.Vuln,
-		In:         in,
-		Out:        out,
-		Err:        errw,
+		Update:      updates,
+		UpdateState: upState,
+		UpdateOff:   updateOff,
+		HW:          hwprobe.New(),
+		Parallel:    cfg.Parallel,
+		Limits:      cfg.Limits,
+		Source:      ailoops.Source,
+		Packages:    portfs.New(),
+		Root:        root,
+		PluginRoot:  os.Getenv("LOOPS_PLUGIN_ROOT"),
+		Layers:      cfg.Layers,
+		GateSkip:    cfg.Gate.Skip,
+		GateVuln:    cfg.Gate.Vuln,
+		In:          in,
+		Out:         out,
+		Err:         errw,
 	}
 	return app.Run(ctx, args)
 }

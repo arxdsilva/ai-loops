@@ -39,3 +39,6 @@ or VS Code: *Chat: Install Plugin from Source*. Needs Go. Verify: `loops version
 
 ## Hardware and budgets
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are measured only if the SubagentStop payload carries `agent_transcript_path` *(unverified)*; otherwise they are advisory. Agent, role and concurrency limits always apply.
+
+## Update
+`copilot plugin marketplace update ai-loops && copilot plugin update loops` (or run `loops update copilot`).

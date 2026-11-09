@@ -35,7 +35,7 @@ func (a *App) cmdStatus(ctx context.Context, args []string) int {
 	st, dir, active := a.currentState(ctx)
 	switch {
 	case *line:
-		fmt.Fprintln(a.Out, statusLine(a.readStatusInput(), st, active))
+		fmt.Fprintln(a.Out, statusLine(a.readStatusInput(), st, active)+updateMarker(a))
 		return 0
 	case *sub:
 		a.writeSubagentLines(st, active)

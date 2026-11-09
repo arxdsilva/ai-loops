@@ -97,6 +97,22 @@ Then, in your Go repo (Claude Code shown; other platforms use their own command 
 /loops:work #42  # or a GitLab URL, a Jira or Linear key, or plain text
 ```
 
+## Updating
+
+When a newer release exists, the session context carries one line: `loops vX is available - update with: <command>`. The check asks the Go module proxy for `@latest`, runs at most once per 24h, and announces each version once.
+
+- Opt out with `LOOPS_NO_UPDATE_CHECK=1` or `"update_check": false` in `.loops/config.json`. It is also skipped when `CI=true`.
+- `loops version --check` checks on demand; `loops update [platform]` prints the command for your platform.
+
+| Platform | Update command |
+|---|---|
+| Claude Code | `claude plugin marketplace update ai-loops && claude plugin update loops@ai-loops` (in-app: `/plugin marketplace update ai-loops`, then `/plugin update loops@ai-loops`) |
+| Copilot | `copilot plugin marketplace update ai-loops && copilot plugin update loops` |
+| Codex | `codex plugin marketplace upgrade && go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target codex --force` (then update the plugin in the desktop app) |
+| Cursor | Dashboard > Plugins & MCPs > marketplace > Refresh; start a new agent |
+| Gemini CLI | `git -C ai-loops pull && gemini extensions update loops` |
+| OpenCode / Amp / Windsurf / Cline | `go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target <platform> --force` |
+
 ## What you see while it runs
 
 - **Status line.** For example: `▶ #42 add-orders · Implement W1 · 4/5 lanes · QA 2✓ 1↺ · plan r2 · gates build✓ vet✓ · 87 steps · 12m`.

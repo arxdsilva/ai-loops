@@ -43,3 +43,6 @@ Needs Go. Verify: `loops version`; `ls .codex/agents`.
 
 ## Hardware and budgets
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are measured only if the SubagentStop payload carries `agent_transcript_path` *(unverified)*; otherwise they are advisory. Agent, role and concurrency limits always apply.
+
+## Update
+`codex plugin marketplace upgrade && go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target codex --force`, then update the plugin in the desktop app (or run `loops update codex`).

@@ -37,3 +37,6 @@ Writes `.agents/skills/` and `.cline/skills/`. Needs Go. Verify: `loops version`
 
 ## Hardware and budgets
 Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
+
+## Update
+`go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target cline --force` (or run `loops update cline`).

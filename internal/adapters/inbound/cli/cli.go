@@ -12,6 +12,8 @@
 //	port_cmd.go    port build|check                                (per-platform packages, specs/PLATFORMS.md)
 //	install_cmd.go install --target                                (place a platform package)
 //	watch_cmd.go   watch                                           (terminal live view)
+//	version_cmd.go version [--check]                               (release check)
+//	update_cmd.go  update [--platform p]                           (update commands)
 //	cli.go         dispatch, hook, path, version, flag helpers
 package cli
 
@@ -57,6 +59,12 @@ type App struct {
 	GateSkip   []string        // gate checks skipped by config
 	GateVuln   bool            // gate runs govulncheck by config
 
+	// Update checks the Go proxy (nil = update features off); UpdateState is
+	// the cached state read by the status line (no network).
+	Update      Updater
+	UpdateState UpdateStore
+	UpdateOff   bool // .loops/config.json "update_check": false
+
 	In  io.Reader
 	Out io.Writer
 	Err io.Writer
@@ -82,7 +90,8 @@ var commands = map[string]command{
 	"plan":    {(*App).cmdPlan, "plan check <plan.md> [--cap n] [--json]   waves vs parallelism cap and scope overlap"},
 	"watch":   {(*App).cmdWatch, "watch [--interval 2s] [--once]   live run view in a terminal (any platform)"},
 	"path":    {(*App).cmdPath, "path [root|specs|templates|skills|agents]"},
-	"version": {(*App).cmdVersion, "version"},
+	"version": {(*App).cmdVersion, "version [--check [--platform p]]   print the version; --check asks the Go proxy for the latest release"},
+	"update":  {(*App).cmdUpdate, "update [--platform p]   print how to update loops (all platforms when unknown)"},
 }
 
 // Run dispatches args (without the program name) and returns the exit code.
@@ -153,11 +162,6 @@ func (a *App) cmdPath(ctx context.Context, args []string) int {
 		p = strings.TrimRight(p, "/") + "/" + sub
 	}
 	fmt.Fprintln(a.Out, p)
-	return 0
-}
-
-func (a *App) cmdVersion(ctx context.Context, args []string) int {
-	fmt.Fprintln(a.Out, "loops", Version)
 	return 0
 }
 

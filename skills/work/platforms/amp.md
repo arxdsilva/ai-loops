@@ -38,3 +38,6 @@ Writes `.agents/skills/`; rules come from AGENTS.md. Needs Go. Verify: `loops ve
 
 ## Hardware and budgets
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
+
+## Update
+`go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target amp --force` (or run `loops update amp`).

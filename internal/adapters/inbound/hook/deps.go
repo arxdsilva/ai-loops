@@ -3,6 +3,7 @@ package hook
 import (
 	"context"
 
+	"github.com/arxdsilva/ai-loops/internal/application/updatecheck"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
@@ -34,4 +35,15 @@ type Deps struct {
 	Getwd func() (string, error)
 	// WriteFile atomically writes a file (creating parents); nil uses the OS.
 	WriteFile func(path string, data []byte) error
+	// Update checks for a newer loops release (nil disables the check).
+	Update Updater
+	// Version is the running loops version, compared with the latest release.
+	Version string
+	// UpdateOff is the project's "update_check": false opt-out.
+	UpdateOff bool
+}
+
+// Updater is the update-notice service (updatecheck.Service).
+type Updater interface {
+	Check(ctx context.Context, current string, markNotified bool) (*updatecheck.Notice, error)
 }

@@ -38,3 +38,6 @@ Writes `.agents/skills/`, `.devin/hooks.v1.json`. Needs Go. Verify: `loops versi
 
 ## Hardware and budgets
 Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
+
+## Update
+`go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target windsurf --force` (or run `loops update windsurf`).

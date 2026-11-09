@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/arxdsilva/ai-loops/internal/application/guard"
+	"github.com/arxdsilva/ai-loops/internal/application/updatecheck"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
@@ -196,7 +197,7 @@ func (h *Handler) sessionStart(ctx context.Context, d dialect, p payload, out io
 			text += fmt.Sprintf(" Active run %s: phase %s, %d lanes running, run dir %s.", id, st.Phase, n, dir)
 		}
 	} else if root == "" {
-		return
+		text = ""
 	}
 	if len(text) > 600 {
 		text = text[:600]
@@ -205,7 +206,19 @@ func (h *Handler) sessionStart(ctx context.Context, d dialect, p payload, out io
 		h.writePluginRoot(root, h.repo(p))
 		text += fmt.Sprintf(" loops binary: %s/bin/loops — if `loops` is not on PATH, call it by that absolute path (or `go install github.com/arxdsilva/ai-loops/cmd/loops@latest`).", strings.TrimRight(root, "/"))
 	}
-	d.sessionContext(out, text)
+	msg := ""
+	if n := h.updateNotice(ctx); n != nil {
+		cmd := updatecheck.Command(h.platform)
+		if text != "" {
+			text += " "
+		}
+		text += fmt.Sprintf("loops %s is available (you have %s). Tell the user once: update with: %s", vtag(n.Latest), vtag(n.Current), cmd)
+		msg = fmt.Sprintf("loops %s available (you have %s) — update: %s", vtag(n.Latest), vtag(n.Current), cmd)
+	}
+	if text == "" {
+		return
+	}
+	d.sessionContext(out, text, msg)
 }
 
 // writePluginRoot records the plugin root for shells that lack

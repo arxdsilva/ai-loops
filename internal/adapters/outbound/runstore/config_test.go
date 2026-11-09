@@ -70,3 +70,17 @@ func TestLoadConfigMissingAndEmptyBlocks(t *testing.T) {
 		t.Fatal("bad JSON must fail")
 	}
 }
+
+func TestConfigUpdateCheck(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".loops"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := LoadConfig(root); c.UpdateCheck != nil {
+		t.Fatal("default must be nil (on)")
+	}
+	os.WriteFile(filepath.Join(root, ".loops", "config.json"), []byte(`{"update_check": false}`), 0o644)
+	if c, err := LoadConfig(root); err != nil || c.UpdateCheck == nil || *c.UpdateCheck {
+		t.Fatalf("%+v %v", c, err)
+	}
+}

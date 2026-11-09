@@ -29,6 +29,8 @@ type Config struct {
 	Parallel hw.Knobs `json:"parallel"`
 	// Limits are opt-in per-run/per-phase limits; zero = none (WORKFLOW §4a).
 	Limits run.Limits `json:"limits"`
+	// UpdateCheck false turns off the new-release check; nil = on.
+	UpdateCheck *bool `json:"update_check,omitempty"`
 }
 
 // GateConfig tunes the gate pipeline.
