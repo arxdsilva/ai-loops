@@ -1,0 +1,7 @@
+{
+ "hook_event_name": "subagentStart",
+ "subagent_id": "a1",
+ "subagent_type": "explore",
+ "task": "t",
+ "parent_conversation_id": "c"
+}

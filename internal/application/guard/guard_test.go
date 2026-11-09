@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/insurgencygames/ai-loops/internal/adapters/outbound/fsys"
-	"github.com/insurgencygames/ai-loops/internal/application/guard"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/fsys"
+	"github.com/arxdsilva/ai-loops/internal/application/guard"
 )
 
 func newRepo(t *testing.T) string {

@@ -11,17 +11,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/insurgencygames/ai-loops/internal/application/guard"
-	"github.com/insurgencygames/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/application/guard"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 // Handler dispatches hook names.
-type Handler struct{ d Deps }
+type Handler struct {
+	d        Deps
+	platform string
+}
 
 // New returns a Handler.
 func New(d Deps) *Handler {
@@ -46,6 +51,20 @@ type payload struct {
 	AgentID        string          `json:"agent_id"`
 	AgentType      string          `json:"agent_type"`
 	StopHookActive bool            `json:"stop_hook_active"`
+
+	// Other dialects' spellings (see dialect.go); folded by normalize.
+	SessionIDCamel      string          `json:"sessionId"`
+	ToolNameCamel       string          `json:"toolName"`
+	ToolArgs            json.RawMessage `json:"toolArgs"`
+	ToolResult          json.RawMessage `json:"toolResult"`
+	StopHookActiveCamel bool            `json:"stopHookActive"`
+	SubagentID          string          `json:"subagent_id"`
+	SubagentType        string          `json:"subagent_type"`
+	Duration            float64         `json:"duration"`
+	LoopCount           int             `json:"loop_count"`
+	IsInterrupt         bool            `json:"is_interrupt"`
+	extraFiles          []string
+	WorkspaceRoots      []string `json:"workspace_roots"`
 }
 
 type toolInput struct {
@@ -66,9 +85,9 @@ func (in toolInput) path() string {
 	return in.NotebookPath
 }
 
-// Handle runs hook name and returns the process exit code (2 = deny for
-// PreToolUse; 0 otherwise).
-func (h *Handler) Handle(ctx context.Context, name string, in io.Reader, out, errw io.Writer) int {
+// Handle runs hook name for platform ("" autodetects) and returns the
+// process exit code (2 = deny for PreToolUse; 0 otherwise).
+func (h *Handler) Handle(ctx context.Context, name, platform string, in io.Reader, out, errw io.Writer) int {
 	raw, err := io.ReadAll(io.LimitReader(in, 8<<20))
 	if err != nil {
 		return 0
@@ -77,26 +96,64 @@ func (h *Handler) Handle(ctx context.Context, name string, in io.Reader, out, er
 	if json.Unmarshal(raw, &p) != nil {
 		return 0
 	}
+	platform = detect(platform, h.d.Env)
+	d, failed := normalize(&p, platform)
+	h.platform = platform
+	h.absolutize(&p)
 	switch name {
 	case "session-start":
-		h.sessionStart(ctx, out)
+		h.sessionStart(ctx, d, p, out)
 	case "read-guard":
 		return h.readGuard(ctx, p, errw)
 	case "model-guard":
 		return h.modelGuard(ctx, p, errw)
 	case "go-post-edit":
-		h.goPostEdit(ctx, p, out)
+		h.goPostEdit(ctx, d, p, out)
 	case "trace":
-		h.trace(ctx, p)
+		h.trace(ctx, p, failed)
 	case "trace-agent":
 		h.traceAgent(ctx, p)
 	case "stop-gate":
-		h.stopGate(ctx, p, out)
+		h.stopGate(ctx, d, p, out)
 	}
 	return 0
 }
 
+// absolutize makes a relative file_path absolute (payload cwd, then project
+// dir) so guards see the real file whatever the platform sent.
+func (h *Handler) absolutize(p *payload) {
+	switch p.ToolName {
+	case "Read", "Edit", "Write", "MultiEdit":
+	default:
+		return
+	}
+	var in map[string]any
+	if json.Unmarshal(p.ToolInput, &in) != nil {
+		return
+	}
+	f, _ := in["file_path"].(string)
+	if f == "" || filepath.IsAbs(f) {
+		return
+	}
+	base := p.Cwd
+	if base == "" {
+		base = h.repo(*p)
+	}
+	if base == "" {
+		return
+	}
+	in["file_path"] = filepath.Join(base, f)
+	if b, err := json.Marshal(in); err == nil {
+		p.ToolInput = b
+	}
+}
+
 func (h *Handler) repo(p payload) string {
+	for _, k := range projectEnv[h.platform] {
+		if r := h.d.Env(k); r != "" {
+			return r
+		}
+	}
 	if r := h.d.Env("CLAUDE_PROJECT_DIR"); r != "" {
 		return r
 	}
@@ -107,20 +164,22 @@ func (h *Handler) repo(p payload) string {
 	return wd
 }
 
-func emit(out io.Writer, v any) {
-	b, err := json.Marshal(v)
-	if err == nil {
-		fmt.Fprintln(out, string(b))
-	}
+var projectEnv = map[string][]string{
+	"cursor": {"CURSOR_PROJECT_DIR"}, "gemini": {"GEMINI_PROJECT_DIR"}, "windsurf": {"DEVIN_PROJECT_DIR"},
 }
 
 func roleName(agentType string) string { return strings.TrimPrefix(agentType, "loops:") }
 
-func (h *Handler) sessionStart(ctx context.Context, out io.Writer) {
+var entryPoint = map[string]string{
+	"claude": "/loops:work", "copilot": "/loops:work", "gemini": "/loops:work",
+	"codex": "$work", "cursor": "/work", "opencode": "/loops/work", "windsurf": "the work skill",
+}
+
+func (h *Handler) sessionStart(ctx context.Context, d dialect, p payload, out io.Writer) {
 	root := h.d.Env("LOOPS_PLUGIN_ROOT")
 	text := "loops plugin active."
 	if root != "" {
-		text = fmt.Sprintf("loops plugin active. Plugin root: %s. Work tickets with /loops:work (WORKFLOW: %s/specs/WORKFLOW.md).", root, strings.TrimRight(root, "/"))
+		text = fmt.Sprintf("loops plugin active. Plugin root: %s. Work tickets with %s (WORKFLOW: %s/specs/WORKFLOW.md).", root, entryPoint[h.platform], strings.TrimRight(root, "/"))
 	}
 	if id, err := h.d.Rec.Current(ctx); err == nil && id != "" {
 		if st, err := h.d.Rec.State(ctx, id); err == nil {
@@ -139,7 +198,55 @@ func (h *Handler) sessionStart(ctx context.Context, out io.Writer) {
 	if len(text) > 600 {
 		text = text[:600]
 	}
-	emit(out, map[string]any{"hookSpecificOutput": map[string]string{"hookEventName": "SessionStart", "additionalContext": text}})
+	if root != "" {
+		h.writePluginRoot(root, h.repo(p))
+		text += fmt.Sprintf(" loops binary: %s/bin/loops — if `loops` is not on PATH, call it by that absolute path (or `go install github.com/arxdsilva/ai-loops/cmd/loops@latest`).", strings.TrimRight(root, "/"))
+	}
+	d.sessionContext(out, text)
+}
+
+// writePluginRoot records the plugin root for shells that lack
+// LOOPS_PLUGIN_ROOT. Best effort: it never fails the hook.
+func (h *Handler) writePluginRoot(root, repo string) {
+	write := h.d.WriteFile
+	if write == nil {
+		write = writeFileAtomic
+	}
+	state := h.d.Env("XDG_STATE_HOME")
+	if state == "" && h.d.Env("HOME") != "" {
+		state = filepath.Join(h.d.Env("HOME"), ".local", "state")
+	}
+	if state != "" { // user-level fallback for fresh projects
+		_ = write(filepath.Join(state, "loops", "plugin-root"), []byte(root))
+	}
+	if repo == "" {
+		return
+	}
+	if fi, err := os.Stat(filepath.Join(repo, ".loops")); err != nil || !fi.IsDir() {
+		return // only projects already using loops
+	}
+	_ = write(filepath.Join(repo, ".loops", "plugin-root"), []byte(root))
+}
+
+func writeFileAtomic(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".plugin-root-*")
+	if err != nil {
+		return err
+	}
+	_, err = tmp.Write(data)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp.Name(), path)
+	}
+	if err != nil {
+		_ = os.Remove(tmp.Name())
+	}
+	return err
 }
 
 func (h *Handler) deny(ctx context.Context, p payload, guardName, reason string, errw io.Writer) int {
@@ -176,46 +283,85 @@ func (h *Handler) readGuard(ctx context.Context, p payload, errw io.Writer) int 
 }
 
 func (h *Handler) modelGuard(ctx context.Context, p payload, errw io.Writer) int {
+	if p.ToolName != "" && p.ToolName != "Agent" {
+		return 0
+	}
+	switch h.platform {
+	case "cursor", "opencode", "gemini":
+		// No documented model field on these platforms' agent calls.
+		return 0
+	}
 	if reason := guard.CheckModel(p.ToolInput); reason != "" {
 		return h.deny(ctx, p, "model-guard", reason, errw)
 	}
 	return 0
 }
 
-func (h *Handler) goPostEdit(ctx context.Context, p payload, out io.Writer) {
+func (h *Handler) goPostEdit(ctx context.Context, d dialect, p payload, out io.Writer) {
 	var in toolInput
 	_ = json.Unmarshal(p.ToolInput, &in)
-	file := in.path()
-	if !strings.HasSuffix(file, ".go") {
-		return
-	}
 	repo := h.repo(p)
-	if !filepath.IsAbs(file) {
-		file = filepath.Join(repo, file)
+	var files []string
+	for _, f := range append([]string{in.path()}, p.extraFiles...) {
+		if !strings.HasSuffix(f, ".go") {
+			continue
+		}
+		if !filepath.IsAbs(f) {
+			f = filepath.Join(repo, f)
+		}
+		if h.d.Files.Exists(f) && !slices.Contains(files, f) {
+			files = append(files, f)
+		}
 	}
-	if !h.d.Files.Exists(file) {
+	if len(files) == 0 {
 		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
-	tool, args := "gofmt", []string{"-w", file}
+	fmtTool := "gofmt"
 	if h.d.Cmd.Has("goimports") {
-		tool = "goimports"
+		fmtTool = "goimports"
 	}
-	output, err := h.d.Cmd.Run(ctx, repo, tool, args...)
-	if err == nil {
-		if rel, rerr := filepath.Rel(repo, filepath.Dir(file)); rerr == nil && !strings.HasPrefix(rel, "..") {
-			tool = "go vet"
-			output, err = h.d.Cmd.Run(ctx, repo, "go", "vet", "./"+filepath.ToSlash(rel))
+	failed := map[string]bool{}
+	var failTool, failFile, failOut string
+	fail := func(tool, file, output string) {
+		if failTool == "" {
+			failTool, failFile, failOut = tool, file, output
 		}
 	}
-	_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindStep, Name: "go-post-edit", Agent: p.AgentID, Role: roleName(p.AgentType), Target: file, OK: run.Bool(err == nil)})
-	if err != nil {
-		lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
+	for _, f := range files {
+		if output, err := h.d.Cmd.Run(ctx, repo, fmtTool, "-w", f); err != nil {
+			failed[f] = true
+			fail(fmtTool, f, output)
+		}
+	}
+	if failTool == "" {
+		vetted := map[string]bool{}
+		for _, f := range files {
+			rel, err := filepath.Rel(repo, filepath.Dir(f))
+			if err != nil || strings.HasPrefix(rel, "..") || vetted[rel] {
+				continue
+			}
+			vetted[rel] = true
+			if output, err := h.d.Cmd.Run(ctx, repo, "go", "vet", "./"+filepath.ToSlash(rel)); err != nil {
+				for _, g := range files {
+					if r, _ := filepath.Rel(repo, filepath.Dir(g)); r == rel {
+						failed[g] = true
+					}
+				}
+				fail("go vet", f, output)
+			}
+		}
+	}
+	for _, f := range files {
+		_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindStep, Name: "go-post-edit", Agent: p.AgentID, Role: roleName(p.AgentType), Target: f, OK: run.Bool(!failed[f])})
+	}
+	if failTool != "" {
+		lines := strings.Split(strings.TrimRight(failOut, "\n"), "\n")
 		if len(lines) > 30 {
 			lines = lines[:30]
 		}
-		emit(out, map[string]string{"decision": "block", "reason": fmt.Sprintf("go-post-edit: %s failed for %s:\n%s", tool, file, strings.Join(lines, "\n"))})
+		d.postEditFailure(out, fmt.Sprintf("go-post-edit: %s failed for %s:\n%s", failTool, failFile, strings.Join(lines, "\n")))
 	}
 }
 
@@ -256,21 +402,13 @@ func (h *Handler) target(p payload, in toolInput, repo string) string {
 	return ""
 }
 
-func (h *Handler) trace(ctx context.Context, p payload) {
+func (h *Handler) trace(ctx context.Context, p payload, failed bool) {
 	if id, err := h.d.Rec.Current(ctx); err != nil || id == "" {
 		return
 	}
 	var in toolInput
 	_ = json.Unmarshal(p.ToolInput, &in)
-	ok := p.Event != "PostToolUseFailure"
-	if ok && p.ToolName == "Bash" {
-		var resp struct {
-			Interrupted bool `json:"interrupted"`
-		}
-		if json.Unmarshal(p.ToolResponse, &resp) == nil && resp.Interrupted {
-			ok = false
-		}
-	}
+	ok := !failed
 	_ = h.d.Rec.Record(ctx, run.Event{
 		Kind: run.KindStep, Agent: p.AgentID, Role: roleName(p.AgentType), Name: p.ToolName,
 		Target: h.target(p, in, h.repo(p)), OK: run.Bool(ok), DurationMS: int64(p.DurationMS),
@@ -278,22 +416,72 @@ func (h *Handler) trace(ctx context.Context, p payload) {
 }
 
 func (h *Handler) traceAgent(ctx context.Context, p payload) {
-	if p.AgentID == "" {
-		return
-	}
 	e := run.Event{Agent: p.AgentID, Role: roleName(p.AgentType)}
 	switch p.Event {
 	case "SubagentStart":
+		if p.AgentID == "" {
+			return
+		}
 		e.Kind = run.KindAgentStart
 	case "SubagentStop":
 		e.Kind, e.OK = run.KindAgentStop, run.Bool(true)
+		if e.Agent == "" && !h.closestLane(ctx, &e) {
+			return
+		}
 	default:
 		return
 	}
 	_ = h.d.Rec.Record(ctx, e)
 }
 
-func (h *Handler) stopGate(ctx context.Context, p payload, out io.Writer) {
+// closestLane fills e.Agent for a stop that carries no agent id: the most
+// recently started, still-running lane with the same role.
+func (h *Handler) closestLane(ctx context.Context, e *run.Event) bool {
+	if e.Role == "" {
+		return false
+	}
+	st, err := h.d.Rec.State(ctx, "")
+	if err != nil {
+		return false
+	}
+	best := -1
+	for i, l := range st.Lanes {
+		if l.Running && strings.EqualFold(roleName(l.Role), e.Role) && (best < 0 || !l.Started.Before(st.Lanes[best].Started)) {
+			best = i
+		}
+	}
+	if best < 0 {
+		return false
+	}
+	e.Agent = st.Lanes[best].Agent
+	return true
+}
+
+// maxIdleBlocks is how many stop-gate blocks with no tool call between them
+// are tolerated before the gate releases the agent.
+const maxIdleBlocks = 3
+
+// stalled reports whether the gate already blocked maxIdleBlocks times with
+// no step event since the first of those blocks.
+func (h *Handler) stalled(ctx context.Context) bool {
+	evs, err := h.d.Rec.Events(ctx, "")
+	if err != nil {
+		return false
+	}
+	n := 0
+scan:
+	for i := len(evs) - 1; i >= 0; i-- {
+		switch e := evs[i]; {
+		case e.Kind == run.KindStep:
+			break scan
+		case e.Kind == run.KindNote && e.Name == "stop-gate" && e.Note == "blocked":
+			n++
+		}
+	}
+	return n >= maxIdleBlocks
+}
+
+func (h *Handler) stopGate(ctx context.Context, d dialect, p payload, out io.Writer) {
 	if p.StopHookActive || strings.EqualFold(h.d.Env("LOOPS_GATE"), "off") {
 		return
 	}
@@ -302,6 +490,11 @@ func (h *Handler) stopGate(ctx context.Context, p payload, out io.Writer) {
 		return
 	}
 	if reason := run.StopReason(st); reason != "" {
-		emit(out, map[string]string{"decision": "block", "reason": reason})
+		if h.stalled(ctx) {
+			_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindNote, Name: "stop-gate", Note: "released after 3 blocks without progress"})
+			return
+		}
+		_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindNote, Name: "stop-gate", Note: "blocked"})
+		d.blockStop(out, reason)
 	}
 }

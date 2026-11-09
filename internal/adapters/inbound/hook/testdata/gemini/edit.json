@@ -1,0 +1,15 @@
+{
+ "session_id": "s",
+ "cwd": "/repo",
+ "hook_event_name": "AfterTool",
+ "tool_name": "replace",
+ "tool_input": {
+  "file_path": "/repo/pkg/a.go",
+  "old_string": "x",
+  "new_string": "y"
+ },
+ "tool_response": {
+  "llmContent": "ok",
+  "returnDisplay": "ok"
+ }
+}

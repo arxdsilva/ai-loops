@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/insurgencygames/ai-loops/internal/application/gate"
-	"github.com/insurgencygames/ai-loops/internal/application/ticket"
-	"github.com/insurgencygames/ai-loops/internal/application/tracker"
-	"github.com/insurgencygames/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/application/gate"
+	"github.com/arxdsilva/ai-loops/internal/application/ticket"
+	"github.com/arxdsilva/ai-loops/internal/application/tracker"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 type rcLog struct {

@@ -27,7 +27,7 @@ Edit code. Invent facts (mark unknowns `TODO(lead): ...` in your report instead)
 5. Write the claims report; claims are verifiable statements such as "AGENTS.md lists port X (file:line)".
 
 ## Output
-`<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead resumes you with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything stubbed or blocked, report path.
+`<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back (resuming you, or re-spawning your role) with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything stubbed or blocked, report path.
 
 ## Done when
 Owned tests pass with `-race`, vet is clean, nothing outside `Owns` changed, and every claim has evidence in the report.

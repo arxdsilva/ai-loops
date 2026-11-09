@@ -1,0 +1,10 @@
+{
+ "hook_event_name": "PostToolUse",
+ "tool_name": "Edit",
+ "tool_input": {
+  "file_path": "/repo/pkg/a.go"
+ },
+ "cwd": "/repo",
+ "agent_id": "a1",
+ "agent_type": "loops:domain-engineer"
+}

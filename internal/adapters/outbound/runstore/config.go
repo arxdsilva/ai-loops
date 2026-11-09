@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 )
 
 // Config is .loops/config.json. Every field is optional.

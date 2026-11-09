@@ -10,20 +10,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/insurgencygames/ai-loops/internal/adapters/inbound/cli"
-	"github.com/insurgencygames/ai-loops/internal/adapters/inbound/hook"
-	"github.com/insurgencygames/ai-loops/internal/adapters/outbound/fsys"
-	"github.com/insurgencygames/ai-loops/internal/adapters/outbound/goparse"
-	"github.com/insurgencygames/ai-loops/internal/adapters/outbound/gotool"
-	"github.com/insurgencygames/ai-loops/internal/adapters/outbound/htmlreport"
-	"github.com/insurgencygames/ai-loops/internal/adapters/outbound/runstore"
-	"github.com/insurgencygames/ai-loops/internal/adapters/outbound/vcs"
-	"github.com/insurgencygames/ai-loops/internal/application/archcheck"
-	"github.com/insurgencygames/ai-loops/internal/application/gate"
-	"github.com/insurgencygames/ai-loops/internal/application/ticket"
-	"github.com/insurgencygames/ai-loops/internal/application/tracker"
-	"github.com/insurgencygames/ai-loops/internal/domain/archrule"
-	"github.com/insurgencygames/ai-loops/internal/platform/projroot"
+	ailoops "github.com/arxdsilva/ai-loops"
+	"github.com/arxdsilva/ai-loops/internal/adapters/inbound/cli"
+	"github.com/arxdsilva/ai-loops/internal/adapters/inbound/hook"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/fsys"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/goparse"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gotool"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/htmlreport"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/portfs"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runstore"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/vcs"
+	"github.com/arxdsilva/ai-loops/internal/application/archcheck"
+	"github.com/arxdsilva/ai-loops/internal/application/gate"
+	"github.com/arxdsilva/ai-loops/internal/application/ticket"
+	"github.com/arxdsilva/ai-loops/internal/application/tracker"
+	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/platform/projroot"
 )
 
 type systemClock struct{}
@@ -88,6 +90,8 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Hooks: hook.New(hook.Deps{
 			Rec: trk, Files: fsys.New(), Cmd: gotool.New(), Env: os.Getenv, Getwd: os.Getwd,
 		}),
+		Source:     ailoops.Source,
+		Packages:   portfs.New(),
 		Root:       root,
 		PluginRoot: os.Getenv("LOOPS_PLUGIN_ROOT"),
 		Layers:     cfg.Layers,

@@ -7,11 +7,12 @@ This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and 
 - Rules for Go code, here and in target repos: `specs/GO_BEST_PRACTICES.md`, `specs/HEXAGONAL_ARCHITECTURE.md`, `specs/SOLID_GO.md`. Agent rules: `specs/PARALLEL_WORK.md`, `specs/CONTEXT_DISCIPLINE.md`.
 - Skills: `skills/<name>/SKILL.md`. The `work` skill is the orchestrator; the rest are reference skills that roles load.
 - Templates the agents fill in: `templates/`.
-- Plugin wiring: `.claude-plugin/`, `hooks/hooks.json`, `bin/loops` (a shim that builds `cmd/loops` on first use), `mod/` (the live pane), `settings.json`.
+- Plugin wiring for Claude Code (and Copilot, which reads the same layout): `.claude-plugin/`, `hooks/hooks.json`, `bin/loops` (a shim that builds `cmd/loops` on first use), `mod/` (the live pane), `settings.json`.
+- Other platforms: `specs/PLATFORMS.md`. `platforms/<name>/`, `.agents/plugins/marketplace.json` and `.cursor-plugin/marketplace.json` are **generated** by `go run ./cmd/loops port build` from the canonical sources (embedded through `embed.go`). Never edit them by hand. Regenerate whenever agents/, skills/, specs/, templates/, ROLES.md, hooks/hooks.json or plugin.json change; CI runs `loops port check`.
 - Go tooling, laid out hexagonally:
-  - `internal/domain/{run,archrule}`: pure code, no I/O, no wall clock;
-  - `internal/application/{tracker,guard,gate,archcheck,ticket}`: use cases with consumer-owned ports;
-  - `internal/adapters/{inbound/{cli,hook},outbound/{runstore,goparse,gotool,vcs,fsys,htmlreport}}`;
+  - `internal/domain/{run,archrule,plugin}`: pure code, no I/O, no wall clock;
+  - `internal/application/{tracker,guard,gate,archcheck,ticket,port}`: use cases with consumer-owned ports (`port` = per-platform emitters and the install plan);
+  - `internal/adapters/{inbound/{cli,hook},outbound/{runstore,goparse,gotool,vcs,fsys,htmlreport,portfs}}`;
   - `internal/compose/loops` and `cmd/loops` (wiring only).
 
 ## Non-negotiables
@@ -25,4 +26,7 @@ This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and 
 - **No game content.** This was extracted from rimworld-go, and nothing game-specific belongs here.
 
 ## Gates before committing
-`gofmt -l .` (must print nothing) · `go vet ./...` · `go test -race -count=1 ./...` · `go run ./cmd/loops arch` · `jq . hooks/hooks.json .claude-plugin/*.json settings.json`
+`gofmt -l .` (must print nothing) · `go vet ./...` · `go test -race -count=1 ./...` · `go run ./cmd/loops arch` · `go run ./cmd/loops port check` · `jq . hooks/hooks.json .claude-plugin/*.json settings.json`
+
+## Releases
+A release is a `v<version>` tag. That version must match `.claude-plugin/plugin.json` and `cli.Version`, because the generated package shims `go install …/cmd/loops@v<version>`.

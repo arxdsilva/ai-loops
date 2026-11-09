@@ -1,0 +1,64 @@
+{
+  "PostToolUse": [
+    {
+      "hooks": [
+        {
+          "command": "loops hook go-post-edit --platform windsurf",
+          "timeout": 60,
+          "type": "command"
+        }
+      ]
+    },
+    {
+      "hooks": [
+        {
+          "command": "loops hook trace --platform windsurf",
+          "timeout": 10,
+          "type": "command"
+        }
+      ]
+    }
+  ],
+  "PreToolUse": [
+    {
+      "hooks": [
+        {
+          "command": "loops hook read-guard --platform windsurf",
+          "timeout": 10,
+          "type": "command"
+        }
+      ]
+    },
+    {
+      "hooks": [
+        {
+          "command": "loops hook model-guard --platform windsurf",
+          "timeout": 10,
+          "type": "command"
+        }
+      ]
+    }
+  ],
+  "SessionStart": [
+    {
+      "hooks": [
+        {
+          "command": "loops hook session-start --platform windsurf",
+          "timeout": 120,
+          "type": "command"
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "command": "loops hook stop-gate --platform windsurf",
+          "timeout": 10,
+          "type": "command"
+        }
+      ]
+    }
+  ]
+}

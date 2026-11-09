@@ -1,0 +1,12 @@
+{
+ "hook_event_name": "preToolUse",
+ "tool_name": "Read",
+ "tool_input": {
+  "path": "/repo/big.go"
+ },
+ "tool_use_id": "u",
+ "cwd": "/repo",
+ "workspace_roots": [
+  "/repo"
+ ]
+}

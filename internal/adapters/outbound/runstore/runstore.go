@@ -19,8 +19,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/run"
-	"github.com/insurgencygames/ai-loops/internal/platform/atomicfile"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/platform/atomicfile"
 )
 
 // Store implements tracker.EventLog and tracker.Pointer.

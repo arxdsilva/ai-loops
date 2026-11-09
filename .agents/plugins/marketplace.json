@@ -1,0 +1,20 @@
+{
+  "interface": {
+    "displayName": "ai-loops"
+  },
+  "name": "ai-loops",
+  "plugins": [
+    {
+      "category": "Productivity",
+      "name": "loops",
+      "policy": {
+        "authentication": "ON_INSTALL",
+        "installation": "AVAILABLE"
+      },
+      "source": {
+        "path": "./platforms/codex",
+        "source": "local"
+      }
+    }
+  ]
+}

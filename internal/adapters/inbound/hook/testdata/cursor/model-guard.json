@@ -1,0 +1,10 @@
+{
+ "hook_event_name": "preToolUse",
+ "tool_name": "Task",
+ "tool_input": {
+  "subagent_type": "general-purpose",
+  "prompt": "x"
+ },
+ "tool_use_id": "u",
+ "cwd": "/repo"
+}

@@ -1,0 +1,12 @@
+{
+ "session_id": "s",
+ "cwd": "/repo",
+ "hook_event_name": "PostToolUse",
+ "turn_id": "t",
+ "tool_name": "apply_patch",
+ "tool_input": {
+  "command": "*** Begin Patch\n*** Update File: pkg/a.go\n@@\n-x\n+y\n*** End Patch"
+ },
+ "agent_id": "a1",
+ "agent_type": "worker"
+}

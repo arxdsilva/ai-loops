@@ -1,0 +1,56 @@
+{
+  "hooks": {
+    "postToolUse": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook go-post-edit --platform cursor",
+        "timeout": 60
+      },
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook trace --platform cursor",
+        "timeout": 10
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook trace --platform cursor",
+        "timeout": 10
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook read-guard --platform cursor",
+        "timeout": 10
+      },
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook model-guard --platform cursor",
+        "timeout": 10
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook session-start --platform cursor",
+        "timeout": 120
+      }
+    ],
+    "stop": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook stop-gate --platform cursor",
+        "timeout": 10,
+        "loop_limit": 5
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook trace-agent --platform cursor",
+        "timeout": 10
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook trace-agent --platform cursor",
+        "timeout": 10
+      }
+    ]
+  },
+  "version": 1
+}

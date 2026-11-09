@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/insurgencygames/ai-loops/internal/application/tracker"
-	"github.com/insurgencygames/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/application/tracker"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 // newFlagSet returns a FlagSet that reports errors to a.Err and never exits.

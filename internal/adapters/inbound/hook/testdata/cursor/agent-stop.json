@@ -1,0 +1,7 @@
+{
+ "hook_event_name": "subagentStop",
+ "subagent_type": "explore",
+ "status": "completed",
+ "task": "t",
+ "loop_count": 0
+}

@@ -1,0 +1,12 @@
+{
+ "hook_event_name": "postToolUse",
+ "tool_name": "Write",
+ "tool_input": {
+  "path": "/repo/pkg/a.go",
+  "contents": "package a"
+ },
+ "tool_output": "{}",
+ "tool_use_id": "u",
+ "cwd": "/repo",
+ "duration": 42
+}

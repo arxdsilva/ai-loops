@@ -1,0 +1,11 @@
+{
+ "sessionId": "s",
+ "timestamp": 1,
+ "cwd": "/repo",
+ "toolName": "edit",
+ "toolArgs": "{\"path\": \"/repo/pkg/a.go\"}",
+ "toolResult": {
+  "result_type": "failure",
+  "text_result_for_llm": "bad"
+ }
+}

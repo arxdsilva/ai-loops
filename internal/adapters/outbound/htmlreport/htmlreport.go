@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 //go:embed assets/*

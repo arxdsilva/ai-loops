@@ -6,11 +6,18 @@ import (
 	"path/filepath"
 )
 
-// Find returns $CLAUDE_PROJECT_DIR when set, else the nearest ancestor of
-// start holding .loops/ or .git, else start itself.
+// projectEnv lists the project-dir variables the supported agents export
+// (specs/PLATFORMS.md §5), most specific first.
+var projectEnv = [...]string{"CURSOR_PROJECT_DIR", "GEMINI_PROJECT_DIR", "DEVIN_PROJECT_DIR", "CLAUDE_PROJECT_DIR"}
+
+// Find returns the first project-dir variable that is set (Cursor, Gemini,
+// Devin, Claude), else the nearest ancestor of start holding .loops/ or
+// .git, else start itself.
 func Find(start string) string {
-	if d := os.Getenv("CLAUDE_PROJECT_DIR"); d != "" {
-		return d
+	for _, k := range projectEnv {
+		if d := os.Getenv(k); d != "" {
+			return d
+		}
 	}
 	dir, err := filepath.Abs(start)
 	if err != nil {

@@ -1,0 +1,8 @@
+{
+ "hook_event_name": "PostToolUseFailure",
+ "tool_name": "Edit",
+ "tool_input": {
+  "file_path": "/repo/pkg/a.go"
+ },
+ "cwd": "/repo"
+}

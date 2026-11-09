@@ -15,20 +15,81 @@ A Claude Code plugin for working on Go backends with agents. Every ticket goes t
 
 ## Install
 
+Requirements for every platform:
+- **Go** toolchain. The `loops` binary is built or `go install`ed on first use, so the repo must be reachable by `go install` (public, or `GOPRIVATE` set).
+- **`gh`** or **`glab`** for tickets and PRs/MRs.
+- Optional: `staticcheck`, `govulncheck`, [ai-memory](https://github.com/akitaonrails/ai-memory), Jira or Linear MCP connectors.
+
+Platforms marked *installer* need `loops install --target <name>` in your project after `go install`ing the binary (`go install github.com/arxdsilva/ai-loops/cmd/loops@latest`). Tiers: A resumable subagents, B subagents without resume, C generic subagents, D solo mode ([specs/PLATFORMS.md](specs/PLATFORMS.md) §4).
+
+### Claude Code (tier A)
 ```sh
-/plugin marketplace add insurgencygames/ai-loops
+/plugin marketplace add arxdsilva/ai-loops
 /plugin install loops@ai-loops
 ```
 
-Requirements:
-- **Go** is required. The plugin's `loops` binary is built from source on first use.
-- **`gh`** or **`glab`** is needed to fetch tickets and open PRs/MRs.
-- Optional:
-  - `staticcheck` and `govulncheck`, for the extra gates;
-  - [ai-memory](https://github.com/akitaonrails/ai-memory), for long-term memory across runs;
-  - Jira or Linear MCP connectors, for tickets from those trackers.
+### GitHub Copilot (tier B)
+```sh
+copilot plugin install arxdsilva/ai-loops
+```
+Or in VS Code run *Chat: Install Plugin from Source*. Copilot reads the Claude layout directly.
 
-Then, in your Go repo:
+### Codex (tier B)
+```sh
+codex plugin marketplace add arxdsilva/ai-loops
+# install `loops` from the ChatGPT/Codex desktop app (no CLI install command), then in your project:
+go install github.com/arxdsilva/ai-loops/cmd/loops@latest
+loops install --target codex      # role agents into .codex/agents/
+```
+Commands are `$work`, `$init`. Trust the plugin hooks with `/hooks`.
+
+### Cursor (tier A)
+Import `arxdsilva/ai-loops` from the Cursor (team) marketplace; the package is `platforms/cursor`. For local development copy it to `~/.cursor/plugins/local/loops`.
+
+### Gemini CLI (tier B)
+```sh
+git clone https://github.com/arxdsilva/ai-loops
+gemini extensions install ./ai-loops/platforms/gemini   # or `gemini extensions link` for development
+```
+Gemini cannot install a repository subdirectory directly. Commands are `/loops:work` and friends.
+
+### OpenCode (tier B, installer)
+```sh
+loops install --target opencode
+```
+
+### Amp (tier C, installer)
+```sh
+loops install --target amp
+```
+
+### Windsurf / Devin (tier D, installer)
+```sh
+loops install --target windsurf
+```
+
+### Cline (tier D, installer)
+```sh
+loops install --target cline
+```
+
+### Capability matrix (condensed)
+
+Full table and notes: [specs/PLATFORMS.md](specs/PLATFORMS.md) §2. Per-platform run mechanics: `skills/work/platforms/<platform>.md`.
+
+| | Claude | Copilot | Codex | Cursor | Gemini | OpenCode | Amp | Windsurf | Cline |
+|---|---|---|---|---|---|---|---|---|---|
+| Role subagents | yes | yes | yes | yes | yes | yes | generic | solo | solo |
+| Resume same agent | yes | no | no | yes | no | no | partial | no | no |
+| Tool deny / gofmt hooks | yes | yes | yes | yes | yes | shim | no | yes | no |
+| Subagent lanes | yes | yes | yes | yes | labels | labels | labels | labels | labels |
+| Stop gate | yes | yes | yes | yes | yes | no | no | maybe | no |
+| Status line / pane | yes | no | no | no | no | no | no | no | no |
+| `loops watch` / `loops report` | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+
+Use `loops watch` in a side terminal for the live view on any platform.
+
+Then, in your Go repo (Claude Code shown; other platforms use their own command syntax):
 
 ```sh
 /loops:init      # .loops/config.json, AGENTS.md rules, .gitignore, dependency check

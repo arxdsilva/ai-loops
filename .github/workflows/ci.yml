@@ -1,0 +1,31 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: |
+          out=$(gofmt -l . | grep -v /testdata/ || true)
+          if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+      - name: loops arch
+        run: go run ./cmd/loops arch
+      - name: generated platform packages are fresh
+        run: go run ./cmd/loops port check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: mod pane tests
+        run: node --test mod/test/render.test.mjs

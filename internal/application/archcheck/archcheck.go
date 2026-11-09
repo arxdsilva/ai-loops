@@ -5,7 +5,7 @@ package archcheck
 import (
 	"context"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 )
 
 // Parser turns a module tree into the package model the rules evaluate.

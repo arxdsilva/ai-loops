@@ -8,7 +8,7 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 - **Parallel by default.** Every run is planned as waves of role agents with disjoint file ownership. A one-file fix is still a wave with one agent.
 - **Contract first.** No implementer starts until the architect has written the interfaces, typed commands, DTOs and stubs the wave depends on, and the build is green.
 - **Claims need evidence.** Every implementer reports claims, and each claim names the evidence that proves it. Nothing counts as done until a different agent has verified it.
-- **Send back with context.** A reviewer that rejects work says exactly what is wrong, how to reproduce it, and where to fix it. The lead resumes the **same** author (`SendMessage`) so it keeps its context.
+- **Send back with context.** A reviewer that rejects work says exactly what is wrong, how to reproduce it, and where to fix it. The lead sends the work back to the **same** author (resumed where the platform supports it, otherwise a new agent of the same role seeded with its previous report and the review file; see `specs/PLATFORMS.md` §4) so context carries over.
 - **Everything is visible.** Every phase change, agent lane, tool call, verdict, loop-back, gate, proof and memory access lands in `events.jsonl` (§5).
 - **Smallest sufficient context.** Search before reading, read ranges, cite by path and section, and never paste whole specs (`specs/CONTEXT_DISCIPLINE.md`).
 
@@ -42,7 +42,7 @@ Flags on `/loops:work`:
 
 ### 2.1 Research
 
-- Launch the three researchers in **one message**, in the background.
+- Launch the three researchers together, in parallel where the platform allows (`skills/work/platforms/<p>.md`).
 - Each gets the same inputs: `ticket.md`, `research/memory.md`, the project root, and the plugin `specs/` path (`loops path specs`).
 - Each brief is at most 600 words. It contains facts with sources (`path:line`, a URL, or `spec §`) and has a `## Open questions` section.
 - A researcher may run narrower `memory_query` calls. It must verify any memory hit against the current source before citing it, because memory is historical evidence, not truth.
@@ -61,10 +61,10 @@ Flags on `/loops:work`:
   - `CHANGES`, followed by numbered **blocking** items, each with what to change and why. Non-blocking items are allowed but never block.
 - On `CHANGES`:
   1. Record `loops run loopback --from plan-reviewer --to planner --round N --note "<one line>"`.
-  2. Resume the same planner with the review file. It writes `plan.v<N+1>.md`.
+  2. Send the review file back to the same planner (resume or re-spawn per platform tier). It writes `plan.v<N+1>.md`.
   3. Review again.
 - Escalate to the user after `MaxPlanRounds` (3) rounds with the blocking items still open.
-- User approval is required when `--approve` is set or `.loops/config.json` has `"approval": "always"`. The lead then shows a ≤25-line plan summary (AskUserQuestion: Approve / Request changes / Stop). "Request changes" sends the user's notes to the planner as a new round.
+- User approval is required when `--approve` is set or `.loops/config.json` has `"approval": "always"`. The lead then shows a ≤25-line plan summary (ask the user: Approve / Request changes / Stop). "Request changes" sends the user's notes to the planner as a new round.
 
 ### 2.3 Implement
 
@@ -76,7 +76,7 @@ Flags on `/loops:work`:
   - shared config (Makefile, CI, `cmd/**`, `internal/compose/**`).
 
   Wave 0 is done when `go build ./...` and `go vet ./...` pass.
-- **Waves 1…n:** launch every agent of a wave in one message, in the background.
+- **Waves 1…n:** launch every agent of a wave together, in parallel where the platform allows.
   - The order is producers (domain, application) before consumers (inbound and outbound adapters). Consumers may start early against the stubs.
   - Each agent gets its own block from the plan: Goal, Starts at, Behaviour, Owns, Must not touch, Claims to prove, Done when, and Out.
 - Every implementer finishes with a **claims report** (`templates/CLAIMS_REPORT.md`, at most 400 words) saved to `reports/<agent-id>.md`. Each claim has the form `C<n>: <statement> — evidence: <test name | command → result | file:line>`.
@@ -104,8 +104,8 @@ Flags on `/loops:work`:
 - For each verdict, record `loops run verdict --name <agent-id>:C<n> --status VERIFIED|FAILED --round N --ref qa/<file>`.
 - When anything has FAILED:
   1. Record `loops run loopback --from qa-verifier --to <agent-id> --round N`.
-  2. Resume the same implementer with the QA file.
-  3. When it reports again, resume the same verifier.
+  2. Send the QA file back to the same implementer (resume or re-spawn per platform tier).
+  3. When it reports again, re-verify with the same verifier (resume or re-spawn).
 - After `EscalateAfter` (2) failed rounds, relaunch the implementer one model tier up (haiku → sonnet → opus), with a summary of the history.
 - After `MaxQARounds` (3) failed rounds, escalate to the user.
 - When every lane is verified, the lead runs the full `loops gate`. Gate failures go back to the owning lane the same way.
@@ -128,7 +128,7 @@ The `product-reviewer` does the following, in order:
 6. When every AC is VERIFIED:
    1. Runs `loops report`.
    2. Writes `pr.md` (`templates/PR_BODY.md`, at most ~40 lines plus `<details>` proof blocks).
-   3. Stops and reports to the lead (proof summary + `pr.md` path). Unless `--no-pr` is set, the lead asks the user to confirm the push and PR (skipped when `auto_pr: true`), then resumes the same product-reviewer with `SendMessage` saying "user confirmed". Only then it:
+   3. Stops and reports to the lead (proof summary + `pr.md` path). Unless `--no-pr` is set, the lead asks the user to confirm the push and PR (skipped when `auto_pr: true`), then sends the same product-reviewer "user confirmed" (resume or re-spawn per platform tier). Only then it:
       - creates the branch `loops/<ticket>-<slug>`;
       - commits with `git commit -m … -- <paths>`;
       - pushes;
@@ -157,17 +157,18 @@ Finally, the lead runs `loops run end --outcome done` and gives the user a ≤10
 
 ## 3. Roles
 
-`ROLES.md` is the matrix and `agents/<role>.md` the definitions. Every spawn names its role through `subagent_type: loops:<role>`, and a `model` only when it overrides the role default (escalation, `--models=cheap`).
+`ROLES.md` is the matrix and `agents/<role>.md` the definitions. Every spawn names its role (the platform's syntax is in `skills/work/platforms/<p>.md`), and a `model` only when it overrides the role default (escalation, `--models=cheap`).
 
 The prompt is the agent's block from the plan plus these lines:
 - `Run dir: <abs path>`
 - `Specs: <abs path>`
 - `Templates: <abs path>`
+- `Loops: <abs path to the loops binary>` (or `loops` when it is on PATH)
 - `Role: <role>`
 - `Agent id: <W1-domain>`
 - `Wave: <n>`
 
-Right after each spawn, the lead names the lane: `loops run label --agent <agentId from the Agent tool result> --name <W1-domain> --role <role> --wave <n>`. Hooks only see Claude's opaque agent id; the label ties it to the plan id used in claims (`W1-domain:C3`), verdicts and the pane.
+Right after each spawn, the lead names the lane: `loops run label --agent <platform agent id, or solo-<n>> --name <W1-domain> --role <role> --wave <n>`. Hooks only see the platform's opaque agent id (or none, on platforms without subagent events); the label ties it to the plan id used in claims (`W1-domain:C3`), verdicts and the pane.
 
 ## 4. Loop limits
 

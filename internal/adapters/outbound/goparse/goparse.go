@@ -31,7 +31,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 )
 
 // Parser implements archcheck.Parser.

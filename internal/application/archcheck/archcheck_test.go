@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/insurgencygames/ai-loops/internal/adapters/outbound/goparse"
-	"github.com/insurgencygames/ai-loops/internal/application/archcheck"
-	"github.com/insurgencygames/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/goparse"
+	"github.com/arxdsilva/ai-loops/internal/application/archcheck"
+	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 )
 
 type fakeParser struct {

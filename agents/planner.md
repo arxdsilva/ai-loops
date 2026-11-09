@@ -15,7 +15,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: `ticket.md`, `research/web.md`, `research/practices.md`, `research/code.md`, `research/memory.md`, and on a revision the `plan-review.r<N>.md` file the lead names.
 
 ## Can
-Read the repo and specs (by section). Load skills `loops:parallel-work` and `loops:feature` via the Skill tool. Write `<Run dir>/plan.v<N>.md`.
+Read the repo and specs (by section). Load skills `loops:parallel-work` and `loops:feature` via your skill mechanism. Write `<Run dir>/plan.v<N>.md`.
 
 ## Cannot
 Edit code or any other file. Implement. Leave an ambiguity unflagged.

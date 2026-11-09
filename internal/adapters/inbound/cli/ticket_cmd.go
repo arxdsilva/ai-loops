@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/insurgencygames/ai-loops/internal/application/ticket"
-	"github.com/insurgencygames/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/application/ticket"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 // cmdTicket implements `loops ticket fetch [REF] [--source s] [--body-file f|-]`.

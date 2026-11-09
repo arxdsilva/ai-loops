@@ -1,6 +1,6 @@
 # Roles
 
-Each role is a plugin agent in `agents/<role>.md`, spawned as `loops:<role>`. Its frontmatter `model` is the default tier. The lead passes `model` only to escalate a role (WORKFLOW §4) or under `--models=cheap`. A guard test keeps this table in sync with the agents' frontmatter.
+Each role is a plugin agent in `agents/<role>.md`, spawned as `loops:<role>` on Claude Code and through each platform's own mechanism elsewhere (`skills/work/platforms/<platform>.md`, `specs/PLATFORMS.md §4`). Its frontmatter `model` is the default tier. The lead passes `model` only to escalate a role (WORKFLOW §4) or under `--models=cheap`. A guard test keeps this table in sync with the agents' frontmatter.
 
 The "Owns (default)" column is the default scope. The plan narrows it per agent with explicit globs, and every implementer's file ownership is disjoint from every other implementer's.
 

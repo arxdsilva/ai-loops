@@ -1,0 +1,2 @@
+description = "Set up loops in the current Go repository - create .loops/config.json, gitignore run data, install AGENTS.md and CLAUDE.md pointers, and check required tools. Use when the user runs /loops:init or asks to set up loops."
+prompt = "Activate the init skill and follow it. Arguments: {{args}}"

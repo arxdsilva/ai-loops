@@ -9,6 +9,9 @@
 //	arch_cmd.go    arch                                            (arch checker)
 //	status_cmd.go  status [--json|--statusline|--subagent]         (status line, mod pane)
 //	report_cmd.go  report                                          (HTML report)
+//	port_cmd.go    port build|check                                (per-platform packages, specs/PLATFORMS.md)
+//	install_cmd.go install --target                                (place a platform package)
+//	watch_cmd.go   watch                                           (terminal live view)
 //	cli.go         dispatch, hook, path, version, flag helpers
 package cli
 
@@ -16,14 +19,17 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 )
 
 // Version is the loops version reported by `loops version`.
-const Version = "0.1.0"
+const Version = "0.2.0"
 
 // App holds the use cases and the process environment.
 type App struct {
@@ -33,6 +39,11 @@ type App struct {
 	Tickets Tickets
 	Report  Reporter
 	Hooks   Hooks
+
+	// Source is the canonical plugin tree (embedded, or a checkout via --src).
+	Source fs.FS
+	// Packages writes and diffs generated package files.
+	Packages PackageWriter
 
 	Root       string          // project root
 	PluginRoot string          // plugin root ("" when unknown)
@@ -57,7 +68,10 @@ var commands = map[string]command{
 	"arch":    {(*App).cmdArch, "arch [--json] [--root dir]"},
 	"status":  {(*App).cmdStatus, "status [--json|--statusline|--subagent]"},
 	"report":  {(*App).cmdReport, "report [--run id] [--out file]"},
-	"hook":    {(*App).cmdHook, "hook <name>   (Claude Code hooks; reads hook JSON on stdin)"},
+	"hook":    {(*App).cmdHook, "hook <name> [--platform p]   (agent hooks; reads hook JSON on stdin)"},
+	"port":    {(*App).cmdPort, "port build|check [--out dir] [--platform p,…] [--models file] [--src dir]   generate per-platform packages"},
+	"install": {(*App).cmdInstall, "install --target <platform> [--scope project|user] [--project dir] [--force] [--dry-run]"},
+	"watch":   {(*App).cmdWatch, "watch [--interval 2s] [--once]   live run view in a terminal (any platform)"},
 	"path":    {(*App).cmdPath, "path [root|specs|templates|skills|agents]"},
 	"version": {(*App).cmdVersion, "version"},
 }
@@ -90,15 +104,34 @@ func (a *App) usage() {
 }
 
 func (a *App) cmdHook(ctx context.Context, args []string) int {
-	if len(args) != 1 {
-		fmt.Fprintln(a.Err, "usage: loops hook <name>")
+	var name, platform string
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--platform" && i+1 < len(args):
+			i++
+			platform = args[i]
+		case strings.HasPrefix(args[i], "--platform="):
+			platform = strings.TrimPrefix(args[i], "--platform=")
+		case name == "":
+			name = args[i]
+		default:
+			name = ""
+			i = len(args)
+		}
+	}
+	if name == "" {
+		fmt.Fprintln(a.Err, "usage: loops hook <name> [--platform p]")
 		return 0 // hooks fail open
 	}
-	return a.Hooks.Handle(ctx, args[0], a.In, a.Out, a.Err)
+	return a.Hooks.Handle(ctx, name, platform, a.In, a.Out, a.Err)
 }
 
 func (a *App) cmdPath(ctx context.Context, args []string) int {
-	if a.PluginRoot == "" {
+	root := a.PluginRoot
+	if root == "" {
+		root = a.installedPluginHome()
+	}
+	if root == "" {
 		fmt.Fprintln(a.Err, "loops: plugin root unknown (LOOPS_PLUGIN_ROOT not set)")
 		return 1
 	}
@@ -106,7 +139,7 @@ func (a *App) cmdPath(ctx context.Context, args []string) int {
 	if len(args) > 0 && args[0] != "root" {
 		sub = args[0]
 	}
-	p := a.PluginRoot
+	p := root
 	if sub != "" {
 		p = strings.TrimRight(p, "/") + "/" + sub
 	}
@@ -117,4 +150,42 @@ func (a *App) cmdPath(ctx context.Context, args []string) int {
 func (a *App) cmdVersion(ctx context.Context, args []string) int {
 	fmt.Fprintln(a.Out, "loops", Version)
 	return 0
+}
+
+// installedPluginHome finds a plugin home placed by `loops install`:
+// <project>/.loops/plugin, then ~/.local/share/loops/plugin. It returns ""
+// when neither contains specs/.
+func (a *App) installedPluginHome() string {
+	cands := []string{}
+	if a.Root != "" {
+		// written by the session-start hook on Codex/Cursor/Gemini.
+		if b, err := os.ReadFile(filepath.Join(a.Root, ".loops", "plugin-root")); err == nil {
+			if r := strings.TrimSpace(string(b)); r != "" {
+				cands = append(cands, r)
+			}
+		}
+		cands = append(cands, filepath.Join(a.Root, ".loops", "plugin"))
+	}
+	h, herr := os.UserHomeDir()
+	if herr == nil {
+		cands = append(cands, filepath.Join(h, ".local", "share", "loops", "plugin"))
+	}
+	// user-level pointer written at session start.
+	state := os.Getenv("XDG_STATE_HOME")
+	if state == "" && herr == nil {
+		state = filepath.Join(h, ".local", "state")
+	}
+	if state != "" {
+		if b, err := os.ReadFile(filepath.Join(state, "loops", "plugin-root")); err == nil {
+			if r := strings.TrimSpace(string(b)); r != "" {
+				cands = append(cands, r)
+			}
+		}
+	}
+	for _, c := range cands {
+		if fi, err := os.Stat(filepath.Join(c, "specs")); err == nil && fi.IsDir() {
+			return c
+		}
+	}
+	return ""
 }

@@ -3,7 +3,7 @@ package hook
 import (
 	"context"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 // Recorder is the run tracker as the hooks need it.
@@ -11,6 +11,7 @@ type Recorder interface {
 	Record(ctx context.Context, e run.Event) error
 	Current(ctx context.Context) (string, error)
 	State(ctx context.Context, runID string) (run.State, error)
+	Events(ctx context.Context, runID string) ([]run.Event, error)
 	Dir(ctx context.Context, runID string) (string, error)
 }
 
@@ -31,4 +32,6 @@ type Deps struct {
 	Cmd   Commander
 	Env   func(string) string
 	Getwd func() (string, error)
+	// WriteFile atomically writes a file (creating parents); nil uses the OS.
+	WriteFile func(path string, data []byte) error
 }

@@ -5,7 +5,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/insurgencygames/ai-loops/internal/compose/loops"
+	"github.com/arxdsilva/ai-loops/internal/compose/loops"
 )
 
 func main() {

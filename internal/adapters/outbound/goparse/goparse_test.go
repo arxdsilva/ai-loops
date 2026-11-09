@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 )
 
 func parseFixture(t *testing.T, name string) archrule.Module {

@@ -1,0 +1,9 @@
+{
+ "hook_event_name": "PreToolUse",
+ "tool_name": "exec",
+ "tool_input": {
+  "command": "cat big.go"
+ },
+ "session_id": "s",
+ "cwd": "/repo"
+}

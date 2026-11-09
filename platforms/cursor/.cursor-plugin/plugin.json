@@ -1,0 +1,21 @@
+{
+  "author": {
+    "name": "Arthur Silva"
+  },
+  "description": "Agent-driven Go backend workflow: research → plan (+review loop) → role-based parallel implementation → QA verification loop → product proof + PR → reflection into ai-memory. Every step is traced live (status line, pane) and in an HTML report.",
+  "homepage": "https://github.com/arxdsilva/ai-loops",
+  "keywords": [
+    "go",
+    "golang",
+    "backend",
+    "hexagonal",
+    "workflow",
+    "agents",
+    "qa",
+    "ai-memory"
+  ],
+  "license": "MIT",
+  "name": "loops",
+  "repository": "https://github.com/arxdsilva/ai-loops",
+  "version": "0.2.0"
+}

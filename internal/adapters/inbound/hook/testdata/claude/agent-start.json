@@ -1,0 +1,6 @@
+{
+ "hook_event_name": "SubagentStart",
+ "agent_id": "a1",
+ "agent_type": "loops:planner",
+ "cwd": "/repo"
+}

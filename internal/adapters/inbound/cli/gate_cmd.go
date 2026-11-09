@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/insurgencygames/ai-loops/internal/application/gate"
+	"github.com/arxdsilva/ai-loops/internal/application/gate"
 )
 
 func splitList(s string) []string {

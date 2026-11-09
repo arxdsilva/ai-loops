@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 )
 
 // cmdArch implements `loops arch [--json] [--root dir]`: it checks the

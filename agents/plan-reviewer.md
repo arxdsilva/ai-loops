@@ -15,7 +15,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: the plan file named by the lead, `ticket.md`, `research/*.md`.
 
 ## Can
-Read the repo and specs. Load skills `loops:review-integration` and `loops:parallel-work` via the Skill tool and apply their criteria. Write `<Run dir>/plan-review.r<N>.md`.
+Read the repo and specs. Load skills `loops:review-integration` and `loops:parallel-work` via your skill mechanism and apply their criteria. Write `<Run dir>/plan-review.r<N>.md`.
 
 ## Cannot
 Edit the plan, code, or any other file.

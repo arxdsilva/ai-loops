@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 type fakeRec struct {
@@ -25,7 +25,8 @@ func (r *fakeRec) State(context.Context, string) (run.State, error) {
 	}
 	return r.state, nil
 }
-func (r *fakeRec) Dir(_ context.Context, id string) (string, error) { return "/d/" + id, nil }
+func (r *fakeRec) Events(context.Context, string) ([]run.Event, error) { return r.evs, nil }
+func (r *fakeRec) Dir(_ context.Context, id string) (string, error)    { return "/d/" + id, nil }
 
 type fakeFiles struct {
 	lines map[string]int
@@ -63,13 +64,13 @@ type env struct {
 func setup(cur string) *env {
 	e := &env{rec: &fakeRec{cur: cur}, cmd: &fakeCmd{}, vars: map[string]string{"CLAUDE_PROJECT_DIR": "/repo"}}
 	e.h = New(Deps{Rec: e.rec, Files: fakeFiles{lines: map[string]int{"/repo/big.go": 600, "/repo/pkg/a.go": 10}}, Cmd: e.cmd,
-		Env: func(k string) string { return e.vars[k] }})
+		Env: func(k string) string { return e.vars[k] }, WriteFile: func(string, []byte) error { return nil }})
 	return e
 }
 
 func (e *env) run(name, in string) (int, string, string) {
 	var o, er bytes.Buffer
-	code := e.h.Handle(context.Background(), name, strings.NewReader(in), &o, &er)
+	code := e.h.Handle(context.Background(), name, "", strings.NewReader(in), &o, &er)
 	return code, o.String(), er.String()
 }
 

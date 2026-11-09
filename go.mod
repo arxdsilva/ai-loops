@@ -1,3 +1,3 @@
-module github.com/insurgencygames/ai-loops
+module github.com/arxdsilva/ai-loops
 
-go 1.24
+go 1.27

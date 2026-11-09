@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 type fakeCmd struct {

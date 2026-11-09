@@ -1,0 +1,12 @@
+{
+ "hook_event_name": "postToolUseFailure",
+ "tool_name": "Write",
+ "tool_input": {
+  "path": "/repo/pkg/a.go"
+ },
+ "error_message": "boom",
+ "failure_type": "error",
+ "cwd": "/repo",
+ "duration": 5,
+ "is_interrupt": false
+}

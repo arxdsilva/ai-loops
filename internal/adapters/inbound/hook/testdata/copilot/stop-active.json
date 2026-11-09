@@ -1,0 +1,8 @@
+{
+ "sessionId": "s",
+ "timestamp": 1,
+ "cwd": "/repo",
+ "transcriptPath": "/t",
+ "stopReason": "end_turn",
+ "stopHookActive": true
+}

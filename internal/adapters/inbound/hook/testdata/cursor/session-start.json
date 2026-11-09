@@ -1,0 +1,8 @@
+{
+ "hook_event_name": "sessionStart",
+ "session_id": "s",
+ "is_background_agent": false,
+ "workspace_roots": [
+  "/repo"
+ ]
+}

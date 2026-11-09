@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/insurgencygames/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 // ErrNoActiveRun is returned when an operation needs the current run and

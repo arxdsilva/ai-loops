@@ -1,0 +1,9 @@
+{
+ "hook_event_name": "preToolUse",
+ "tool_name": "Task",
+ "tool_input": {
+  "prompt": "x"
+ },
+ "tool_use_id": "u",
+ "cwd": "/repo"
+}

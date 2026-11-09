@@ -1,10 +1,21 @@
 {
   "name": "loops",
-  "version": "0.1.0",
-  "description": "Agent-driven Go backend workflow: research → plan (+review loop) → role-based parallel implementation → QA verification loop → product proof + PR → reflection into ai-memory. Every step is traced live (status line, pane) and in an HTML report.",
-  "author": { "name": "Arthur Silva" },
-  "homepage": "https://github.com/insurgencygames/ai-loops",
-  "repository": "https://github.com/insurgencygames/ai-loops",
+  "version": "0.2.0",
+  "description": "Agent-driven Go backend workflow: research \u2192 plan (+review loop) \u2192 role-based parallel implementation \u2192 QA verification loop \u2192 product proof + PR \u2192 reflection into ai-memory. Every step is traced live (status line, pane) and in an HTML report.",
+  "author": {
+    "name": "Arthur Silva"
+  },
+  "homepage": "https://github.com/arxdsilva/ai-loops",
+  "repository": "https://github.com/arxdsilva/ai-loops",
   "license": "MIT",
-  "keywords": ["go", "golang", "backend", "hexagonal", "workflow", "agents", "qa", "ai-memory"]
+  "keywords": [
+    "go",
+    "golang",
+    "backend",
+    "hexagonal",
+    "workflow",
+    "agents",
+    "qa",
+    "ai-memory"
+  ]
 }

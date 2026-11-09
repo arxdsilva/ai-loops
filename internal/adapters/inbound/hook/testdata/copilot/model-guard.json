@@ -1,0 +1,7 @@
+{
+ "sessionId": "s",
+ "timestamp": 1,
+ "cwd": "/repo",
+ "toolName": "task",
+ "toolArgs": "{\"prompt\": \"x\"}"
+}
