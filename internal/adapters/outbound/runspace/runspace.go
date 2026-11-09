@@ -349,7 +349,7 @@ func (s *Space) inspect(realRoot, rel string) (workspace.Entry, os.FileInfo) {
 		return e, fi
 	}
 	defer f.Close()
-	if ofi, err := f.Stat(); err != nil || !os.SameFile(fi, ofi) {
+	if ofi, err := f.Stat(); err != nil || !unchanged(fi, ofi) {
 		return e, fi // swapped under us
 	}
 	head := make([]byte, workspace.HeadSize)
@@ -369,10 +369,18 @@ func (s *Space) remove(realRoot, rel string, inspected os.FileInfo) error {
 	if err != nil {
 		return err
 	}
-	if !fi.Mode().IsRegular() || !os.SameFile(fi, inspected) {
+	if !fi.Mode().IsRegular() || !unchanged(fi, inspected) {
 		return errors.New("file changed since it was inspected")
 	}
 	return os.Remove(full)
+}
+
+// unchanged reports whether a and b describe the same, unmodified file.
+// os.SameFile alone is not enough: Linux filesystems reuse a deleted file's
+// inode for the next file created, so a swap can keep the device and inode.
+// Size and modification time must match too.
+func unchanged(a, b os.FileInfo) bool {
+	return os.SameFile(a, b) && a.Size() == b.Size() && a.ModTime().Equal(b.ModTime())
 }
 
 // cleanGo removes <run dir>/go after making its directories writable (go

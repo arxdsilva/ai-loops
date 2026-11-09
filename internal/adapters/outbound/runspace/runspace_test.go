@@ -351,3 +351,24 @@ func TestGoMissingBinary(t *testing.T) {
 		t.Fatal(code, errb.String())
 	}
 }
+
+// A file rewritten in place keeps its inode on every OS, so os.SameFile alone
+// would accept it; remove must still refuse because its size changed.
+func TestRemoveRefusesRewrittenInPlace(t *testing.T) {
+	root := project(t)
+	write(t, root, "b.test", elf, 0o644)
+	s := New(root)
+	_, fi := s.inspect(root, "b.test")
+	if fi == nil {
+		t.Fatal("inspect returned no file info")
+	}
+	if err := os.WriteFile(filepath.Join(root, "b.test"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.remove(root, "b.test", fi); err == nil {
+		t.Fatal("want refusal for a file rewritten in place")
+	}
+	if !exists(filepath.Join(root, "b.test")) {
+		t.Fatal("rewritten file was deleted")
+	}
+}
