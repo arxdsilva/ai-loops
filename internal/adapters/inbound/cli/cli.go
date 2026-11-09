@@ -3,7 +3,8 @@
 //
 // Command ownership (one file per command group):
 //
-//	run_cmd.go     run start|phase|event|label|loopback|verdict|end|dir   (tracker)
+//	run_cmd.go     run start|phase|event|label|loopback|verdict|end|dir|env|clean (tracker)
+//	go_cmd.go      go, run env|clean, start/end workspace hooks    (run-scoped go cache, cleanup)
 //	gate_cmd.go    gate                                            (gate pipeline)
 //	ticket_cmd.go  ticket fetch                                    (tickets)
 //	arch_cmd.go    arch                                            (arch checker)
@@ -43,6 +44,8 @@ type App struct {
 	Tickets Tickets
 	Report  Reporter
 	Hooks   Hooks
+	// Workspace is the run's scratch space: run-scoped go cache, cleanup.
+	Workspace Workspace
 
 	// Source is the canonical plugin tree (embedded, or a checkout via --src).
 	Source fs.FS
@@ -77,8 +80,9 @@ type command struct {
 }
 
 var commands = map[string]command{
-	"run":     {(*App).cmdRun, "run start|phase|event|label|loopback|verdict|override|end|dir …  record the workflow"},
-	"gate":    {(*App).cmdGate, "gate [--pkgs p,…] [--only c,…] [--skip c,…] [--vuln] [--fail-fast]"},
+	"run":     {(*App).cmdRun, "run start|phase|event|label|loopback|verdict|override|end [--no-clean]|dir|env [--shell s]|clean [--dry-run] [--json] …  record the workflow; env/clean: run-scoped go cache and artifact cleanup"},
+	"go":      {cmdGo, "go <args…>   go with the active run's GOCACHE/GOTMPDIR (plain go without a run)"},
+	"gate":    {(*App).cmdGate, "gate [--pkgs p,…] [--only c,…] [--skip c,…] [--base ref] [--vuln] [--fail-fast]   build, gofmt, vet, staticcheck, arch, test -race, coverage of new code (≥70%), govulncheck"},
 	"ticket":  {(*App).cmdTicket, "ticket fetch [REF] [--source s] [--body-file f|-]"},
 	"arch":    {(*App).cmdArch, "arch [--json] [--root dir]"},
 	"status":  {(*App).cmdStatus, "status [--json|--statusline|--subagent]"},

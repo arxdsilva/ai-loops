@@ -37,6 +37,14 @@ type Config struct {
 type GateConfig struct {
 	Skip []string `json:"skip,omitempty"` // check names to skip
 	Vuln bool     `json:"vuln,omitempty"` // run govulncheck
+	// CoverageMin is the minimum new-code coverage in percent; values below
+	// 70 (and unset) mean 70.
+	CoverageMin float64 `json:"coverage_min,omitempty"`
+	// CoverageExclude adds globs to the default coverage excludes.
+	CoverageExclude []string `json:"coverage_exclude,omitempty"`
+	// Base is the git ref new code is diffed against; "" = merge-base with
+	// origin/main (then main, then HEAD~1).
+	Base string `json:"base,omitempty"`
 }
 
 // MemoryConfig scopes ai-memory pages.

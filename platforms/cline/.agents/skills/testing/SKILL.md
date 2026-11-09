@@ -57,6 +57,18 @@ Threshold-driven behaviour ships a no-flap test (`skills/jobs-and-state-machines
 
 For a bug: reproduce; add a failing test or fixture; fix; verify the test passes; keep the regression artifact. Never weaken or delete a test to get green; if a test is wrong, say so in the claims report.
 
-## Coverage
+## Coverage (hard gate)
 
-Never lower a touched package's coverage; aim for at least 70% on new code. Coverage is evidence for claims, not a goal in itself.
+New code ships with unit tests. `loops gate` has a required `coverage` check after `test`: new-code coverage against the base branch (`--base <ref>`) must be at least 70%. `gate.coverage_min` may only raise that; `gate.coverage_exclude` adds exclusions to the defaults (`cmd/**`, `internal/compose/**`, `testdata`, generated files). The race-guard hook denies any `go test` without `-race`.
+
+Reading the coverage table: each row is a changed package or file with its new-code percentage. The check fails when a row is under 70%, when a changed package has no tests, or when a changed file's new statements are all untested. Fix by adding tests for the listed uncovered `file:line` ranges, never by excluding code or lowering the bar. Scoped run for one agent: `loops gate --only test,coverage --pkgs <owned>`. Coverage is still evidence for claims, not a goal in itself: assert behaviour.
+
+## Other languages
+
+Conventions the agents follow; the loops gate automates Go only. Minimum is 70% of new code.
+
+- Rust: `cargo test`; race via `loom` or `RUSTFLAGS=-Zsanitizer=thread` on nightly; coverage via `cargo-llvm-cov`.
+- Python: `pytest` with `pytest-cov --cov-fail-under=70`; shake out races with `pytest-xdist` and `pytest-repeat`.
+- TypeScript/JS: `vitest` or `jest --coverage` with thresholds of 70.
+- Java/Kotlin: JaCoCo minimum 0.70; `jcstress` for concurrency.
+- C/C++: `-fsanitize=thread` plus `gcov` or `llvm-cov`.

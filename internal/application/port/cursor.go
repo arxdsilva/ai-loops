@@ -223,7 +223,7 @@ Commands: `+"`/work`"+` (also model-invocable), `+"`/init`, `/status`, `/report`
 
 ## Binary
 
-`+"`bin/loops`"+` uses `+"`loops`"+` from PATH when it reports version %[2]s, else a cached build, else runs `+"`go install %[3]s/cmd/loops@%[4]s`"+` on first use (Go required; the module must be reachable).
+`+"`bin/loops`"+` uses `+"`loops`"+` from PATH when it reports version %[2]s, else a cached binary, else downloads the prebuilt release binary for your OS/arch (checksum-verified, no Go needed). Only when no prebuilt binary exists does it fall back to `+"`go install %[3]s/cmd/loops@%[4]s`"+`.
 
 ## Caveats
 

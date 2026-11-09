@@ -170,3 +170,19 @@ func TestGeminiNoteAndPluginHome(t *testing.T) {
 		t.Error("PluginHome")
 	}
 }
+
+func TestInstallNotesPointAtInstaller(t *testing.T) {
+	_, notes, err := InstallPlan(plugin.OpenCode, nil, "project", "/p", "/h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(notes, "\n")
+	for _, want := range []string{"install.sh | sh -s -- --target opencode --force", "no Go needed"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("notes lack %q:\n%s", want, joined)
+		}
+	}
+	if strings.Contains(joined, "go install") {
+		t.Errorf("notes still mention go install:\n%s", joined)
+	}
+}

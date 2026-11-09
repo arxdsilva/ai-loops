@@ -24,6 +24,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 1. Check ACs: from the ticket, observable, none missing or silently dropped.
 2. Check ownership: globs pairwise disjoint; shared config only with the architect; each path exists or will be created by its owner.
 3. Check the contract: enough for every agent to compile against stubs; additive; deps listed.
+3a. Check tests: the plan assigns tests (named test files) for every new package and file, targeting at least 70% new-code coverage; a missing assignment is a blocking item.
 4. Check claims: each is specific and testable, has named evidence, maps to an AC; every AC has a claim and a proof plan with edge cases.
 5. Check layering (`specs/HEXAGONAL_ARCHITECTURE.md`), consistency (ordering, idempotency, clocks, migrations), compatibility, performance measurement on hot paths.
 6. Check model tiers and waves against `loops:parallel-work`; verify cited code facts with grep.

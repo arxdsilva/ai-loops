@@ -23,6 +23,9 @@ Written by the `reflector` as `reflection.md` from `loops status --json` and the
 ## Overrides
 <count of project rules applied over loops rules; details in `overrides.md` (posted as a PR comment), or: none>
 
+## Cleanup
+<Cleanup: N files, X MB freed; kept for review: <paths or none>>
+
 ## Memory writes
 - <path / kind / tier> | or: ai-memory not connected
 

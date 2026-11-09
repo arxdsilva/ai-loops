@@ -11,6 +11,7 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 - **Send back with context.** A reviewer that rejects work says exactly what is wrong, how to reproduce it, and where to fix it. The lead sends the work back to the **same** author (resumed where the platform supports it, otherwise a new agent of the same role seeded with its previous report and the review file; see `specs/PLATFORMS.md` §4) so context carries over.
 - **Project rules win.** The target repository's own rules always take precedence over loops' specs, skills and templates. That means its AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs and established architecture. Any agent that follows a project rule instead of a loops rule records it immediately: `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what was done>"`. The reflector posts the list as a PR comment (§2.6).
 - **Everything is visible.** Every phase change, agent lane, tool call, verdict, loop-back, gate, proof and memory access lands in `events.jsonl` (§5).
+- **Runs leave no trace.** Each run builds with its own Go cache and tmp dir under the run directory, and `loops run end` deletes them along with the build leftovers agents created (§2.6, §5). The user's global Go cache is never touched.
 - **Smallest sufficient context.** Search before reading, read ranges, cite by path and section, and never paste whole specs (`specs/CONTEXT_DISCIPLINE.md`).
 
 ## 2. Phases
@@ -29,7 +30,7 @@ QA starts pipelined: a verifier launches as soon as its implementer reports, eve
 
 ### 2.0 Intake
 
-1. `loops run start --title "<short title>" [--ticket <ref>] [--source <s>]` prints the run ID and the run directory.
+1. `loops run start --title "<short title>" [--ticket <ref>] [--source <s>]` prints the run ID and the run directory. It also prepares the run-scoped Go cache and tmp dir (`.loops/runs/<id>/go/{cache,tmp}`) and records a baseline of the untracked files already present, so cleanup (§2.6) can tell what the run created.
 2. Fetch the ticket:
    - GitHub (`#123`, `owner/repo#123`, a github.com URL) or GitLab (a gitlab URL): `loops ticket fetch <ref>`. This writes `ticket.md`.
    - Jira (`ABC-123`) or Linear (a linear.app URL or key): fetch through the connected MCP tool, then pipe the text into `loops ticket fetch <ref> --source jira|linear --body-file -`. If the connector is not authenticated, tell the user and ask them to paste the ticket.
@@ -167,6 +168,8 @@ The `reflector`:
 
    The user's PR confirmation (§2.5) covers this comment. With no PR, or under `--no-pr`, only the file is written.
 
+5. **Cleanup** (last step). Record what the end-of-run cleanup will free: `loops run clean --dry-run` shows the Go cache/tmp and the build leftovers (`*.test`, binaries, coverprofiles, pprof files, compared against the intake baseline). Add a line to `reflection.md`: `Cleanup: N files, X MB freed; kept for review: <paths>`. Unknown new files are listed for review, never deleted; tracked and pre-existing files are never touched. The actual deletion happens in `loops run end` (below) and is recorded as a `cleanup` note event.
+
 Finally, the lead runs `loops run end --outcome done` and gives the user a ≤10-line summary with the PR link and `report.html`.
 
 ## 3. Roles
@@ -181,6 +184,17 @@ The prompt is the agent's block from the plan plus these lines:
 - `Role: <role>`
 - `Agent id: <W1-domain>`
 - `Wave: <n>`
+
+### 3a. Model fallback
+
+Each role's tier (`ROLES.md`) is a preference. The planner and plan-reviewer default to **opus**, the strongest available reasoning model.
+- If a spawn fails because the requested model is unavailable (not on the user's plan, not enabled for the org or platform, or over capacity), the lead re-spawns the same role with the next-best model the user has:
+  - reasoning roles (planner, plan-reviewer, architect, product-reviewer, escalated roles): opus → sonnet → the session model;
+  - other roles: one tier down at a time, then the session model.
+- Platforms that don't use Claude model names use the strongest reasoning model in their own list, or the session model.
+- Record each fallback: `loops run event --kind note --name model-fallback --role <role> --note "<wanted> unavailable → <used>"`, and label the lane with the model actually used (`loops run label … --model <used>`).
+- Plan quality matters most, so tell the user in one line when the planner or plan-reviewer had to run below opus.
+- Never stop the run because a preferred model is missing.
 
 Right after each spawn, the lead names the lane: `loops run label --agent <platform agent id, or solo-<n>> --name <W1-domain> --role <role> --wave <n>`. Hooks only see the platform's opaque agent id (or none, on platforms without subagent events); the label ties it to the plan id used in claims (`W1-domain:C3`), verdicts and the pane.
 
@@ -217,6 +231,7 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 | Hook `go-post-edit` (PostToolUse on Edit/Write/MultiEdit) | `step` named `go-post-edit` (gofmt/goimports + go vet result) |
 | Hook `trace-agent` (SubagentStart, SubagentStop) | `agent_start`, `agent_stop` |
 | Hooks `read-guard`, `model-guard` | `guard_deny` |
+| `loops run end` / `loops run clean` | `note` named `cleanup` (what was freed) |
 | `loops gate` | `gate`, one per check plus `all` |
 
 The CLI commands that write these events:
@@ -224,12 +239,15 @@ The CLI commands that write these events:
 - `loops run event --kind K [--name --target --from --to --status --ok --round --wave --role --agent --model --ref --note --phase --ms]`
 - `loops run loopback --from R --to A --round N [--note] [--phase]`
 - `loops run verdict --name X --status S [--round N] [--ref f] [--agent A] [--role R]`
-- `loops run label --agent <id> --name <plan id> --role R --wave N`
+- `loops run label --agent <id> --name <plan id> --role R --wave N [--model M]`
 - `loops run override --rule <loops rule> --project <project rule> [--note] [--agent A] [--role R]`
 - `loops budget check --phase P [--spawn N] [--role R]` (writes a `budget` event when it blocks)
 - `loops budget parse [--max-agents N] [--budget p=200k,…] [--agents p=N,…] [--roles p=a,b]` prints the limits JSON for `loops run event --kind limits`. `loops budget show` prints usage against the limits.
 - `loops hw [--json] [--write]` and `loops plan check <plan> [--cap N]`
-- `loops run end [--outcome done|abandoned|failed]`
+- `loops run end [--outcome done|abandoned|failed] [--no-clean]`: ends the run and, unless `--no-clean`, deletes the run's Go cache/tmp and the build leftovers created during the run, then records a `cleanup` note event with what was freed. Abandoned and failed runs are cleaned too. `--no-clean` keeps everything for debugging.
+- `loops run clean [--dry-run] [--json]`: the same cleanup on demand; `--dry-run` only lists what would be deleted and what is kept for review.
+- `loops run env [--shell sh|fish|powershell]`: prints the run's Go environment (`GOCACHE`, `GOTMPDIR`) to eval, e.g. `eval "$(loops run env)"`.
+- `loops go <args>`: runs `go <args>` with the run's Go environment. Works on every platform.
 - `loops run dir`
 
 `run.Fold(events)` gives `run.State`, which `loops status --json` prints. The status line, the mod pane and the HTML report all read that one source.
@@ -244,7 +262,14 @@ The CLI commands that write these events:
 4. `staticcheck`: runs only if it is on PATH
 5. `arch`: `loops arch`; only error findings fail
 6. `test`: `go test -race -count=1 ./...`
-7. `govulncheck`: only with `--vuln` or `gate.vuln` set in config
+7. `coverage` (required, after `test`): new-code coverage against the base branch (`--base <ref>`) must be at least 70%. `gate.coverage_min` in config may only raise that floor; `gate.coverage_exclude` adds exclusions to the defaults (`cmd/**`, `internal/compose/**`, `testdata`, generated files). It also fails when a changed package has no tests, or when a changed file's new statements are all untested. The output lists uncovered `file:line` ranges.
+8. `govulncheck`: only with `--vuln` or `gate.vuln` set in config
+
+QA scopes the same checks to one agent with `loops gate --only test,coverage --pkgs <owned>`.
+
+The **race-guard** PreToolUse hook denies any `go test` invocation that lacks `-race`. There is no opt-out; the fix is a cheaper test, never dropping the flag.
+
+The **go-env** PreToolUse hook scopes every agent's `go …` command to the run's Go cache and tmp dir (`GOCACHE`, `GOTMPDIR`). Where the platform's hooks can modify a command, it rewrites the command; where they cannot, it denies with a hint to use `loops go <args>` or to prefix `eval "$(loops run env)";`. The command is rewritten on Claude Code, Gemini CLI and Windsurf/Devin. On Codex and Cursor only a lone `go build|test|vet|list` is rewritten, and anything else is denied. On Copilot and OpenCode it is always denied (`specs/PLATFORMS.md` §5). `loops gate` uses the run environment automatically. Agents never set `GOCACHE` themselves.
 
 A full pass records `gate all ok`, which clears `GoDirty`. A scoped run (`--pkgs` or `--only`) never records `all`.
 
@@ -267,7 +292,7 @@ A run is done when every item below holds. (Adapted from the rimworld-go MASTER_
 
 1. Every AC is `VERIFIED` with a proof.
 2. Behaviour is implemented in its owning layer (`specs/HEXAGONAL_ARCHITECTURE.md`).
-3. There are tests for the behaviour and its failure paths. Coverage does not drop for touched packages.
+3. Every new or changed package has unit tests, including failure paths; new-code coverage is at least 70% (`loops gate` coverage, §6); all tests run with `-race` (enforced by the race-guard hook).
 4. Every claim is verified by QA, and `loops gate` is green.
 5. Consistency impact is stated (ordering, idempotency, clock and RNG, migrations), with `skills/consistency` followed where it applies.
 6. Performance is measured (a benchmark before and after) if a hot path changed.

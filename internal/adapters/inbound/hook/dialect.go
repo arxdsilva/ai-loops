@@ -100,6 +100,44 @@ package hook
 //     SessionStart, PostToolUse. Exit 2 = block.
 //   - Env: DEVIN_PROJECT_DIR (only variable documented).
 //   - Windsurf itself is not covered by that page.
+//
+// PRETOOLUSE INPUT REWRITING (go-env hook; docs read 2026-11-09)
+//   - CLAUDE (https://code.claude.com/docs/en/hooks.md, "PreToolUse decision
+//     control"): hookSpecificOutput.updatedInput "Replaces the entire input
+//     object, so include unchanged fields"; permission rules are evaluated
+//     against the returned input. permissionDecision "allow" skips the
+//     permission prompt (deny/ask rules still apply); with no decision the
+//     normal flow runs. Matching hooks run in parallel; precedence
+//     deny > defer > ask > allow, so race-guard's deny wins. A plugin
+//     command hook may change Bash input without the auto-mode re-review
+//     denial. Allow-rule matching only strips known-safe env assignments
+//     (permissions.md), so GOCACHE=… prefixes would miss Bash(go test *)
+//     rules: go-env adds "allow" only for a lone go build|test|vet|list.
+//     -> REWRITE (VERIFIED).
+//   - CODEX (https://learn.chatgpt.com/docs/hooks): "return
+//     permissionDecision: "allow" with updatedInput"; for Bash it "must
+//     include a string command field"; "Return updatedInput only with
+//     permissionDecision: "allow"; other updatedInput shapes are reported as
+//     errors." -> REWRITE+ALLOW for a lone gate command, else DENY (VERIFIED).
+//   - CURSOR (https://cursor.com/docs/hooks): preToolUse output
+//     {"permission":"allow","updated_input":{...}} ("Modified tool input to
+//     use instead"); permission is not marked optional; replace-vs-merge is
+//     not documented (we send the whole input). beforeShellExecution has no
+//     rewrite field. -> REWRITE+ALLOW for a lone gate command, else DENY.
+//   - GEMINI (https://geminicli.com/docs/hooks/reference/): BeforeTool
+//     hookSpecificOutput.tool_input "merges with and overrides the model's
+//     arguments"; run_shell_command params are command, description,
+//     dir_path, is_background (https://geminicli.com/docs/tools/shell/).
+//     -> REWRITE, no decision (VERIFIED).
+//   - DEVIN/WINDSURF (https://docs.devin.ai/cli/extensibility/hooks.md):
+//     hookSpecificOutput.updatedInput "merged into the tool's arguments";
+//     exec tool_input.command; the documented example has no decision.
+//     -> REWRITE (VERIFIED).
+//   - COPILOT (https://docs.github.com/en/copilot/reference/hooks-configuration):
+//     preToolUse documents modifiedArgs ("Substitute tool arguments"), but
+//     the bash/powershell toolArgs field names are not documented and the
+//     PascalCase variant says nothing about it. -> DENY (unverified).
+//   - OPENCODE: its plugin does not call go-env. -> DENY if invoked.
 
 import (
 	"encoding/json"
@@ -163,5 +201,24 @@ func (d dialect) blockStop(out io.Writer, reason string) {
 		d.emit(out, map[string]string{"decision": "deny", "reason": reason})
 	default:
 		d.emit(out, map[string]string{"decision": "block", "reason": reason})
+	}
+}
+
+// rewriteTool replaces a PreToolUse call's input (the whole object, with
+// unchanged fields kept, since Claude and possibly Cursor replace rather
+// than merge); allow also approves the rewritten call.
+func (d dialect) rewriteTool(out io.Writer, input map[string]any, allow bool) {
+	switch d.platform {
+	case "cursor":
+		d.emit(out, map[string]any{"permission": "allow", "updated_input": input})
+	case "gemini":
+		d.emit(out, map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "BeforeTool", "tool_input": input}})
+	default:
+		hso := map[string]any{"hookEventName": "PreToolUse", "updatedInput": input}
+		if allow {
+			hso["permissionDecision"] = "allow"
+			hso["permissionDecisionReason"] = "go-env: go command scoped to the run's Go cache"
+		}
+		d.emit(out, map[string]any{"hookSpecificOutput": hso})
 	}
 }

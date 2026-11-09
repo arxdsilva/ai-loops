@@ -1,7 +1,7 @@
 // Package gate runs the quality-gate pipeline (specs/WORKFLOW.md §6):
-// build, gofmt, vet, staticcheck (when installed), arch, test -race,
-// govulncheck (when installed and enabled), in that order, recording each
-// check as a run event.
+// build, gofmt, vet, staticcheck (when installed), arch, test -race with a
+// coverprofile, coverage of the new code, govulncheck (when installed and
+// enabled), in that order, recording each check as a run event.
 package gate
 
 import (
@@ -18,6 +18,13 @@ type Commander interface {
 	Run(ctx context.Context, dir, name string, args ...string) (string, error)
 	// Has reports whether name is on PATH.
 	Has(name string) bool
+}
+
+// EnvCommander is a Commander that can add environment entries ("K=V") to
+// the command's process environment. Options.Env needs it; a plain
+// Commander runs without the extra environment.
+type EnvCommander interface {
+	RunEnv(ctx context.Context, dir string, env []string, name string, args ...string) (string, error)
 }
 
 // Arch runs the architecture check and returns (failing findings rendered as
@@ -47,10 +54,23 @@ type Options struct {
 	ConfigSkip []string
 	Vuln       bool // include govulncheck
 	FailFast   bool // stop at the first failing check
+	// CoverProfile is where the test check writes its coverprofile (the
+	// caller owns the file); the coverage check reads it.
+	CoverProfile string
+	// Base is the git ref new code is diffed against; "" = CoverageConfig.Base,
+	// then the Coverage port's default.
+	Base string
+	// Env is added to every command's environment ("K=V"), e.g. the active
+	// run's GOCACHE and GOTMPDIR.
+	Env []string
 }
 
 // CheckNames lists the valid check names, in pipeline order.
-var CheckNames = []string{CheckBuild, CheckGofmt, CheckVet, CheckStaticcheck, CheckArch, CheckTest, CheckVuln}
+var CheckNames = []string{CheckBuild, CheckGofmt, CheckVet, CheckStaticcheck, CheckArch, CheckTest, CheckCoverage, CheckVuln}
+
+// RequiredChecks may not be skipped: a full gate that config-skips one
+// fails. CheckCoverage is not even skippable from the command line.
+var RequiredChecks = []string{CheckBuild, CheckVet, CheckTest, CheckCoverage}
 
 // StaleStaticcheckNote is shown when staticcheck cannot analyse this toolchain's code.
 const StaleStaticcheckNote = "staticcheck too old for this Go toolchain \u2014 upgrade: go install honnef.co/go/tools/cmd/staticcheck@latest"
@@ -63,6 +83,7 @@ const (
 	CheckStaticcheck = "staticcheck"
 	CheckArch        = "arch"
 	CheckTest        = "test"
+	CheckCoverage    = "coverage"
 	CheckVuln        = "govulncheck"
 )
 
@@ -85,10 +106,12 @@ type Result struct {
 
 // Service runs gates.
 type Service struct {
-	cmd   Commander
-	arch  Arch
-	rec   Recorder
-	clock Clock
+	cmd    Commander
+	arch   Arch
+	rec    Recorder
+	clock  Clock
+	cov    Coverage
+	covCfg CoverageConfig
 }
 
 // New builds a Service.
@@ -105,7 +128,7 @@ func (s *Service) Run(ctx context.Context, o Options) (Result, error) {
 		pkgs = []string{"./..."}
 	}
 	res := Result{OK: true}
-	stopped := false
+	stopped, testRan := false, false
 	startedAt := s.clock.Now()
 	for _, name := range CheckNames {
 		if err := ctx.Err(); err != nil {
@@ -113,7 +136,12 @@ func (s *Service) Run(ctx context.Context, o Options) (Result, error) {
 		}
 		cr := CheckResult{Name: name, Skipped: true}
 		if !stopped && selected(o, name) && s.available(name, o) {
-			cr = s.runCheck(ctx, o, name, pkgs)
+			if name == CheckCoverage {
+				cr = s.coverageCheck(ctx, o, testRan)
+			} else {
+				cr = s.runCheck(ctx, o, name, pkgs)
+			}
+			testRan = testRan || (name == CheckTest && !cr.Skipped)
 			if !cr.Skipped {
 				s.record(ctx, cr)
 			}
@@ -128,7 +156,7 @@ func (s *Service) Run(ctx context.Context, o Options) (Result, error) {
 	}
 	if len(o.Pkgs) == 0 && len(o.Only) == 0 && len(o.Skip) == 0 {
 		ev := run.Event{Kind: run.KindGate, Name: run.GateAll, OK: run.Bool(res.OK), Time: startedAt.UTC()}
-		for _, req := range []string{CheckBuild, CheckVet, CheckTest} {
+		for _, req := range RequiredChecks {
 			if contains(o.ConfigSkip, req) {
 				// A full gate that skipped a required check is not green:
 				// fail the run too, so the exit code and the Stop gate agree.
@@ -146,7 +174,10 @@ func selected(o Options, name string) bool {
 	if len(o.Only) > 0 && !contains(o.Only, name) {
 		return false
 	}
-	return !contains(o.Skip, name) && !contains(o.ConfigSkip, name)
+	if contains(o.ConfigSkip, name) {
+		return false
+	}
+	return name == CheckCoverage || !contains(o.Skip, name)
 }
 
 func contains(l []string, n string) bool {
@@ -168,6 +199,14 @@ func (s *Service) available(name string, o Options) bool {
 	return true
 }
 
+// exec runs one external command with o.Env when the Commander supports it.
+func (s *Service) exec(ctx context.Context, o Options, name string, args ...string) (string, error) {
+	if ec, ok := s.cmd.(EnvCommander); ok && len(o.Env) > 0 {
+		return ec.RunEnv(ctx, o.Root, o.Env, name, args...)
+	}
+	return s.cmd.Run(ctx, o.Root, name, args...)
+}
+
 func (s *Service) runCheck(ctx context.Context, o Options, name string, pkgs []string) CheckResult {
 	start := s.clock.Now()
 	var out string
@@ -175,11 +214,11 @@ func (s *Service) runCheck(ctx context.Context, o Options, name string, pkgs []s
 	switch name {
 	case CheckBuild:
 		var err error
-		out, err = s.cmd.Run(ctx, o.Root, "go", append([]string{"build"}, pkgs...)...)
+		out, err = s.exec(ctx, o, "go", append([]string{"build"}, pkgs...)...)
 		ok = err == nil
 	case CheckGofmt:
 		var err error
-		out, err = s.cmd.Run(ctx, o.Root, "gofmt", append([]string{"-l"}, fmtDirs(o.Pkgs)...)...)
+		out, err = s.exec(ctx, o, "gofmt", append([]string{"-l"}, fmtDirs(o.Pkgs)...)...)
 		out = filterFmt(out)
 		ok = err == nil && strings.TrimSpace(out) == ""
 		if ok {
@@ -189,11 +228,11 @@ func (s *Service) runCheck(ctx context.Context, o Options, name string, pkgs []s
 		}
 	case CheckVet:
 		var err error
-		out, err = s.cmd.Run(ctx, o.Root, "go", append([]string{"vet"}, pkgs...)...)
+		out, err = s.exec(ctx, o, "go", append([]string{"vet"}, pkgs...)...)
 		ok = err == nil
 	case CheckStaticcheck:
 		var err error
-		out, err = s.cmd.Run(ctx, o.Root, "staticcheck", pkgs...)
+		out, err = s.exec(ctx, o, "staticcheck", pkgs...)
 		ok = err == nil
 	case CheckArch:
 		text, pass, err := s.arch.Check(ctx, o.Root)
@@ -203,11 +242,15 @@ func (s *Service) runCheck(ctx context.Context, o Options, name string, pkgs []s
 		}
 	case CheckTest:
 		var err error
-		out, err = s.cmd.Run(ctx, o.Root, "go", append([]string{"test", "-race", "-count=1"}, pkgs...)...)
+		args := []string{"test", "-race", "-count=1"}
+		if o.CoverProfile != "" {
+			args = append(args, "-covermode=atomic", "-coverprofile="+o.CoverProfile)
+		}
+		out, err = s.exec(ctx, o, "go", append(args, pkgs...)...)
 		ok = err == nil
 	case CheckVuln:
 		var err error
-		out, err = s.cmd.Run(ctx, o.Root, "govulncheck", pkgs...)
+		out, err = s.exec(ctx, o, "govulncheck", pkgs...)
 		ok = err == nil
 	}
 	cr := CheckResult{Name: name, OK: ok, Duration: s.clock.Now().Sub(start)}

@@ -42,3 +42,9 @@ The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token 
 
 ## Update
 `copilot plugin marketplace update ai-loops && copilot plugin update loops` (or run `loops update copilot`).
+
+## Model fallback
+Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).
+
+## Go environment
+Go commands on this platform are not rewritten (the hook denies), so always run Go through `loops go …`. Either way they use the run's own Go cache, which `loops run end` deletes.

@@ -48,6 +48,26 @@
       {
         "hooks": [
           {
+            "command": "\"${extensionPath}/bin/loops\" hook race-guard --platform gemini",
+            "name": "race-guard",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "\"${extensionPath}/bin/loops\" hook go-env --platform gemini",
+            "name": "go-env",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
             "command": "\"${extensionPath}/bin/loops\" hook model-guard --platform gemini",
             "name": "model-guard",
             "timeout": 10000,

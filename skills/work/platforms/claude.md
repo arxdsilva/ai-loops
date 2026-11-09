@@ -4,7 +4,8 @@ Read with `skills/work/SKILL.md`. Facts: `specs/PLATFORMS.md` §2-4.
 
 ## Spawn
 - `Agent` tool with `subagent_type: "loops:<role>"` (for example `loops:domain-engineer`) and `run_in_background: true`.
-- Pass `model` (`haiku|sonnet|opus`) only to escalate or under `--models=cheap`.
+- Pass `model` (`haiku|sonnet|opus`) only to escalate, under `--models=cheap`, or for a fallback.
+- **Fallback** (WORKFLOW §3a). If a spawn fails because the role's model isn't available (an error naming the model, entitlement or capacity), re-spawn the same role with the next-best `model`. Reasoning roles go opus → sonnet → `inherit`; others go one tier down. Record a `model-fallback` note, and tell the user when the planner ran below opus.
 - The prompt is the header (Run dir, Specs, Templates, Role, Agent id, Wave) plus the agent's plan block.
 
 ## Parallel wave
@@ -46,3 +47,6 @@ The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token 
 
 ## Update
 `claude plugin marketplace update ai-loops && claude plugin update loops@ai-loops` (or run `loops update claude`).
+
+## Go environment
+Go commands on this platform are rewritten automatically (the hook rewrites the command; a lone `go build|test|vet|list` is auto-approved). Either way they use the run's own Go cache, which `loops run end` deletes.

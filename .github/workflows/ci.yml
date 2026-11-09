@@ -11,6 +11,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -22,9 +24,23 @@ jobs:
         run: |
           if grep -rInE "insurgency[g]ames" --exclude-dir=.git .; then echo "replace the old owner with arxdsilva"; exit 1; fi
       - run: go vet ./...
-      - run: go test -race -count=1 ./...
-      - name: loops arch
-        run: go run ./cmd/loops arch
+      # The hard gate: build, gofmt, vet, arch, `go test -race`, and coverage of
+      # new code >= 70% against the base (PR target branch, or the previous
+      # commit on push). New packages without tests fail.
+      - name: loops gate (tests with -race + new-code coverage)
+        env:
+          PR_BASE: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -n "$PR_BASE" ]; then
+            base="origin/$PR_BASE"
+          elif [ -n "$PUSH_BEFORE" ] && ! printf '%s' "$PUSH_BEFORE" | grep -qE '^0+$'; then
+            base="$PUSH_BEFORE"
+          else
+            base=""
+          fi
+          echo "coverage base: ${base:-auto}"
+          go run ./cmd/loops gate ${base:+--base "$base"}
       - name: generated platform packages are fresh
         run: go run ./cmd/loops port check
       - uses: actions/setup-node@v4
@@ -42,6 +58,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,4 +71,23 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - run: go run ./cmd/loops release --push
+      - id: release
+        name: release (bump, regenerate, commit, tag, push)
+        run: |
+          before=$(git tag --list 'v*' | sort)
+          go run ./cmd/loops release --push
+          after=$(git tag --list 'v*' | sort)
+          new=$(printf '%s\n' "$after" | grep -vxF -f <(printf '%s\n' "$before") || true)
+          echo "tag=$new" >> "$GITHUB_OUTPUT"
+          echo "new tag: ${new:-none}"
+
+  # Tags pushed with GITHUB_TOKEN don't trigger workflows, so the release job
+  # hands its new tag to the assets workflow directly.
+  assets:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-assets.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}

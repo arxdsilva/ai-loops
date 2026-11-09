@@ -17,12 +17,14 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/adapters/inbound/hook"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/fsys"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gitcli"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gocover"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/goparse"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/goproxy"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gotool"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/htmlreport"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/hwprobe"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/portfs"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runspace"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runstore"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/updatestate"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/vcs"
@@ -87,7 +89,11 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 	store := runstore.New(root)
 	trk := tracker.New(store, store, clock)
 	arch := archcheck.New(goparse.New())
-	gates := gate.New(gotool.New(), archGate{svc: arch, layers: cfg.Layers}, trk, clock)
+	// runspace.Runner adds the active run's GOCACHE/GOTMPDIR to gate commands.
+	gates := gate.New(runspace.NewRunner(), archGate{svc: arch, layers: cfg.Layers}, trk, clock).
+		WithCoverage(gocover.New(), gate.CoverageConfig{
+			Min: cfg.Gate.CoverageMin, Exclude: cfg.Gate.CoverageExclude, Base: cfg.Gate.Base,
+		})
 	tickets := ticket.New(vcs.New(root))
 
 	upState := updatestate.New()
@@ -101,13 +107,14 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		func() error { return cli.RegeneratePackages(root, pkgs, io.Discard, errw) })
 
 	app := &cli.App{
-		Version: version,
-		Release: releases,
-		Tracker: trk,
-		Gate:    gates,
-		Arch:    arch,
-		Tickets: tickets,
-		Report:  htmlreport.New(),
+		Version:   version,
+		Release:   releases,
+		Tracker:   trk,
+		Workspace: runspace.New(root),
+		Gate:      gates,
+		Arch:      arch,
+		Tickets:   tickets,
+		Report:    htmlreport.New(),
 		Hooks: hook.New(hook.Deps{
 			Rec: trk, Files: fsys.New(), Cmd: gotool.New(), Env: os.Getenv, Getwd: os.Getwd,
 			Update: updates, Version: version, UpdateOff: updateOff,

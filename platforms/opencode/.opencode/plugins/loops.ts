@@ -10,7 +10,7 @@ import { Plugin } from "@opencode/plugin"
 import { spawnSync } from "node:child_process"
 
 const LOOPS = process.env.LOOPS_BIN ?? "loops"
-const BEFORE: string[] = ["read-guard", "model-guard"]
+const BEFORE: string[] = ["read-guard", "race-guard", "go-env", "model-guard"]
 const AFTER: string[] = ["go-post-edit", "trace"]
 
 function run(name: string, payload: unknown) {

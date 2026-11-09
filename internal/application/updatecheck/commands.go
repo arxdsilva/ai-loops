@@ -2,11 +2,11 @@ package updatecheck
 
 import "strings"
 
-const goInstall = "go install github.com/arxdsilva/ai-loops/cmd/loops@latest"
+const installScript = "curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s --"
 
 // installer is the update route for platforms installed by `loops install`.
 func installer(platform string) string {
-	return goInstall + " && loops install --target " + platform + " --force"
+	return installScript + " --target " + platform + " --force"
 }
 
 var commands = map[string]string{
@@ -22,7 +22,7 @@ var commands = map[string]string{
 }
 
 // Command returns the one-line update command for a platform. Unknown or
-// empty platforms get the generic go install + loops install line.
+// empty platforms get the generic install.sh line.
 func Command(platform string) string {
 	p := strings.ToLower(strings.TrimSpace(platform))
 	if c, ok := commands[p]; ok {

@@ -20,7 +20,7 @@ The "Owns (default)" column is the default scope. The plan narrows it per agent 
 | integration-engineer | implement | sonnet | yes | `internal/adapters/outbound/<client>/**` | Clients for external APIs and brokers, retries and timeouts, contract tests with fakes | Leak library types past a port |
 | test-engineer | implement | sonnet | yes | `**/*_test.go` and `testdata/**` within its scope, `test/**`, benchmarks | Integration, e2e, fuzz and benchmark tests; fixtures | Weaken or delete a test; edit non-test code |
 | docs-writer | implement | haiku | docs only | Package `AGENTS.md`, `README.md` sections, `docs/adr/**` | Write docs from facts the lead supplies | Edit code; invent facts |
-| qa-verifier | qa | sonnet | no | `qa/<agent-id>.r<N>.md` | Read; run tests, `loops gate --pkgs`, `loops arch`; put counterexample test snippets in its QA file (never in the repo) | Edit repo code (it reports; the owner fixes) |
+| qa-verifier | qa | sonnet | no | `qa/<agent-id>.r<N>.md` | Read; run tests, `loops gate --only test,coverage --pkgs <owned>`, `loops arch`; put counterexample test snippets in its QA file (never in the repo). Runs Go via the hook-scoped `go test -race …` or `loops go …`, never sets `GOCACHE`, leaves no binaries | Edit repo code (it reports; the owner fixes). It FAILS a claim set when new-code coverage is below 70% or new code lacks tests, and puts the uncovered `file:line` list in the repro |
 | product-reviewer | product | opus | no | `proofs/**`, `pr.md`, `report.html` | Run the service; curl, grpcurl, CLI; `loops report`; branch, commit, push; `gh` or `glab` PR only after the lead resumes it with the user's confirmation (or `auto_pr`) | Edit code (unmet ACs go back) |
 | reflector | reflect | sonnet | no | `reflection.md` | Read the run dir; ai-memory query and write | Edit code; store secrets in memory |
 
@@ -32,7 +32,8 @@ The target project's own rules always take precedence over loops rules (WORKFLOW
 
 These come from rimworld-go PARALLEL_WORK §3.
 
-- **Strict TDD.** Write the failing test, make it pass, then refactor. Never weaken or delete a test to get green.
+- **Strict TDD, tests for all new code.** Write the failing test, make it pass, then refactor. Never weaken or delete a test to get green. New code ships with unit tests and at least 70% new-code coverage (`loops gate` coverage, WORKFLOW §6); every test run uses `-race`. Architect stubs are exempt; the implementers' tests cover them later.
+- **Run-scoped Go environment.** Run Go with your normal `go test -race …`; the go-env hook scopes it to the run's cache (WORKFLOW §6). Where the hook denies with a hint, use `loops go test -race …`. Never set `GOCACHE` yourself. Don't leave binaries or test artifacts around: build into the run's tmp dir (`GOTMPDIR` from `loops run env`), and never into the repo.
 - **Targeted checks only:** `GOFLAGS=-p=2 go test -race -count=1 -cover ./<owned>/...` and `go vet ./<owned>/...`. Never `go test ./...` or `make all`; the lead and QA run the full gates.
 - **Ownership.**
   - Never edit outside your owned globs.
@@ -54,3 +55,9 @@ These come from rimworld-go PARALLEL_WORK §6.
 | 3 | opus | Planning and plan review, contracts, consistency and concurrency, migrations, product judgement |
 
 Escalate one tier after two failed QA rounds (WORKFLOW §4). Never start higher "to be safe".
+
+**When a model isn't available.** The tier is a preference, not a hard requirement (WORKFLOW §3a).
+- If the platform rejects a role's model (not available on the user's plan, not enabled, or over capacity), re-spawn the same role with the best model the user does have.
+- **Reasoning roles** (planner, plan-reviewer, architect, product-reviewer, and any escalated role) take the strongest reasoning model available: opus, then sonnet, then the session model, or the platform's equivalent.
+- **Other roles** step down one tier at a time.
+- Never stop the run because a preferred model is missing.

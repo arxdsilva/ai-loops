@@ -151,7 +151,8 @@ func planGeneric(target plugin.Platform, files []plugin.File, scope, base string
 	case plugin.OpenCode:
 		notes = append(notes, "opencode: restart OpenCode to load the agents, commands and plugin")
 	}
-	notes = append(notes, "make sure `loops` is on PATH, or call "+filepath.Join(home, "bin", "loops"))
+	notes = append(notes, "make sure `loops` is on PATH, or call "+filepath.Join(home, "bin", "loops")+" (it downloads the matching release binary on first use; no Go needed)",
+		"update later with: curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target "+string(target)+" --force")
 	return append(native, shared...), notes, nil
 }
 

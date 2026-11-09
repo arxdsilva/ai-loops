@@ -18,6 +18,8 @@
 5. **Prove.** A product reviewer tries every requirement by hand and opens the pull request with the evidence attached.
 6. **Reflect.** Lessons are saved for next time. Where your project's own rules overrode the plugin's defaults, a note is posted on the pull request.
 
+**Hard gate:** new code must ship with unit tests: ≥70% coverage of new code, always run with `-race` — enforced by `loops gate` and the race-guard hook.
+
 You can watch all of it live (status line, live pane, `loops watch`), and an HTML report records every step.
 
 ### Under the hood
@@ -35,12 +37,19 @@ You can watch all of it live (status line, live pane, `loops watch`), and an HTM
 
 ## Install
 
-Requirements for every platform:
-- **Go** toolchain. The `loops` binary is built or `go install`ed on first use, so the repo must be reachable by `go install` (public, or `GOPRIVATE` set).
+Nothing to install up front. On first use the plugin downloads the prebuilt `loops` binary for your OS (macOS, Linux and Windows, on amd64 and arm64) from the GitHub release and verifies its checksum. Go is needed only for building from source.
+
+You'll also want:
 - **`gh`** or **`glab`** for tickets and PRs/MRs.
 - Optional: `staticcheck`, `govulncheck`, [ai-memory](https://github.com/akitaonrails/ai-memory), Jira or Linear MCP connectors.
 
-Platforms marked *installer* need `loops install --target <name>` in your project after `go install`ing the binary (`go install github.com/arxdsilva/ai-loops/cmd/loops@latest`). Tiers: A resumable subagents, B subagents without resume, C generic subagents, D solo mode ([specs/PLATFORMS.md](specs/PLATFORMS.md) §4).
+Platforms marked *installer* take one line in your project:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target <platform>
+```
+
+That installs `loops` into `~/.local/bin` and places the platform's files. Tiers: A resumable subagents, B subagents without resume, C generic subagents, D solo mode ([specs/PLATFORMS.md](specs/PLATFORMS.md) §4).
 
 ### Claude Code (tier A)
 ```sh
@@ -58,8 +67,7 @@ Or in VS Code run *Chat: Install Plugin from Source*. Copilot reads the Claude l
 ```sh
 codex plugin marketplace add arxdsilva/ai-loops
 # install `loops` from the ChatGPT/Codex desktop app (no CLI install command), then in your project:
-go install github.com/arxdsilva/ai-loops/cmd/loops@latest
-loops install --target codex      # role agents into .codex/agents/
+curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target codex   # role agents into .codex/agents/
 ```
 Commands are `$work`, `$init`. Trust the plugin hooks with `/hooks`.
 
@@ -75,22 +83,22 @@ Gemini cannot install a repository subdirectory directly. Commands are `/loops:w
 
 ### OpenCode (tier B, installer)
 ```sh
-loops install --target opencode
+curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target opencode
 ```
 
 ### Amp (tier C, installer)
 ```sh
-loops install --target amp
+curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target amp
 ```
 
 ### Windsurf / Devin (tier D, installer)
 ```sh
-loops install --target windsurf
+curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target windsurf
 ```
 
 ### Cline (tier D, installer)
 ```sh
-loops install --target cline
+curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target cline
 ```
 
 ### Capability matrix (condensed)
@@ -146,6 +154,8 @@ When a newer release exists, the session context carries one line: `loops vX is 
   - the matrix from acceptance criteria to proofs;
   - the PR and the reflection.
 
+- **Runs leave no trace.** Agents build with a run-scoped Go cache that is deleted at the end, along with any binaries or test artifacts they left behind; your global Go cache is untouched.
+
 Everything is recorded in `.loops/runs/<id>/events.jsonl`, written by the skills (`loops run …`) and by the plugin's hooks.
 
 ## Parallelism & hardware
@@ -172,6 +182,8 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
 |---|---|
 | session-start | Tells Claude where the plugin lives and which run is active. |
 | read-guard | Denies a whole-file Read of a file over 500 lines, and shell views over 150 lines of repo files. Read in ranges instead. Tune it with `READ_GUARD_MIN_LINES` and `READ_GUARD_MAX_VIEW_LINES`, or turn it off with `READ_GUARD=off`. |
+| race-guard | Denies any `go test` run without `-race`. No opt-out. |
+| go-env | Scopes agents' `go` commands to the run's Go cache (rewrites them, or denies with a hint to use `loops go …`). |
 | model-guard | Untyped or general-purpose agents must name a model. |
 | go-post-edit | Runs `goimports` (or `gofmt`) and `go vet` on every edited `.go` file. It sends the failure back to Claude when either one fails. |
 | trace, trace-agent | Records every tool call, and every agent start and stop, in the right agent's lane. |
@@ -188,3 +200,7 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
 - `cmd/loops` and `internal/`: the Go tool, stdlib only.
 
 The rules and skills are extracted, game-agnostic, from the rimworld-go agent system.
+
+## License
+
+[MIT](LICENSE) © 2026 Arthur Silva

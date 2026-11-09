@@ -39,11 +39,12 @@ func parseFlagsAnywhere(fs *flag.FlagSet, args []string) ([]string, error) {
 }
 
 // cmdRun implements `loops run <sub>`: start, phase, event, label, loopback,
-// verdict, override, end, dir. Every sub-command except start needs an active run and
-// otherwise prints a message on stderr and exits 1.
+// verdict, override, end, dir, env, clean. Every sub-command except start
+// and env needs an active run and otherwise prints a message on stderr and
+// exits 1 (env prints nothing and exits 0).
 func (a *App) cmdRun(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(a.Err, "usage: loops run start|phase|event|label|loopback|verdict|override|end|dir …")
+		fmt.Fprintln(a.Err, "usage: loops run start|phase|event|label|loopback|verdict|override|end|dir|env|clean …")
 		return 2
 	}
 	sub, rest := args[0], args[1:]
@@ -66,6 +67,10 @@ func (a *App) cmdRun(ctx context.Context, args []string) int {
 		return a.runEnd(ctx, rest)
 	case "dir":
 		return a.runDir(ctx, rest)
+	case "env":
+		return wsCmd{a}.env(ctx, rest)
+	case "clean":
+		return wsCmd{a}.clean(ctx, rest)
 	}
 	fmt.Fprintf(a.Err, "loops run: unknown subcommand %q\n", sub)
 	return 2
@@ -109,6 +114,7 @@ func (a *App) runStart(ctx context.Context, args []string) int {
 	if err != nil {
 		return a.fail("run start", err)
 	}
+	wsCmd{a}.prepare(ctx, dir)
 	fmt.Fprintf(a.Out, "run %s\ndir %s\n", id, dir)
 	return 0
 }
@@ -190,14 +196,15 @@ func (a *App) runLabel(ctx context.Context, args []string) int {
 	name := fs.String("name", "", "plan agent id, e.g. W1-domain (required)")
 	role := fs.String("role", "", "")
 	wave := fs.Int("wave", 0, "")
+	model := fs.String("model", "", "model the agent actually runs on (after any fallback, WORKFLOW §3a)")
 	pos, err := parseFlagsAnywhere(fs, args)
 	if err != nil {
 		return 2
 	}
 	if len(pos) > 0 || *agent == "" || *name == "" {
-		return a.usageErr("usage: loops run label --agent <id> --name <plan id> [--role R] [--wave N]")
+		return a.usageErr("usage: loops run label --agent <id> --name <plan id> [--role R] [--wave N] [--model M]")
 	}
-	e := run.Event{Kind: run.KindLabel, Agent: *agent, Name: *name, Role: *role, Wave: *wave}
+	e := run.Event{Kind: run.KindLabel, Agent: *agent, Name: *name, Role: *role, Wave: *wave, Model: *model}
 	if err := a.Tracker.Record(ctx, e); err != nil {
 		return a.fail("run label", err)
 	}
@@ -303,17 +310,25 @@ func (a *App) runOverride(ctx context.Context, args []string) int {
 func (a *App) runEnd(ctx context.Context, args []string) int {
 	fs := a.newFlagSet("run end")
 	outcome := fs.String("outcome", run.OutcomeDone, "done|abandoned|failed")
+	noClean := fs.Bool("no-clean", false, "keep the run's go cache and the build artifacts left in the project")
 	pos, err := parseFlagsAnywhere(fs, args)
 	if err != nil {
 		return 2
 	}
 	if len(pos) > 0 {
-		return a.usageErr("usage: loops run end [--outcome done|abandoned|failed]")
+		return a.usageErr("usage: loops run end [--outcome done|abandoned|failed] [--no-clean]")
 	}
 	switch *outcome {
 	case run.OutcomeDone, run.OutcomeAbandoned, run.OutcomeFailed:
 	default:
 		return a.usageErr(fmt.Sprintf("run end: unknown outcome %q (want done, abandoned or failed)", *outcome))
+	}
+	if !*noClean {
+		dir, err := a.Tracker.Dir(ctx, "")
+		if err != nil {
+			return a.fail("run end", err)
+		}
+		wsCmd{a}.endClean(ctx, dir) // records the cleanup note before the end event
 	}
 	if err := a.Tracker.End(ctx, *outcome); err != nil {
 		return a.fail("run end", err)

@@ -29,10 +29,11 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 4. For each: `memory_query` first. Existing page -> `memory_write_page` with `expected_page_id`; otherwise `create_only`. Paths and kinds: `decisions/<slug>.md` (decision, semantic), `gotchas/<slug>.md` (gotcha, semantic), `procedures/<slug>.md` (procedural). Facts must be verified, short, with `path:line` sources.
 5. After each write: `loops run event --kind memory --name write --target <path>`.
 6. Overrides (WORKFLOW §2.6 step 4): from `loops status --json` `State.Overrides`, write `<Run dir>/overrides.md` from `templates/OVERRIDES.md`. If a PR/MR exists (`State.PR`) and there is at least one override, post it as a comment: `gh pr comment <url> --body-file <Run dir>/overrides.md`, or `glab mr note <id> --message "$(cat <Run dir>/overrides.md)"`, using the absolute run-dir path. Never edit the PR description. Then `loops run event --kind note --name overrides-comment --ref overrides.md`. No PR or `--no-pr`: write the file only.
-7. Not connected: skip memory silently and note it once in `reflection.md`.
+7. Cleanup (WORKFLOW §2.6 step 5): `loops run clean --dry-run` lists what `loops run end` will free and what is kept for review. Add `Cleanup: N files, X MB freed; kept for review: <paths>` to `reflection.md`. Do not delete anything yourself; the lead's `loops run end` does it.
+8. Not connected: skip memory silently and note it once in `reflection.md`.
 
 ## Output
 `<Run dir>/reflection.md`, at most 400 words. Final message (at most 120 words): outcome, top lessons, memory pages written, file path.
 
 ## Done when
-`reflection.md` exists, overrides are written and (with a PR) commented, memory writes (if any) are deduplicated and recorded, and no secret was stored.
+`reflection.md` exists (with its Cleanup line), overrides are written and (with a PR) commented, memory writes (if any) are deduplicated and recorded, and no secret was stored.

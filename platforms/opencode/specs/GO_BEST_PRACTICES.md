@@ -252,6 +252,17 @@ Detail in `skills/testing`.
 - Subtests group cases and sharpen failures; parallel subtests never share mutable state.
 - Fuzz where it pays: parsers, decoders, migrations, validators, quantity and money arithmetic, DTO round trips.
 - A bug fix starts with a failing test.
+- Hard rule: new code ships with unit tests, new-code coverage is at least 70% (`loops gate` coverage, WORKFLOW §6), and every `go test` runs with `-race`. Reading the coverage table: `skills/testing`.
+
+Other languages (conventions the agents follow; `loops gate` automates Go only):
+
+| Language | Tests and coverage (min 70% of new code) | Race / concurrency |
+|---|---|---|
+| Rust | `cargo test`; `cargo-llvm-cov` | `loom`, or `RUSTFLAGS=-Zsanitizer=thread` on nightly |
+| Python | `pytest` with `pytest-cov --cov-fail-under=70` | `pytest-xdist`, `pytest-repeat` to shake out races |
+| TypeScript/JS | `vitest` or `jest --coverage` with thresholds of 70 | repeat runs, async leak detection |
+| Java/Kotlin | JaCoCo minimum 0.70 | `jcstress` |
+| C/C++ | `gcov` or `llvm-cov` | `-fsanitize=thread` |
 
 ## 31. Benchmarks and profiling
 

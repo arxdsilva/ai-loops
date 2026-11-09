@@ -38,9 +38,11 @@ Written by the `planner` as `plan.v<N>.md` (`specs/WORKFLOW.md §2.2`). Run `loo
 ## Waves
 
 ### Wave 1: <goal>
-| id | role | model - reason | job | owns | must not touch | tests | claims |
+| id | role | model - reason | job | owns | must not touch | tests (test files per agent) | claims |
 |---|---|---|---|---|---|---|---|
 | W1-domain | domain-engineer | sonnet - rules against a written contract | <scope> | internal/domain/<x>/** | <globs> | GOFLAGS=-p=2 go test -race -count=1 -cover ./internal/domain/<x>/... | C1, C2 |
+
+Every new package or file has a named test file in the `tests` column; new-code coverage target is at least 70%.
 
 **W1-domain: <short title>**
 - Goal: <one sentence>

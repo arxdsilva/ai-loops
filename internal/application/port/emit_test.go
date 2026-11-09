@@ -127,7 +127,7 @@ func TestCodexReadme(t *testing.T) {
 			t.Errorf("README lacks %q", want)
 		}
 	}
-	if !strings.Contains(mustFile(t, files, "bin/loops"), "want='loops 9.9.9'") {
+	if !strings.Contains(mustFile(t, files, "bin/loops"), "V='9.9.9'") {
 		t.Error("shim ignores Options.Version")
 	}
 }

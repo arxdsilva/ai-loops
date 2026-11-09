@@ -134,21 +134,32 @@ func TestShim(t *testing.T) {
 		`link=$(readlink "$self")`,
 		`*) self=$(dirname -- "$self")/$link ;;`,
 		`root=$(CDPATH= cd -- "$(dirname -- "$self")/.." && pwd)`,
-		"want='loops 1.2.3'",
+		"V='1.2.3'",
 		`version 2>/dev/null`,
-		`cache="${LOOPS_BIN_CACHE:-${PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/loops}}"`,
-		`bin="$cache/loops-1.2.3"`,
+		`cache="${LOOPS_BIN_CACHE:-${CLAUDE_PLUGIN_DATA:-${PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/loops}}}"`,
+		"loops_base='https://example.com/m/releases/download'",
+		`${LOOPS_RELEASE_BASE:-$loops_base}/v$V`,
+		"loops-$os-$arch$ext",
+		"checksums.txt",
+		"LOOPS_SKIP_VERIFY",
+		"shasum -a 256",
+		"curl -fsSL --retry 2",
+		"loops_download",
 		"module='example.com/m'",
 		"tag='v1.2.3'",
 		`GOBIN="$tmp" CGO_ENABLED=0 go install "$module/cmd/loops@$tag"`,
-		`mv -f "$tmp/loops" "$bin"`,
+		`mv -f "$tmp/loops" "$cache/loops-$V"`,
 		"command -v go",
-		"Go toolchain is missing",
+		"no prebuilt binary for",
+		"and no Go toolchain; see https://github.com/arxdsilva/ai-loops#install",
 		`exec "$bin" "$@"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("shim lacks %q", want)
 		}
+	}
+	if !strings.Contains(s, shimLib) {
+		t.Error("shim lacks the shared lib block")
 	}
 	// LOOPS_PLUGIN_ROOT is exported before any loops runs.
 	if strings.Index(s, "export LOOPS_PLUGIN_ROOT") > strings.Index(s, `"$c" version`) {

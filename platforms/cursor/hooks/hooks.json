@@ -22,6 +22,14 @@
         "timeout": 10
       },
       {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook race-guard --platform cursor",
+        "timeout": 10
+      },
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook go-env --platform cursor",
+        "timeout": 10
+      },
+      {
         "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook model-guard --platform cursor",
         "timeout": 10
       }

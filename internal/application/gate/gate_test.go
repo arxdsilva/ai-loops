@@ -54,7 +54,15 @@ func (c *tick) Now() time.Time { c.t = c.t.Add(time.Second); return c.t }
 
 func setup(f *fakeCmd, a fakeArch) (*Service, *fakeRec) {
 	r := &fakeRec{}
-	return New(f, a, r, &tick{}), r
+	return New(f, a, r, &tick{}).WithCoverage(&fakeCov{module: "example.com/m"}, CoverageConfig{}), r
+}
+
+// opts are full-gate options with a coverprofile path, as the CLI passes them.
+func opts(o Options) Options {
+	if o.CoverProfile == "" {
+		o.CoverProfile = "/tmp/cover.out"
+	}
+	return o
 }
 
 func names(r Result) string {
@@ -74,23 +82,26 @@ func names(r Result) string {
 func TestFullGreen(t *testing.T) {
 	f := &fakeCmd{out: map[string]string{"go test": "ok  \tpkg\t0.1s\n"}, has: map[string]bool{"staticcheck": true}}
 	s, rec := setup(f, fakeArch{ok: true})
-	res, err := s.Run(context.Background(), Options{Root: "/p"})
+	res, err := s.Run(context.Background(), opts(Options{Root: "/p"}))
 	if err != nil || !res.OK {
 		t.Fatal(res, err)
 	}
-	if got := names(res); got != "build:ok gofmt:ok vet:ok staticcheck:ok arch:ok test:ok govulncheck:skip" {
+	if got := names(res); got != "build:ok gofmt:ok vet:ok staticcheck:ok arch:ok test:ok coverage:ok govulncheck:skip" {
 		t.Fatal(got)
 	}
-	want := []string{"go build ./...", "gofmt -l .", "go vet ./...", "staticcheck ./...", "go test -race -count=1 ./..."}
+	want := []string{"go build ./...", "gofmt -l .", "go vet ./...", "staticcheck ./...", "go test -race -count=1 -covermode=atomic -coverprofile=/tmp/cover.out ./..."}
 	for i, w := range want {
 		if f.calls[i] != w {
 			t.Errorf("call %d: %q want %q", i, f.calls[i], w)
 		}
 	}
-	if len(rec.evs) != 7 { // 6 checks + all
+	if len(rec.evs) != 8 { // 7 checks + all
 		t.Fatalf("events %d", len(rec.evs))
 	}
-	last := rec.evs[6]
+	if rec.evs[6].Name != "coverage" || rec.evs[6].Note != "no new statements" || !*rec.evs[6].OK {
+		t.Fatalf("%+v", rec.evs[6])
+	}
+	last := rec.evs[7]
 	if last.Name != run.GateAll || !*last.OK || last.Kind != run.KindGate {
 		t.Fatalf("%+v", last)
 	}
@@ -102,8 +113,8 @@ func TestFullGreen(t *testing.T) {
 func TestFailuresAndFailFast(t *testing.T) {
 	f := &fakeCmd{fail: map[string]string{"go vet": "vet: bad\n"}, out: map[string]string{"gofmt": "a.go\nvendor/x.go\ntestdata/y.go\n"}}
 	s, rec := setup(f, fakeArch{ok: true})
-	res, _ := s.Run(context.Background(), Options{Root: "/p"})
-	if res.OK || names(res) != "build:ok gofmt:FAIL vet:FAIL staticcheck:skip arch:ok test:ok govulncheck:skip" {
+	res, _ := s.Run(context.Background(), opts(Options{Root: "/p"}))
+	if res.OK || names(res) != "build:ok gofmt:FAIL vet:FAIL staticcheck:skip arch:ok test:ok coverage:ok govulncheck:skip" {
 		t.Fatal(names(res))
 	}
 	if !strings.Contains(res.Checks[1].Output, "a.go") || strings.Contains(res.Checks[1].Output, "vendor") {
@@ -115,7 +126,7 @@ func TestFailuresAndFailFast(t *testing.T) {
 
 	f2 := &fakeCmd{fail: map[string]string{"go build": "boom"}}
 	s2, rec2 := setup(f2, fakeArch{ok: true})
-	res2, _ := s2.Run(context.Background(), Options{FailFast: true})
+	res2, _ := s2.Run(context.Background(), opts(Options{FailFast: true}))
 	if res2.OK || len(f2.calls) != 1 || len(rec2.evs) != 2 { // build + all
 		t.Fatalf("%v %d", f2.calls, len(rec2.evs))
 	}
@@ -125,7 +136,7 @@ func TestScopedNeverRecordsAll(t *testing.T) {
 	f := &fakeCmd{}
 	s, rec := setup(f, fakeArch{ok: true})
 	res, _ := s.Run(context.Background(), Options{Pkgs: []string{"./internal/domain/..."}, Only: []string{"build", "gofmt", "vet"}})
-	if !res.OK || names(res) != "build:ok gofmt:ok vet:ok staticcheck:skip arch:skip test:skip govulncheck:skip" {
+	if !res.OK || names(res) != "build:ok gofmt:ok vet:ok staticcheck:skip arch:skip test:skip coverage:skip govulncheck:skip" {
 		t.Fatal(names(res))
 	}
 	if f.calls[1] != "gofmt -l internal/domain" || f.calls[0] != "go build ./internal/domain/..." {
@@ -149,12 +160,14 @@ func TestScopedNeverRecordsAll(t *testing.T) {
 func TestSkipArchVulnAndRecorderError(t *testing.T) {
 	f := &fakeCmd{has: map[string]bool{"govulncheck": true}}
 	r := &fakeRec{err: errors.New("no active loops run")}
-	s := New(f, fakeArch{text: "arch bad", ok: false}, r, &tick{})
-	res, err := s.Run(context.Background(), Options{Skip: []string{"test"}, Vuln: true})
+	s := New(f, fakeArch{text: "arch bad", ok: false}, r, &tick{}).WithCoverage(&fakeCov{}, CoverageConfig{})
+	res, err := s.Run(context.Background(), opts(Options{Skip: []string{"test", "coverage"}, Vuln: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := names(res); got != "build:ok gofmt:ok vet:ok staticcheck:skip arch:FAIL test:skip govulncheck:ok" {
+	// coverage is required: --skip cannot drop it, and without the test
+	// check's profile it fails.
+	if got := names(res); got != "build:ok gofmt:ok vet:ok staticcheck:skip arch:FAIL test:skip coverage:FAIL govulncheck:ok" {
 		t.Fatal(got)
 	}
 	if res.Checks[4].Output != "arch bad" {
@@ -215,9 +228,9 @@ func TestAllRules(t *testing.T) {
 		t.Fatal("all recorded with --skip")
 	}
 	// Config skip of a required check records a failed all.
-	for _, req := range []string{"build", "vet", "test"} {
+	for _, req := range []string{"build", "vet", "test", "coverage"} {
 		s, rec = setup(&fakeCmd{}, fakeArch{ok: true})
-		res, _ := s.Run(ctx, Options{ConfigSkip: []string{req}})
+		res, _ := s.Run(ctx, opts(Options{ConfigSkip: []string{req}}))
 		ev := allEv(rec)
 		if ev == nil || *ev.OK || ev.Note != "required check skipped: "+req {
 			t.Fatalf("%s: %+v", req, ev)
@@ -228,7 +241,7 @@ func TestAllRules(t *testing.T) {
 	}
 	// Config skip of optional checks still allows a green all, stamped with the start time.
 	s, rec = setup(&fakeCmd{}, fakeArch{ok: true})
-	_, _ = s.Run(ctx, Options{ConfigSkip: []string{"gofmt", "arch"}})
+	_, _ = s.Run(ctx, opts(Options{ConfigSkip: []string{"gofmt", "arch"}}))
 	ev := allEv(rec)
 	if ev == nil || !*ev.OK || !ev.Time.Equal(time.Time{}.Add(time.Second)) {
 		t.Fatalf("all must carry the pipeline start time (first clock tick): %+v", ev)
@@ -239,7 +252,7 @@ func TestStaleStaticcheckIsSkipped(t *testing.T) {
 	for _, msg := range []string{"x: unsupported version: 5", "internal error in importing \"fmt\""} {
 		f := &fakeCmd{has: map[string]bool{"staticcheck": true}, fail: map[string]string{"staticcheck": msg}}
 		s, rec := setup(f, fakeArch{ok: true})
-		res, _ := s.Run(context.Background(), Options{})
+		res, _ := s.Run(context.Background(), opts(Options{}))
 		c := res.Checks[3]
 		if !res.OK || !c.Skipped || c.Output != StaleStaticcheckNote {
 			t.Fatalf("%+v", c)

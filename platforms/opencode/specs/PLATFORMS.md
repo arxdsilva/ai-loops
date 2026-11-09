@@ -192,18 +192,39 @@ The adapter translates each platform's events into the canonical names and norma
 
 **Install records.** Each install records what it placed in `<plugin home>/installed-<platform>.json`: paths relative to the install base, plus a sha256 of each file. A re-install removes only its own stale files, and only when they stay inside the base, pass through no symlink, and still match the recorded hash.
 
-- **Root shim** (`bin/loops`, Claude dev): builds `cmd/loops` from the checkout (current behaviour).
-- **Package shim** (`platforms/*/bin/loops`):
-  1. Uses `loops` from PATH when `loops version` matches the package version.
-  2. Otherwise uses `$LOOPS_BIN_CACHE/loops-<version>`, where the cache directory defaults to `${PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/loops}`.
-  3. If that is missing too, runs `GOBIN=<cache> go install <module>/cmd/loops@v<version>` and renames the result.
-  4. Exports `LOOPS_PLUGIN_ROOT` to the package root first.
-- The repository must be reachable by `go install`: public, or `GOPRIVATE` set.
-- A release is a `v<version>` tag, which must match `.claude-plugin/plugin.json` and `cli.Version`.
+**Getting the binary (no Go needed).** Every release tag publishes prebuilt binaries as GitHub Release assets, built by `.github/workflows/release-assets.yml` and `scripts/build-release.sh`:
+- assets: `loops-{darwin,linux}-{amd64,arm64}` and `loops-windows-{amd64,arm64}.exe`;
+- `checksums.txt` alongside them.
+
+Both shims, the root `bin/loops` and the generated `platforms/*/bin/loops`, find the binary in this order:
+1. Resolve their own path through symlinks and export `LOOPS_PLUGIN_ROOT`.
+2. **Root shim in a git checkout:** build from source (development). `LOOPS_PREFER_RELEASE=1` skips this step.
+3. A non-script `loops` on PATH that reports the plugin version.
+4. The cached `loops-<version>`, in `${CLAUDE_PLUGIN_DATA:-${PLUGIN_DATA:-${XDG_CACHE_HOME:-~/.cache}/loops}}`.
+5. **Download** the asset for the OS and arch, verify its sha256 against `checksums.txt`, and cache it.
+   - `LOOPS_RELEASE_BASE` overrides the URL prefix.
+   - A wrong or missing checksum is refused and never falls through.
+6. **Fallback:** `go install <module>/cmd/loops@v<version>`, or a source build for the root shim.
+7. Otherwise, a clear error with a link to the install docs.
+
+**Installer platforms.** `install.sh` (`curl -fsSL …/install.sh | sh -s -- --target <p> [--scope] [--force] [--version] [--bin-dir]`) downloads and verifies the binary the same way, puts it in `~/.local/bin`, and runs `loops install`.
+
+The repository must be public for release downloads and for the update check. A release is a `v<version>` tag that matches `.claude-plugin/plugin.json`, the single version source.
 
 ## 7. Models
 
 Tiers (`haiku`, `sonnet`, `opus`) are Claude names. Other platforms inherit the session model unless `loops port build --models <file.json>` maps them, e.g. `{"codex":{"opus":"<model id>"}}`. Model ids change too often to hard-code, so the generated packages in the repo leave the model unset, and each platform's notes tell users how to map tiers.
+
+### 5.0 go-env rewrite support (verified 2026-11-09; details in `dialect.go`)
+
+| Platform | Unscoped `go …` command |
+|---|---|
+| Claude Code | Rewritten (`updatedInput`). Only a lone `go build`, `go test`, `go vet` or `go list` is auto-approved |
+| Gemini CLI | Rewritten (`hookSpecificOutput.tool_input`) |
+| Windsurf/Devin | Rewritten (`hookSpecificOutput.updatedInput`) |
+| Codex, Cursor | A lone gate command is rewritten and approved. Anything else is denied, because a rewrite requires "allow" |
+| Copilot, OpenCode | Denied. Use `loops go …` |
+| Amp, Cline | No hooks. Agents use `loops go …` |
 
 ### 5.1 Verified dialect notes (2026-11-09; full list with URLs in `internal/adapters/inbound/hook/dialect.go`)
 

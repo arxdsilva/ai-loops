@@ -94,6 +94,10 @@ func TestProcessGuards(t *testing.T) {
 		{"read 600 deny", "read-guard", read, nil, 2, "read_guard:"},
 		{"read min 700", "read-guard", read, []string{"READ_GUARD_MIN_LINES=700"}, 0, ""},
 		{"not json", "read-guard", "not json", nil, 0, ""},
+		{"race deny claude", "race-guard", `{"tool_name":"Bash","tool_input":{"command":"go test ./..."}}`, nil, 2, "race_guard:"},
+		{"race ok claude", "race-guard", `{"tool_name":"Bash","tool_input":{"command":"go test -race ./..."}}`, nil, 0, ""},
+		{"race deny gemini", "race-guard", `{"hook_event_name":"BeforeTool","tool_name":"run_shell_command","tool_input":{"command":"go test ./..."}}`, []string{"GEMINI_PROJECT_DIR=/x"}, 2, "race_guard:"},
+		{"race ok gemini", "race-guard", `{"hook_event_name":"BeforeTool","tool_name":"run_shell_command","tool_input":{"command":"go test -race ./..."}}`, []string{"GEMINI_PROJECT_DIR=/x"}, 0, ""},
 		{"agent no model", "model-guard", `{"tool_name":"Agent","tool_input":{"prompt":"x"}}`, nil, 2, "model_guard:"},
 	}
 	for _, c := range cases {

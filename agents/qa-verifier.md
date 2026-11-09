@@ -15,7 +15,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: the implementer's `reports/<id>.md`, the `git diff` of its owned paths, the contract, the ACs it serves. On round N>1 the lead sends you back (resumed, or re-spawned with the prior QA file): re-verify the previously FAILED claims and spot-check the rest.
 
 ## Can
-Read code; run tests; `loops gate --pkgs <owned> --only build,vet,test`; `loops arch`. Write exactly one file: `<Run dir>/qa/<Agent id>.r<N>.md`.
+Read code; run tests; `loops gate --only test,coverage --pkgs <owned>` (plus build,vet); `loops arch`. Write exactly one file: `<Run dir>/qa/<Agent id>.r<N>.md`.
 
 ## Cannot
 Edit or create files in the repo (no `*_qa_test.go`, no temp files). Write anywhere except your QA file. Fix defects: the owner does. Commit or push.
@@ -25,7 +25,8 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 ## Procedure
 1. Read the report; list every claim `C<n>` with its cited evidence.
 2. `git diff -- <owned globs>`; read the changed code and its tests (ranges, not whole files).
-3. Run `loops gate --pkgs <owned> --only build,vet,test` and `loops arch`. Run each cited test: `GOFLAGS=-p=2 go test -race -count=1 -run '<Name>' ./<pkg>/`.
+3. Run `loops gate --pkgs <owned> --only build,vet,test,coverage` and `loops arch`. Mark the claim set FAILED when new-code coverage is below 70% or new code has no tests, and list the uncovered `file:line` ranges in the repro. Run each cited test: `GOFLAGS=-p=2 go test -race -count=1 -run '<Name>' ./<pkg>/`.
+   Go commands run in the run-scoped Go environment: normal `go …` is scoped by the go-env hook, or use `loops go …` if it denies with a hint. Never set `GOCACHE`; build binaries into the run's tmp dir (`GOTMPDIR` from `loops run env`).
 4. Probe beyond the cited tests: edge cases, error paths, boundaries, concurrency (`-race`, `-count=20` on suspect tests), idempotency, ownership violations (files changed outside `Owns`: `git status --short`).
 5. Counterexamples: do not add tests to the repo. Prefer reasoning from the code plus targeted `go test -run` of existing tests. If a new test is needed to expose a bug, put its source as a snippet inside your QA file (under the failing claim) for the implementer to add.
 6. Per claim record `VERIFIED` or `FAILED`. A FAILED claim carries: the command, at most 20 lines of output, `file:line`, expected vs actual, suggested fix area.

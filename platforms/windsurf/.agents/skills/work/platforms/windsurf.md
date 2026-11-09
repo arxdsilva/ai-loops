@@ -41,3 +41,9 @@ Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets 
 
 ## Update
 `go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target windsurf --force` (or run `loops update windsurf`).
+
+## Model fallback
+Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).
+
+## Go environment
+Go commands on this platform are rewritten automatically by the PreToolUse hook. Either way they use the run's own Go cache, which `loops run end` deletes.

@@ -23,6 +23,7 @@ Written by `qa-verifier` as `qa/<agent-id>.r<N>.md`. Verify every claim independ
 
 ## Gate results
 - `loops gate --pkgs <owned> --only build,vet,test`: <pass/fail>
+- `loops gate --only test,coverage --pkgs <owned>`: new-code coverage <n>% (min 70%), `-race` <pass/fail>; uncovered `file:line` (FAILED if below 70% or new code lacks tests)
 - `loops arch`: <pass/fail, warnings>
 
 Verdict: VERIFIED|FAILED

@@ -9,15 +9,15 @@ func TestCommand(t *testing.T) {
 	tests := []struct{ platform, want string }{
 		{"claude", "claude plugin update loops@ai-loops"},
 		{"copilot", "copilot plugin update loops"},
-		{"codex", "loops install --target codex --force"},
+		{"codex", "install.sh | sh -s -- --target codex --force"},
 		{"cursor", "Refresh"},
 		{"gemini", "gemini extensions update loops"},
-		{"opencode", "loops install --target opencode --force"},
-		{"amp", "loops install --target amp --force"},
-		{"windsurf", "loops install --target windsurf --force"},
-		{"cline", "loops install --target cline --force"},
+		{"opencode", "install.sh | sh -s -- --target opencode --force"},
+		{"amp", "install.sh | sh -s -- --target amp --force"},
+		{"windsurf", "install.sh | sh -s -- --target windsurf --force"},
+		{"cline", "install.sh | sh -s -- --target cline --force"},
 		{"Claude ", "claude plugin update"},
-		{"zed", "go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target zed --force"},
+		{"zed", "curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target zed --force"},
 	}
 	for _, tt := range tests {
 		if got := Command(tt.platform); !strings.Contains(got, tt.want) {

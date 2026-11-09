@@ -43,3 +43,9 @@ The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token 
 
 ## Update
 `git -C ai-loops pull && gemini extensions update loops` (or run `loops update gemini`).
+
+## Model fallback
+Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).
+
+## Go environment
+Go commands on this platform are rewritten automatically by the BeforeTool hook. Either way they use the run's own Go cache, which `loops run end` deletes.

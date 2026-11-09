@@ -38,6 +38,26 @@
         "hooks": [
           {
             "type": "command",
+            "command": "\"${PLUGIN_ROOT}/bin/loops\" hook race-guard --platform codex",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${PLUGIN_ROOT}/bin/loops\" hook go-env --platform codex",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
             "command": "\"${PLUGIN_ROOT}/bin/loops\" hook model-guard --platform codex",
             "timeout": 10
           }

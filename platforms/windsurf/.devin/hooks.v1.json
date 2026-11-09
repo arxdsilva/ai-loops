@@ -32,6 +32,24 @@
     {
       "hooks": [
         {
+          "command": "loops hook race-guard --platform windsurf",
+          "timeout": 10,
+          "type": "command"
+        }
+      ]
+    },
+    {
+      "hooks": [
+        {
+          "command": "loops hook go-env --platform windsurf",
+          "timeout": 10,
+          "type": "command"
+        }
+      ]
+    },
+    {
+      "hooks": [
+        {
           "command": "loops hook model-guard --platform windsurf",
           "timeout": 10,
           "type": "command"

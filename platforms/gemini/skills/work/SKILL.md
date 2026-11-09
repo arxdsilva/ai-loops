@@ -21,6 +21,8 @@ You are the **lead**. Spec: `specs/WORKFLOW.md` (cite `WORKFLOW §n`, do not res
 - Tier D (solo mode): where "spawn" appears, play the role yourself in phase order, write the same run-dir files, and re-read only that role's input files first (PLATFORMS §4).
 - Never ask agents to commit. Only `product-reviewer` commits, after confirmation.
 
+**Models.** Spawn each role at its tier. The planner and plan-reviewer default to opus. If a model is unavailable, fall back to the best one the user has and record it (WORKFLOW §3a).
+
 ## 0. Parse and intake (WORKFLOW §2.0)
 
 1. Parse flags from `$ARGUMENTS`: `--approve`, `--no-pr`, `--models=cheap`, and the opt-in limits `--max-agents N`, `--budget …`, `--agents …`, `--roles …` (WORKFLOW §4a). Read `.loops/config.json` if present (`approval`, `auto_pr`, `memory`). Approval is required if `--approve` or `approval: "always"`.
@@ -135,11 +137,11 @@ Spawn `reflector`. Besides `reflection.md` it writes `overrides.md` and, when a 
 ```
 loops run end --outcome done
 ```
-Then stop any remaining agents and give the user a summary of at most 10 lines: outcome, ACs verified, PR link and overrides count (or "pr.md written, not pushed"), `loops report` path (`$RUN/report.html`), loop-backs count, memory pages written.
+`loops run end` cleans up automatically: it deletes the run's Go cache/tmp and the build leftovers agents created (never tracked or pre-existing files; unknown new files are listed for review). Pass `--no-clean` only when the user wants to inspect the artifacts. Then stop any remaining agents and give the user a summary of at most 10 lines: outcome, ACs verified, PR link and overrides count (or "pr.md written, not pushed"), `loops report` path (`$RUN/report.html`), loop-backs count, memory pages written.
 
 ## Escalations and failures
 
-- Use `loops run end --outcome failed` or `abandoned` if the user stops or the run cannot continue; the Stop gate (WORKFLOW §6) otherwise blocks ending your turn while `.go` files are dirty. `LOOPS_GATE=off` is the user's escape hatch, never yours.
+- Use `loops run end --outcome failed` or `abandoned` if the user stops or the run cannot continue (abandoned and failed runs are cleaned up too); the Stop gate (WORKFLOW §6) otherwise blocks ending your turn while `.go` files are dirty. `LOOPS_GATE=off` is the user's escape hatch, never yours.
 - If a hook denies a read (`guard_deny`), do not retry the same call; use a range or search.
 - Agents that stall: message it once with the specific question; then stop it and relaunch with a tighter block.
 - Record decisions worth keeping: `loops run event --kind note --note "<text>"`.

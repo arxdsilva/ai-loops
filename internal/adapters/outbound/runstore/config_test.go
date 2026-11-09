@@ -84,3 +84,17 @@ func TestConfigUpdateCheck(t *testing.T) {
 		t.Fatalf("%+v %v", c, err)
 	}
 }
+
+func TestLoadConfigGateCoverage(t *testing.T) {
+	c, err := LoadConfig(writeConfig(t, `{"gate": {"coverage_min": 85.5, "coverage_exclude": ["internal/legacy/**"], "base": "origin/develop"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := GateConfig{CoverageMin: 85.5, CoverageExclude: []string{"internal/legacy/**"}, Base: "origin/develop"}
+	if !reflect.DeepEqual(c.Gate, want) {
+		t.Fatalf("%+v", c.Gate)
+	}
+	if c, _ := LoadConfig(writeConfig(t, `{"gate": {}}`)); c.Gate.CoverageMin != 0 || c.Gate.Base != "" {
+		t.Fatalf("defaults: %+v", c.Gate)
+	}
+}

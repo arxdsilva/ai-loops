@@ -284,3 +284,16 @@ func TestFoldLimitsAt(t *testing.T) {
 		t.Fatalf("LimitsAt = %v, Limits = %+v; a bad limits event must not move LimitsAt", s.LimitsAt, s.Limits)
 	}
 }
+
+func TestFoldLabelModelRecordsFallback(t *testing.T) {
+	t0 := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	s := Fold([]Event{
+		{Time: t0, Kind: KindRun, Run: "r"},
+		{Time: t0, Kind: KindAgentStart, Agent: "a1", Role: "planner", Model: "opus"},
+		{Time: t0, Kind: KindLabel, Agent: "a1", Name: "planner", Model: "sonnet"},
+		{Time: t0, Kind: KindLabel, Agent: "a1", Name: "planner"},
+	})
+	if got := s.Lanes[0].Model; got != "sonnet" {
+		t.Fatalf("lane model = %q, want the fallback model sonnet (an empty label model must not clear it)", got)
+	}
+}

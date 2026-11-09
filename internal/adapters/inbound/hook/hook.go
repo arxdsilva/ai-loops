@@ -2,8 +2,8 @@
 // guard decisions and run events. Every handler fails open: bad input,
 // no active run, or an internal error exits 0 with no output.
 //
-// Names (hooks/hooks.json): session-start, read-guard, model-guard,
-// go-post-edit, trace, trace-agent, stop-gate.
+// Names (hooks/hooks.json): session-start, read-guard, race-guard, go-env,
+// model-guard, go-post-edit, trace, trace-agent, stop-gate.
 package hook
 
 import (
@@ -111,6 +111,10 @@ func (h *Handler) Handle(ctx context.Context, name, platform string, in io.Reade
 		return h.readGuard(ctx, p, errw)
 	case "model-guard":
 		return h.modelGuard(ctx, p, errw)
+	case "race-guard":
+		return h.raceGuard(ctx, p, errw)
+	case "go-env":
+		return h.goEnv(ctx, d, p, out, errw)
 	case "go-post-edit":
 		h.goPostEdit(ctx, d, p, out)
 	case "trace":

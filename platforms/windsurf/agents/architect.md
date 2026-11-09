@@ -24,10 +24,13 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 2. Read your block, the contract and stubs, and the nearest package `AGENTS.md`. Search before reading; read ranges.
 3. Strict TDD: write the failing test, watch it fail for the right reason, make it pass, refactor. Never weaken or delete a test to get green.
 4. Check only your scope: `GOFLAGS=-p=2 go test -race -count=1 -cover ./<owned>/...` and `go vet ./<owned>/...`. Never `go test ./...` or `make all`; the lead and QA run full gates.
+   Go commands run in the run-scoped Go environment: normal `go …` is scoped by the go-env hook, or use `loops go …` if it denies with a hint. Never set `GOCACHE`; build binaries into the run's tmp dir (`GOTMPDIR` from `loops run env`).
 5. Stay inside `Owns`. Failures in other agents' files, missing deps, or a needed contract change: report them, do not fix. Never touch `go.mod`/`go.sum` or shared config. No `git add`/`commit`/`push`.
 6. If producers are unfinished, develop against the contract and stubs and report what is still stubbed.
 7. Use absolute paths (cwd changes between calls).
 8. Wave 0 finishes with `go build ./... && go vet ./...` passing, then the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
+
+Stubs are exempt from the coverage rule; the implementers' tests cover them later. Any real logic you write needs tests with `-race` (WORKFLOW §6).
 
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back (resuming you, or re-spawning your role) with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything stubbed or blocked, report path.

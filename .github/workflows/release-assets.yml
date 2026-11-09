@@ -1,0 +1,42 @@
+name: release-assets
+# Builds the prebuilt loops binaries for a release tag and attaches them to
+# its GitHub Release. Runs on manually pushed v* tags, when the automatic
+# release job in ci.yml creates a tag (tags pushed with GITHUB_TOKEN do not
+# trigger workflows, so ci.yml calls this one), or by hand for an older tag.
+on:
+  push:
+    tags: ['v*']
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: release tag, e.g. v0.3.0
+        required: true
+permissions:
+  contents: write
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: use this workflow's scripts, build the tag's source
+        run: |
+          cp scripts/build-release.sh scripts/publish-release.sh "$RUNNER_TEMP/"
+          git checkout --quiet "$TAG"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: sh "$RUNNER_TEMP/build-release.sh" "$TAG" dist
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh "$RUNNER_TEMP/publish-release.sh" "$TAG" dist

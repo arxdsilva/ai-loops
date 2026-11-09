@@ -1,0 +1,109 @@
+package port
+
+// shimLib is the shared function block of bin/loops and the generated package
+// shim (kept identical; see internal/shimtest).
+const shimLib = `# --- shared begin (identical in bin/loops and the generated shim; a test keeps them in sync)
+# loops_path: sets bin to a non-script loops on PATH that reports "loops $V".
+loops_path() {
+  oldifs=$IFS
+  IFS=:
+  for d in $PATH; do
+    c="${d:-.}/loops"
+    if [ -f "$c" ] && [ -x "$c" ] && [ "$(dd if="$c" bs=2 count=1 2>/dev/null)" != '#!' ]; then
+      if [ "$("$c" version 2>/dev/null || true)" = "loops $V" ]; then
+        IFS=$oldifs
+        bin=$c
+        return 0
+      fi
+    fi
+  done
+  IFS=$oldifs
+  return 1
+}
+# loops_cached: sets bin to the cached binary for $V.
+loops_cached() {
+  for c in "$cache/loops-$V" "$cache/loops-$V.exe"; do
+    if [ -x "$c" ]; then
+      bin=$c
+      return 0
+    fi
+  done
+  return 1
+}
+# loops_platform: sets os, arch, ext; fails when no prebuilt binary exists.
+loops_platform() {
+  ext=
+  os=$(uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')
+  arch=$(uname -m 2>/dev/null)
+  case $os in
+    darwin | linux) ;;
+    mingw* | msys* | cygwin*) os=windows ext=.exe ;;
+    *) return 1 ;;
+  esac
+  case $arch in
+    x86_64 | amd64 | AMD64) arch=amd64 ;;
+    arm64 | aarch64 | ARM64) arch=arm64 ;;
+    *) return 1 ;;
+  esac
+}
+loops_fetch() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL --retry 2 -o "$2" "$1"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$2" "$1"
+  else
+    return 1
+  fi
+}
+loops_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+# loops_download: fetches, verifies and caches the release binary; sets bin.
+# Returns 1 when unavailable (no release, offline, no sha256 tool) so the
+# caller can fall back; exits 1 when the checksum is missing or wrong.
+loops_download() {
+  loops_platform || return 1
+  if [ "${LOOPS_SKIP_VERIFY:-}" != 1 ] && ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+    echo "loops: neither sha256sum nor shasum found; refusing an unverified download (set LOOPS_SKIP_VERIFY=1 to override)" >&2
+    return 1
+  fi
+  asset="loops-$os-$arch$ext"
+  url="${LOOPS_RELEASE_BASE:-$loops_base}/v$V"
+  mkdir -p "$cache" || return 1
+  tmp="$cache/.dl-$$"
+  rm -rf "$tmp"
+  mkdir -p "$tmp" || return 1
+  if ! loops_fetch "$url/$asset" "$tmp/$asset"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  if [ "${LOOPS_SKIP_VERIFY:-}" != 1 ]; then
+    if ! loops_fetch "$url/checksums.txt" "$tmp/checksums.txt"; then
+      rm -rf "$tmp"
+      echo "loops: could not fetch checksums.txt for v$V; refusing an unverified binary" >&2
+      exit 1
+    fi
+    want=$(awk -v n="$asset" '$2 == n || $2 == "*" n {print $1; exit}' "$tmp/checksums.txt")
+    got=$(loops_sha256 "$tmp/$asset")
+    if [ -z "$want" ] || [ "$want" != "$got" ]; then
+      rm -rf "$tmp"
+      echo "loops: checksum mismatch for $asset v$V; refusing to run it" >&2
+      exit 1
+    fi
+  fi
+  chmod +x "$tmp/$asset"
+  mv -f "$tmp/$asset" "$cache/loops-$V$ext"
+  rm -rf "$tmp"
+  bin="$cache/loops-$V$ext"
+  loops_prune
+}
+# loops_prune keeps only the newest 3 cached binaries.
+loops_prune() {
+  ls -1t "$cache"/loops-* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
+}
+# --- shared end
+`

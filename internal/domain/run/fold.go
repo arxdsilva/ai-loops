@@ -54,6 +54,9 @@ func Fold(events []Event) State {
 			if e.Wave != 0 {
 				l.Wave = e.Wave
 			}
+			if e.Model != "" {
+				l.Model = e.Model // the model actually used, e.g. after a fallback
+			}
 		case KindStep:
 			foldStep(&s, e)
 		case KindGate:

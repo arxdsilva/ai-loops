@@ -20,6 +20,9 @@ Agent: <agent-id> | Role: <role> | Wave: <n>
 ## Tests and coverage
 - `<command>` -> <pass/fail>, coverage <n>% for <pkg> (before <m>%)
 
+## Coverage
+- New-code coverage: <n>% (min 70%), from `loops gate --only test,coverage --pkgs <owned>`; tests run with `-race`
+
 ## Still stubbed
 - <what and why, or "nothing">
 

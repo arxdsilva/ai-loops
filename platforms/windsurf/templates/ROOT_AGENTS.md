@@ -22,7 +22,7 @@ Read only what the current task needs.
 - Injected clock and RNG in authoritative code: no `time.Now`, global `math/rand` or `go` statements in the domain.
 - No global scans: use indexes, batching and invalidation.
 - Need-, threat- or threshold-driven behaviour starts and stops at different thresholds (or has a minimum duration or cooldown) and ships a no-flap test.
-- Run tests with `-race`, always. Never weaken or delete a test to get green.
+- Hard gate: all new code has unit tests, new-code coverage is at least 70%, and tests always run with `-race` (`loops gate` coverage check, race-guard hook). Never weaken or delete a test to get green.
 - State changes enter as typed commands; retried operations carry an idempotency key.
 - Remove unused code, config and loaders in the change that makes them unused.
 - Read long files by `offset`/`limit`; hooks deny whole-file Reads over 500 lines and shell views over 150 lines.

@@ -268,3 +268,24 @@ func TestStopGate(t *testing.T) {
 		t.Fatal("no run")
 	}
 }
+
+func TestRaceGuard(t *testing.T) {
+	bash := func(c string) string {
+		return `{"tool_name":"Bash","tool_input":{"command":"` + c + `"}}`
+	}
+	e := setup("r")
+	c, _, er := e.run("race-guard", bash("go test ./..."))
+	if c != 2 || !strings.Contains(er, "race_guard:") || len(e.rec.evs) != 1 || e.rec.evs[0].Name != "race-guard" || e.rec.evs[0].Kind != run.KindGuardDeny {
+		t.Fatalf("%d %q %+v", c, er, e.rec.evs)
+	}
+	e = setup("r")
+	e.h.d.Env = func(string) string { return "off" } // no opt-out of any kind
+	if c, _, _ := e.run("race-guard", bash("go test ./...")); c != 2 {
+		t.Error("env opted out of a hard gate")
+	}
+	for _, in := range []string{bash("go test -race ./..."), `{"tool_name":"Read","tool_input":{"file_path":"x"}}`, `{"tool_name":"Bash","tool_input":"bad"}`} {
+		if c, _, er := setup("r").run("race-guard", in); c != 0 || er != "" {
+			t.Errorf("%s: %d %q", in, c, er)
+		}
+	}
+}
