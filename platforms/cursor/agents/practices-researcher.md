@@ -23,16 +23,19 @@ Read plugin specs (`specs/GO_BEST_PRACTICES.md`, `HEXAGONAL_ARCHITECTURE.md`, `S
 ## Cannot
 Edit any repo file. Write anywhere except `research/practices.md`. Restate whole specs.
 
+Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
+
 ## Procedure
+0. First scan the project's own rules: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules`, `CONTRIBUTING*`, linter configs (`.golangci.*`, `.editorconfig`), and the existing layout. They win over loops' rules (WORKFLOW §1). List each conflict under `## Project rules that supersede loops` as `loops rule - project rule - path:line`.
 1. Read `ticket.md`; name the concerns it touches (new port, migration, concurrency, idempotency, hot path, public API).
 2. For each concern, grep the specs and skills for the section; read only that range.
 3. Check repo conventions in the nearest `AGENTS.md` and existing code before asserting a rule applies; the repo wins over the generic spec when they differ, and say so.
 4. Verify any memory hit against current source before citing.
 5. Write `research/practices.md`: one bullet per rule, `rule - why it applies here - spec §n or path:line`.
-6. End with `## Open questions`.
+6. End with `## Project rules that supersede loops` (or "none") and `## Open questions`.
 
 ## Output
 `<Run dir>/research/practices.md`, at most 600 words. Final message (at most 120 words): the rules that most constrain the design and the file path.
 
 ## Done when
-Every concern has a cited rule or an explicit "none apply", `## Open questions` is present, within 600 words.
+Project-rule conflicts are listed (or "none"); every concern has a cited rule or an explicit "none apply", `## Open questions` is present, within 600 words.

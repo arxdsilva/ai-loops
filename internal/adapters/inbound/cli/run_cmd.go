@@ -39,11 +39,11 @@ func parseFlagsAnywhere(fs *flag.FlagSet, args []string) ([]string, error) {
 }
 
 // cmdRun implements `loops run <sub>`: start, phase, event, label, loopback,
-// verdict, end, dir. Every sub-command except start needs an active run and
+// verdict, override, end, dir. Every sub-command except start needs an active run and
 // otherwise prints a message on stderr and exits 1.
 func (a *App) cmdRun(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(a.Err, "usage: loops run start|phase|event|label|loopback|verdict|end|dir …")
+		fmt.Fprintln(a.Err, "usage: loops run start|phase|event|label|loopback|verdict|override|end|dir …")
 		return 2
 	}
 	sub, rest := args[0], args[1:]
@@ -60,6 +60,8 @@ func (a *App) cmdRun(ctx context.Context, args []string) int {
 		return a.runLoopback(ctx, rest)
 	case "verdict":
 		return a.runVerdict(ctx, rest)
+	case "override":
+		return a.runOverride(ctx, rest)
 	case "end":
 		return a.runEnd(ctx, rest)
 	case "dir":
@@ -164,6 +166,11 @@ func (a *App) runEvent(ctx context.Context, args []string) int {
 	if e.Phase != "" && e.Phase.Index() < 0 {
 		return a.usageErr(fmt.Sprintf("run event: unknown phase %q", *phase))
 	}
+	if e.Kind == run.KindLimits {
+		if err := validateLimitsJSON(e.Note); err != nil {
+			return a.usageErr("run event --kind limits: " + err.Error() + " (build it with `loops budget parse`)")
+		}
+	}
 	if *ok != "" {
 		b, err := strconv.ParseBool(*ok)
 		if err != nil {
@@ -263,6 +270,32 @@ func (a *App) runVerdict(ctx context.Context, args []string) int {
 	e := run.Event{Kind: run.KindVerdict, Name: *name, Status: st, Round: *round, Ref: *ref, Agent: *agent, Role: *role, Phase: p}
 	if err := a.Tracker.Record(ctx, e); err != nil {
 		return a.fail("run verdict", err)
+	}
+	return 0
+}
+
+// runOverride records a project rule that superseded a loops rule (WORKFLOW §1).
+func (a *App) runOverride(ctx context.Context, args []string) int {
+	fs := a.newFlagSet("run override")
+	rule := fs.String("rule", "", "loops rule superseded, e.g. \"SOLID_GO §9\" (required)")
+	project := fs.String("project", "", "project rule that won, with file:line (required)")
+	note := fs.String("note", "", "what was done instead")
+	agent := fs.String("agent", "", "")
+	role := fs.String("role", "", "")
+	pos, err := parseFlagsAnywhere(fs, args)
+	if err != nil {
+		return 2
+	}
+	if len(pos) > 0 || strings.TrimSpace(*rule) == "" || strings.TrimSpace(*project) == "" {
+		return a.usageErr("usage: loops run override --rule <loops rule> --project <project rule, file:line> [--note text] [--agent A] [--role R]")
+	}
+	p, err := a.currentPhase(ctx)
+	if err != nil {
+		return a.fail("run override", err)
+	}
+	e := run.Event{Kind: run.KindOverride, Name: *rule, Target: *project, Note: *note, Agent: *agent, Role: *role, Phase: p}
+	if err := a.Tracker.Record(ctx, e); err != nil {
+		return a.fail("run override", err)
 	}
 	return 0
 }

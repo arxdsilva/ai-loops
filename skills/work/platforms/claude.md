@@ -40,3 +40,6 @@ Right after each spawn, in the same turn as the spawn result:
 /plugin install loops@ai-loops
 ```
 Verify: `loops version` resolves (the root shim builds from the checkout; needs Go), then `/loops:init`.
+
+## Hardware and budgets
+The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are measured from agent transcripts on this platform.

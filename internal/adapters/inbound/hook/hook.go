@@ -51,6 +51,9 @@ type payload struct {
 	AgentID        string          `json:"agent_id"`
 	AgentType      string          `json:"agent_type"`
 	StopHookActive bool            `json:"stop_hook_active"`
+	// SubagentStop: the stopped agent's own transcript (tokens.go).
+	AgentTranscriptPath      string `json:"agent_transcript_path"`
+	AgentTranscriptPathCamel string `json:"agentTranscriptPath"`
 
 	// Other dialects' spellings (see dialect.go); folded by normalize.
 	SessionIDCamel      string          `json:"sessionId"`
@@ -425,6 +428,7 @@ func (h *Handler) traceAgent(ctx context.Context, p payload) {
 		e.Kind = run.KindAgentStart
 	case "SubagentStop":
 		e.Kind, e.OK = run.KindAgentStop, run.Bool(true)
+		e.Tokens = transcriptTokens(p.agentTranscript(), maxTranscriptBytes)
 		if e.Agent == "" && !h.closestLane(ctx, &e) {
 			return
 		}

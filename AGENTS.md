@@ -28,5 +28,7 @@ This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and 
 ## Gates before committing
 `gofmt -l .` (must print nothing) · `go vet ./...` · `go test -race -count=1 ./...` · `go run ./cmd/loops arch` · `go run ./cmd/loops port check` · `jq . hooks/hooks.json .claude-plugin/*.json settings.json`
 
+The module and repository are `github.com/arxdsilva/ai-loops`. CI fails if the previous owner name reappears anywhere.
+
 ## Releases
 A release is a `v<version>` tag. That version must match `.claude-plugin/plugin.json` and `cli.Version`, because the generated package shims `go install …/cmd/loops@v<version>`.

@@ -1,7 +1,7 @@
 ---
 name: work
 description: Work a ticket, issue or task end to end with the loops workflow (research, plan, parallel implementation, QA, product proof, PR, reflection). Use when the user asks to work, implement or ship a ticket/issue, or invokes /loops:work.
-argument-hint: "<ticket ref or text> [--approve] [--no-pr] [--models=cheap]"
+argument-hint: "<ticket ref or text> [--approve] [--no-pr] [--models=cheap] [--max-agents N] [--budget phase=200k,...] [--agents phase=N,...] [--roles phase=role,...]"
 ---
 
 # /loops:work - the lead's orchestrator
@@ -16,14 +16,14 @@ You are the **lead**. Spec: `specs/WORKFLOW.md` (cite `WORKFLOW §n`, do not res
 
 - Route, relay, record. Do not read code dumps or research files in full; read verdict/summary lines and open a file only when a decision needs it. Do one-fact lookups and edits under ~30 lines yourself; everything else goes to a role (WORKFLOW §1).
 - Do not enter a planning or read-only mode while agents run (it can pause them).
-- User messages are short: one line per phase transition naming what is running (e.g. `research: 3 researchers running`).
-- Every spawn names the role; spawn all agents of a wave together, in parallel and in the background where your platform allows. Pass a model only to escalate or under `--models=cheap`.
+- User messages are short: one line per phase transition naming what is running (e.g. `research: 4 researchers running`).
+- Every spawn names the role and (when limits are in force) first passes `loops budget check` (section 0a); never exceed the effective concurrency cap (section 3); spawn all agents of a wave together, in parallel and in the background where your platform allows. Pass a model only to escalate or under `--models=cheap`.
 - Tier D (solo mode): where "spawn" appears, play the role yourself in phase order, write the same run-dir files, and re-read only that role's input files first (PLATFORMS §4).
 - Never ask agents to commit. Only `product-reviewer` commits, after confirmation.
 
 ## 0. Parse and intake (WORKFLOW §2.0)
 
-1. Parse flags from `$ARGUMENTS`: `--approve`, `--no-pr`, `--models=cheap`. Read `.loops/config.json` if present (`approval`, `auto_pr`, `memory`). Approval is required if `--approve` or `approval: "always"`.
+1. Parse flags from `$ARGUMENTS`: `--approve`, `--no-pr`, `--models=cheap`, and the opt-in limits `--max-agents N`, `--budget …`, `--agents …`, `--roles …` (WORKFLOW §4a). Read `.loops/config.json` if present (`approval`, `auto_pr`, `memory`). Approval is required if `--approve` or `approval: "always"`.
 2. Start the run and capture the id and dir:
 ```
 loops run start --title "<short title>" [--ticket <ref>] [--source <s>]
@@ -33,12 +33,19 @@ Note the three printed absolute paths: below, `$RUN`, `$SPECS` and `$TEMPLATES` 
 3. Fetch the ticket per WORKFLOW §2.0: GitHub/GitLab `loops ticket fetch <ref>`; Jira/Linear via the connected MCP tool, then `... | loops ticket fetch <ref> --source jira|linear --body-file -`; free text `loops ticket fetch --source text --body-file -`. If a connector is unauthenticated, tell the user and ask them to paste the ticket.
 4. **ai-memory, once** (only if its tools exist and `memory_status` succeeds; else skip silently): call `memory_briefing`, then one `memory_query` on the ticket's key terms (pass `workspace`/`project` per WORKFLOW §7). Write hits to `$RUN/research/memory.md` (mark as unverified evidence) and run `loops run event --kind memory --name briefing`.
 
+### 0a. Opt-in limits (WORKFLOW §4a)
+
+Only when the user passed a limit flag or `.loops/config.json` has `limits`; otherwise skip this whole section (nothing is limited, nothing asks).
+1. At intake: `loops budget parse --budget <v> --agents <v> --roles <v> --max-agents <N>` prints the limits as JSON (omit flags not given). Record them: `loops run event --kind limits --note '<that json>'`.
+2. Before every spawn: `loops budget check --phase <phase> --spawn <n> --role <role>`. Exit 0: spawn. Exit 3: stop spawning in that phase, let running agents finish, and ask the user: raise the limit / continue past it once / stop the run. Stop: `loops run end --outcome abandoned`.
+3. `loops budget show` prints usage against the limits (use it in the pause message).
+
 ## 1. Research (§2.1)
 
 ```
-loops run phase research --note "3 researchers"
+loops run phase research --note "4 researchers"
 ```
-Spawn `web-researcher`, `practices-researcher`, `code-researcher` together. Prompt each with the header lines (below) and `Inputs: ticket.md, research/memory.md, project root`. Label each (see "Labelling"). Wait for completion; proceed when all three briefs exist.
+Spawn `web-researcher`, `practices-researcher`, `code-researcher` and `hardware-researcher` together. The hardware-researcher runs only `loops hw --write` (prompt it with the header lines; it needs `Loops:`). In tier D (solo) run `loops hw --write` yourself. Prompt each with the header lines (below) and `Inputs: ticket.md, research/memory.md, project root`. Label each (see "Labelling"). Wait for completion; proceed when all four outputs exist (`research/hardware.json` included). The practices brief may list `## Project rules that supersede loops`; they win over loops rules and flow into the plan.
 
 ### Prompt header (all spawns, WORKFLOW §3)
 ```
@@ -64,8 +71,8 @@ Do this before waiting.
 ```
 loops run phase plan
 ```
-1. Spawn `planner` (strongest model). It writes `plan.v1.md`.
-2. Spawn `plan-reviewer` with the plan path. It writes `plan-review.r1.md` ending `Verdict: APPROVE|CHANGES`. Read only that last line and the blocking item titles.
+1. Spawn `planner` (strongest model). It writes `plan.v1.md` with a Concurrency block and runs `loops plan check` on it.
+2. Spawn `plan-reviewer` with the plan path. It also runs `loops plan check` (findings are blocking). It writes `plan-review.r1.md` ending `Verdict: APPROVE|CHANGES`. Read only that last line and the blocking item titles.
 3. `CHANGES`: for round N=1..3
 ```
 loops run loopback --from plan-reviewer --to planner --round N --note "<one line>"
@@ -80,10 +87,11 @@ loops run loopback --from plan-reviewer --to planner --round N --note "<one line
 loops run phase implement --note "wave 0"
 ```
 1. **Wave 0**: spawn `architect` (id `W0-architect`, wave 0) alone. When it reports, verify `go build ./... && go vet ./...` yourself (one run). Failures go back to it (resume or re-spawn). Then stop the architect if no later wave needs it.
-2. **Waves 1..n**: `loops run phase implement --note "wave <n>"`. Spawn the whole wave together, producers (domain, application) before consumers (adapters); consumers may start early against the stubs. Roles: `domain-engineer`, `application-engineer`, `api-engineer`, `persistence-engineer`, `integration-engineer`, `test-engineer`, `docs-writer`. Label each.
-3. Under `--models=cheap`, pass a model one tier lower than the role default for every role except planner and plan-reviewer.
-4. Relay cross-agent facts (contract changes, found bugs in another lane's files) by messaging the owner (or, if it is gone, re-spawning it with the facts); never fix across lanes yourself.
-5. When an implementer finishes, its claims report is at `$RUN/reports/<Agent id>.md`. If it is missing, send the agent back to write it.
+2. **Concurrency cap.** Never run more agents at once than the plan's effective cap (min of `parallel.max_agents` (default 100), hardware, opt-in `limits.max_agents`). A wave over the cap runs as sub-waves (`W1a`, then `W1b` when `W1a` lanes have reported); duplicated roles with disjoint scopes (`W1-domain-orders`, `W1-domain-payments`) are separate agents with their own verifiers.
+3. **Waves 1..n**: `loops run phase implement --note "wave <n>"`. Spawn the whole wave together, producers (domain, application) before consumers (adapters); consumers may start early against the stubs. Roles: `domain-engineer`, `application-engineer`, `api-engineer`, `persistence-engineer`, `integration-engineer`, `test-engineer`, `docs-writer`. Label each.
+4. Under `--models=cheap`, pass a model one tier lower than the role default for every role except planner and plan-reviewer.
+5. Relay cross-agent facts (contract changes, found bugs in another lane's files) by messaging the owner (or, if it is gone, re-spawning it with the facts); never fix across lanes yourself.
+6. When an implementer finishes, its claims report is at `$RUN/reports/<Agent id>.md`. If it is missing, send the agent back to write it.
 
 ## 4. QA, pipelined (§2.4)
 
@@ -116,18 +124,18 @@ loops run phase product
 Spawn `product-reviewer` with the plan, reports, QA files, and these facts: `no_pr: <bool>`, `auto_pr: <bool>`, `user_confirmed_pr: <bool>`. It must not push without confirmation.
 - Gap found (FAILED AC): it records a loopback and returns proof paths. Run `loops run phase implement`, send the owning implementer the proof file (resume or re-spawn), then redo QA and the gate. After 2 product rounds (`MaxProductRounds`), ask the user.
 - All ACs VERIFIED and `--no-pr`: it writes `pr.md` only; go to reflect.
-- All ACs VERIFIED, PR wanted, `auto_pr` false: show the user `pr.md` (title, summary, Open items) and ask the user: "Push branch loops/<ticket>-<slug> and open the PR/MR?" On yes, send the same reviewer (resume or re-spawn): `User confirmed: create branch, commit, push, open PR now.` The reviewer records the `pr` event.
+- All ACs VERIFIED, PR wanted, `auto_pr` false: show the user `pr.md` (title, summary, Open items) and ask the user: "Push branch loops/<ticket>-<slug> and open the PR/MR (PR + overrides comment)?" On yes, send the same reviewer (resume or re-spawn): `User confirmed: create branch, commit, push, open PR now.` The reviewer records the `pr` event.
 
 ## 6. Reflect and end (§2.6)
 
 ```
 loops run phase reflect
 ```
-Spawn `reflector`. When it finishes:
+Spawn `reflector`. Besides `reflection.md` it writes `overrides.md` and, when a PR exists and at least one project-rule override was recorded, posts it as a PR comment (never editing the description) and records the note event (WORKFLOW §2.6 step 4). When it finishes:
 ```
 loops run end --outcome done
 ```
-Then stop any remaining agents and give the user a summary of at most 10 lines: outcome, ACs verified, PR link (or "pr.md written, not pushed"), `loops report` path (`$RUN/report.html`), loop-backs count, memory pages written.
+Then stop any remaining agents and give the user a summary of at most 10 lines: outcome, ACs verified, PR link and overrides count (or "pr.md written, not pushed"), `loops report` path (`$RUN/report.html`), loop-backs count, memory pages written.
 
 ## Escalations and failures
 

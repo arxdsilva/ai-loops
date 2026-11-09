@@ -1,6 +1,6 @@
 {
   "name": "loops",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Agent-driven Go backend workflow: research \u2192 plan (+review loop) \u2192 role-based parallel implementation \u2192 QA verification loop \u2192 product proof + PR \u2192 reflection into ai-memory. Every step is traced live (status line, pane) and in an HTML report.",
   "author": {
     "name": "Arthur Silva"

@@ -20,7 +20,7 @@ Commands are skills: `$work`, `$init`, `$status`, `$report`.
 
 ## Binary
 
-`bin/loops` uses `loops` from PATH when it reports version 0.2.0, else a cached build, else runs `go install github.com/arxdsilva/ai-loops/cmd/loops@v0.2.0` on first use (Go required; the module must be reachable).
+`bin/loops` uses `loops` from PATH when it reports version 0.3.0, else a cached build, else runs `go install github.com/arxdsilva/ai-loops/cmd/loops@v0.3.0` on first use (Go required; the module must be reachable).
 
 ## Caveats
 

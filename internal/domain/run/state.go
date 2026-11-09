@@ -36,6 +36,18 @@ type State struct {
 	LastGreen    time.Time `json:"last_green,omitzero"`
 	LastGoChange time.Time `json:"last_go_change,omitzero"`
 
+	// Overrides are project rules that superseded loops rules (WORKFLOW §1).
+	Overrides []OverrideInfo `json:"overrides"`
+	// Limits are the opt-in limits in force (zero = none), from the last KindLimits event.
+	Limits Limits `json:"limits"`
+	// LimitsAt is when the last KindLimits event was recorded (zero = never);
+	// a newer limits event lifts a budget pause.
+	LimitsAt time.Time `json:"limits_at,omitzero"`
+	// PhaseTokens sums agent_stop Tokens per phase (lane phase at open).
+	PhaseTokens map[Phase]int64 `json:"phase_tokens,omitempty"`
+	// Budgets lists blocked spawns (KindBudget), in order.
+	Budgets []BudgetInfo `json:"budgets,omitempty"`
+
 	PR      string `json:"pr,omitempty"`
 	Ended   bool   `json:"ended"`
 	Outcome string `json:"outcome,omitempty"`
@@ -71,6 +83,7 @@ type Lane struct {
 	// "<plan agent id>:C<n>").
 	QA       string `json:"qa,omitempty"`
 	QARounds int    `json:"qa_rounds,omitempty"`
+	Tokens   int64  `json:"tokens,omitempty"`
 }
 
 // GateResult is the latest result of one gate check.
@@ -121,4 +134,24 @@ type StepInfo struct {
 	OK         bool      `json:"ok"`
 	DurationMS int64     `json:"ms,omitempty"`
 	At         time.Time `json:"at"`
+}
+
+// OverrideInfo is one project rule that superseded a loops rule.
+type OverrideInfo struct {
+	LoopsRule   string    `json:"loops_rule"`
+	ProjectRule string    `json:"project_rule"`
+	Note        string    `json:"note,omitempty"`
+	Agent       string    `json:"agent,omitempty"`
+	Role        string    `json:"role,omitempty"`
+	Phase       Phase     `json:"phase,omitempty"`
+	At          time.Time `json:"at"`
+}
+
+// BudgetInfo is one spawn blocked by a limit.
+type BudgetInfo struct {
+	Phase  Phase     `json:"phase"`
+	Role   string    `json:"role,omitempty"`
+	Limit  string    `json:"limit"`
+	Reason string    `json:"reason"`
+	At     time.Time `json:"at"`
 }

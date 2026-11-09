@@ -1,6 +1,9 @@
 package run
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // Fold replays events in order into a State. Events for other runs are
 // ignored once the first KindRun event has set the ID. Fold is total: it
@@ -41,6 +44,7 @@ func Fold(events []Event) State {
 			l.Running = false
 			l.OK = e.OK
 			l.Stopped = e.Time
+			foldTokens(&s, l, e.Tokens)
 		case KindLabel:
 			l := lane(&s, e.Agent)
 			l.Label = e.Name
@@ -69,6 +73,16 @@ func Fold(events []Event) State {
 			case "query", "briefing":
 				s.MemoryQ++
 			}
+		case KindOverride:
+			s.Overrides = append(s.Overrides, OverrideInfo{LoopsRule: e.Name, ProjectRule: e.Target, Note: e.Note, Agent: e.Agent, Role: e.Role, Phase: vphase(&s, e), At: e.Time})
+		case KindLimits:
+			var l Limits
+			if json.Unmarshal([]byte(e.Note), &l) == nil {
+				s.Limits = l
+				s.LimitsAt = e.Time
+			}
+		case KindBudget:
+			s.Budgets = append(s.Budgets, BudgetInfo{Phase: vphase(&s, e), Role: e.Role, Limit: e.Name, Reason: e.Note, At: e.Time})
 		case KindPR:
 			s.PR = e.Ref
 		case KindEnd:
@@ -79,6 +93,30 @@ func Fold(events []Event) State {
 	s.PlanRounds = planRounds(s.Verdicts)
 	laneQA(&s)
 	return s
+}
+
+// foldTokens applies an agent_stop token count. A transcript only grows (a
+// resumed agent keeps its id and transcript), so the count is the lane's
+// cumulative total: the lane keeps the highest one seen and only the growth
+// is added to PhaseTokens, under the lane's phase (the current phase when
+// the lane was never opened).
+func foldTokens(s *State, l *Lane, tokens int64) {
+	if tokens <= l.Tokens {
+		return
+	}
+	delta := tokens - l.Tokens
+	l.Tokens = tokens
+	p := l.Phase
+	if p == "" {
+		p = s.Phase
+	}
+	if p == "" {
+		return
+	}
+	if s.PhaseTokens == nil {
+		s.PhaseTokens = map[Phase]int64{}
+	}
+	s.PhaseTokens[p] += delta
 }
 
 func planRounds(vs []VerdictInfo) int {

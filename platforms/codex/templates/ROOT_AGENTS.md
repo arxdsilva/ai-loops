@@ -27,6 +27,9 @@ Read only what the current task needs.
 - Remove unused code, config and loaders in the change that makes them unused.
 - Read long files by `offset`/`limit`; hooks deny whole-file Reads over 500 lines and shell views over 150 lines.
 
+## Precedence
+This repository's own rules (this file, `CLAUDE.md`, `.cursor/rules`, CONTRIBUTING, linter configs) win over the loops defaults above. When an agent follows a project rule instead of a loops rule it records it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what was done>"`; the list is posted on the PR as a comment.
+
 ## Workflow
 Tickets go through `/loops:work <ticket>`. Status: `/loops:status`. Report: `/loops:report`.
 ```

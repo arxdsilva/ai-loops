@@ -36,3 +36,6 @@ Let subagents finish; cancel from the Copilot UI if one stalls, then re-spawn wi
 copilot plugin install arxdsilva/ai-loops
 ```
 or VS Code: *Chat: Install Plugin from Source*. Needs Go. Verify: `loops version`, then run the work skill.
+
+## Hardware and budgets
+The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are measured only if the SubagentStop payload carries `agent_transcript_path` *(unverified)*; otherwise they are advisory. Agent, role and concurrency limits always apply.

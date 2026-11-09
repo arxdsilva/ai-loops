@@ -9,6 +9,7 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 - **Contract first.** No implementer starts until the architect has written the interfaces, typed commands, DTOs and stubs the wave depends on, and the build is green.
 - **Claims need evidence.** Every implementer reports claims, and each claim names the evidence that proves it. Nothing counts as done until a different agent has verified it.
 - **Send back with context.** A reviewer that rejects work says exactly what is wrong, how to reproduce it, and where to fix it. The lead sends the work back to the **same** author (resumed where the platform supports it, otherwise a new agent of the same role seeded with its previous report and the review file; see `specs/PLATFORMS.md` §4) so context carries over.
+- **Project rules win.** The target repository's own rules always take precedence over loops' specs, skills and templates. That means its AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs and established architecture. Any agent that follows a project rule instead of a loops rule records it immediately: `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what was done>"`. The reflector posts the list as a PR comment (§2.6).
 - **Everything is visible.** Every phase change, agent lane, tool call, verdict, loop-back, gate, proof and memory access lands in `events.jsonl` (§5).
 - **Smallest sufficient context.** Search before reading, read ranges, cite by path and section, and never paste whole specs (`specs/CONTEXT_DISCIPLINE.md`).
 
@@ -17,7 +18,7 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 | # | Phase (`run.Phase`) | Agents | Output in the run dir | Exit criterion |
 |---|---|---|---|---|
 | 0 | `intake` | lead | `ticket.md` | The ticket is normalised and has a source |
-| 1 | `research` | `web-researcher`, `practices-researcher`, `code-researcher` (parallel) | `research/web.md`, `research/practices.md`, `research/code.md` | All three briefs are written |
+| 1 | `research` | `web-researcher`, `practices-researcher`, `code-researcher`, `hardware-researcher` (parallel) | `research/web.md`, `research/practices.md`, `research/code.md`, `research/hardware.{json,md}` | All four outputs are written |
 | 2 | `plan` | `planner` ↔ `plan-reviewer` (+ the user when approval is required) | `plan.v<N>.md`, `plan-review.r<N>.md` | The latest review is `APPROVE` (and the user approved, if required) |
 | 3 | `implement` | `architect` (wave 0), then role engineers in waves 1…n | `reports/<agent-id>.md` (claims reports) | Every lane has reported |
 | 4 | `qa` | one `qa-verifier` per implementer (pipelined), then the lead runs the gates | `qa/<agent-id>.r<N>.md` | Every claim is `VERIFIED` and `loops gate` is green |
@@ -42,13 +43,20 @@ Flags on `/loops:work`:
 
 ### 2.1 Research
 
-- Launch the three researchers together, in parallel where the platform allows (`skills/work/platforms/<p>.md`).
+- Launch the four researchers together, in parallel where the platform allows (`skills/work/platforms/<p>.md`).
+- **`hardware-researcher`** runs exactly one command, `loops hw --write`, which writes `research/hardware.json` and `research/hardware.md`, then replies with the one-line recommendation. It is the cheapest agent in the run. On platforms without subagents (tier D), the lead runs `loops hw --write` itself.
+- **`practices-researcher`** first scans the project's own rules and lists every conflict with loops' rules under `## Project rules that supersede loops` (§1).
 - Each gets the same inputs: `ticket.md`, `research/memory.md`, the project root, and the plugin `specs/` path (`loops path specs`).
 - Each brief is at most 600 words. It contains facts with sources (`path:line`, a URL, or `spec §`) and has a `## Open questions` section.
 - A researcher may run narrower `memory_query` calls. It must verify any memory hit against the current source before citing it, because memory is historical evidence, not truth.
 
 ### 2.2 Plan
 
+- **Parallelism.** The planner sizes the waves to the effective cap = min(`parallel.max_agents` in `.loops/config.json` (default **100**), `research/hardware.json` `max_parallel_agents`, opt-in `limits.max_agents`).
+  - The same role may run as several agents in one wave (`W1-domain-orders`, `W1-domain-payments`) when their owned globs are disjoint. Each gets its own qa-verifier.
+  - A wave larger than the cap is split into sub-waves (`W1a`, `W1b`).
+  - At most `max_concurrent_test_runs` agents run `go test` at once, each with `GOFLAGS=-p=2`. That is the `loops hw` recommendation, set in config by `parallel.max_test_runs`.
+  - The plan's **Concurrency** block states the cap and the peak per wave. The planner and the plan-reviewer both run `loops plan check plan.v<N>.md`, and any finding blocks.
 - The `planner` writes `plan.v1.md` from `templates/PLAN.md`. The plan contains:
   - acceptance criteria (`AC-1`…, taken from the ticket, or marked *derived*);
   - the task packet;
@@ -152,6 +160,12 @@ The `reflector`:
    - `procedures/<slug>.md`: kind `procedure`, tier `procedural`.
 
    It searches first and updates an existing page (`expected_page_id`) instead of duplicating it. It never stores secrets, tokens or customer data. Each write is recorded as `loops run event --kind memory --name write --target <path>`.
+4. **Project-rule overrides** (§1):
+   1. Write `overrides.md` (`templates/OVERRIDES.md`) from `State.Overrides` (`loops status --json`). Each row gives the loops rule, the project rule, where it was applied, and the reason.
+   2. If a PR or MR exists (`State.PR`) and there is at least one override, post the file as a **comment**: `gh pr comment <url> --body-file <Run dir>/overrides.md`, or `glab mr note <id> --message "$(cat <Run dir>/overrides.md)"`, using the absolute run-dir path. Never edit the PR description.
+   3. Record `loops run event --kind note --name overrides-comment --ref overrides.md`.
+
+   The user's PR confirmation (§2.5) covers this comment. With no PR, or under `--no-pr`, only the file is written.
 
 Finally, the lead runs `loops run end --outcome done` and gives the user a ≤10-line summary with the PR link and `report.html`.
 
@@ -181,9 +195,20 @@ Right after each spawn, the lead names the lane: `loops run label --agent <platf
 
 Every pass around any loop is recorded with `loops run loopback`, which feeds the status line counters and the report's arrows.
 
+## 4a. Opt-in limits (only when the user asks)
+
+The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budget research=200k,implement=2M`), agents per phase (`--agents implement=12`), or the roles allowed in a phase (`--roles implement=domain-engineer,api-engineer`). Limits come from `/loops:work` flags or `limits` in `.loops/config.json`. Without them, nothing is limited and nothing asks.
+
+- At intake the lead builds the limits JSON with `loops budget parse …` from the user's flags, then records it: `loops run event --kind limits --note '<json>'`.
+- Before every spawn the lead runs `loops budget check --phase <p> --spawn <n> --role <r>`.
+  - Exit 0: the spawn fits.
+  - Exit 3: a limit would be exceeded. The command records a `budget` event and prints the reason. The lead stops spawning in that phase, lets running agents finish, and **asks the user** to raise the limit, continue past it once, or stop the run.
+- Tokens are measured from each agent's own transcript (`agent_transcript_path`) when it stops. A resumed agent counts only its growth. Claude Code provides that transcript. On platforms that don't send a per-agent transcript, token budgets are advisory, while agent and role limits still apply everywhere (`specs/PLATFORMS.md` §8).
+- `loops budget show` prints usage against the limits.
+
 ## 5. Events
 
-`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
+`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
 
 | Source | Emits |
 |---|---|
@@ -200,6 +225,10 @@ The CLI commands that write these events:
 - `loops run loopback --from R --to A --round N [--note] [--phase]`
 - `loops run verdict --name X --status S [--round N] [--ref f] [--agent A] [--role R]`
 - `loops run label --agent <id> --name <plan id> --role R --wave N`
+- `loops run override --rule <loops rule> --project <project rule> [--note] [--agent A] [--role R]`
+- `loops budget check --phase P [--spawn N] [--role R]` (writes a `budget` event when it blocks)
+- `loops budget parse [--max-agents N] [--budget p=200k,…] [--agents p=N,…] [--roles p=a,b]` prints the limits JSON for `loops run event --kind limits`. `loops budget show` prints usage against the limits.
+- `loops hw [--json] [--write]` and `loops plan check <plan> [--cap N]`
 - `loops run end [--outcome done|abandoned|failed]`
 - `loops run dir`
 

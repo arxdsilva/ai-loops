@@ -101,3 +101,24 @@ func TestWatchStopsOnCancelAndRejectsBadFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestWatchOverridesAndLimits(t *testing.T) {
+	s := limitsState()
+	s.Budgets = []run.BudgetInfo{{Phase: run.PhaseQA, Limit: "tokens", Reason: "qa tokens 2M reached", At: s.Started.Add(40 * time.Minute)}}
+	frame := renderWatch(s, true, false)
+	for _, want := range []string{"Overrides 2", "last: commit → AGENTS.md#git", "Limits", "QA", "1.2M/2M tok", "TOKENS", "12k", "⏸ budget"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("missing %q\n%s", want, frame)
+		}
+	}
+	t.Log("\n" + frame)
+}
+
+func TestWatchNoLimitsNoExtras(t *testing.T) {
+	frame := renderWatch(watchState(), true, false)
+	for _, bad := range []string{"Overrides", "Limits", "TOKENS", "⏸"} {
+		if strings.Contains(frame, bad) {
+			t.Errorf("unexpected %q\n%s", bad, frame)
+		}
+	}
+}

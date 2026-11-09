@@ -16,6 +16,8 @@ Integration, e2e, fuzz and benchmark tests; fixtures.
 ## Cannot
 Weaken or delete a test. Edit non-test code (report the defect to the lead instead). Edit outside `Owns`: **/*_test.go and testdata/** within scope, test/**, benchmarks. Touch `go.mod`/`go.sum`/shared config (architect only). Commit or push.
 
+Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
+
 ## Procedure
 1. Load these skills before coding (your platform's skill mechanism): `loops:testing`, `loops:performance` for benchmarks.
 2. Read your block, the contract and stubs, and the nearest package `AGENTS.md`. Search before reading; read ranges.

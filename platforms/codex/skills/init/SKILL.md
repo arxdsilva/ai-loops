@@ -16,7 +16,8 @@ Idempotent setup for the current repo. **Never overwrite an existing file withou
   "approval": "never",
   "auto_pr": false,
   "gate": { "skip": [], "vuln": false },
-  "memory": { "workspace": "", "project": "" }
+  "memory": { "workspace": "", "project": "" },
+  "parallel": { "max_agents": 100, "agent_ram_gib": 1, "cpu_slots_per_core": 4, "max_test_runs": 0 }
 }
 ```
    - `layers`: object mapping layer keys (domain, application, ports, adapters, inbound, outbound, platform, compose, cmd, pkg) to lists of module-relative dir prefixes; omitted keys keep defaults. Example: `{"domain":["internal/core"]}`. Leave `{}` unless the repo uses non-standard dirs.
@@ -24,6 +25,8 @@ Idempotent setup for the current repo. **Never overwrite an existing file withou
    - `auto_pr`: `true` skips the confirmation before push/PR. Keep `false` unless the user wants it.
    - `gate.skip`: checks to skip (`build`, `gofmt`, `vet`, `staticcheck`, `arch`, `test`, `govulncheck`); `gate.vuln`: run govulncheck.
    - `memory`: ai-memory scope; leave empty to derive from `.ai-memory.toml` or the git remote `owner/repo`.
+   - `parallel`: concurrency. `max_agents` is the configured agent cap (default 100; the effective cap is also bounded by `loops hw`); `agent_ram_gib` and `cpu_slots_per_core` feed the hardware estimate; `max_test_runs` 0 means derive from the CPU count.
+   - `limits` (opt-in, omitted by default; add only when the user wants caps): `"limits": {"max_agents": 12, "budget": {"research": "200k", "implement": "2M"}, "agents": {"implement": 12}, "roles": {"implement": ["domain-engineer", "api-engineer"]}}`. Nothing is limited and nothing asks without it.
    If it exists, show it and ask before changing anything.
 3. **.gitignore.** Add the line `/.loops/` if no line matches it (create the file if needed). Run data is local.
 4. **AGENTS.md.** If absent, copy `$(loops path templates)/ROOT_AGENTS.md` to `./AGENTS.md`. If present, offer to append a "loops" section (the relevant headings from the template); do not replace.

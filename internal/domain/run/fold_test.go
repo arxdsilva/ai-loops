@@ -181,3 +181,106 @@ func TestLaneQAAggregation(t *testing.T) {
 		t.Fatalf("%+v", s.Lanes[0])
 	}
 }
+
+func TestFoldOverridesLimitsBudgets(t *testing.T) {
+	s := Fold([]Event{
+		at(0, Event{Kind: KindRun, Run: "r", Name: "T"}),
+		at(1, Event{Kind: KindPhase, Phase: PhaseImplement}),
+		at(2, Event{Kind: KindOverride, Name: "SOLID_GO §9", Target: "AGENTS.md:12 use testify", Note: "used testify", Agent: "a1", Role: "domain-engineer"}),
+		at(3, Event{Kind: KindOverride, Name: "R2", Target: "P2", Phase: PhaseQA}),
+		at(4, Event{Kind: KindLimits, Note: `{"max_agents":4,"phases":{"implement":{"max_tokens":2000000,"max_agents":12,"roles":["a","b"]}}}`}),
+		at(5, Event{Kind: KindLimits, Note: `{not json`}), // ignored: keeps the previous limits
+		at(6, Event{Kind: KindBudget, Phase: PhaseImplement, Role: "a", Name: "tokens", Note: "implement token budget spent: 2.1M of 2M"}),
+		at(7, Event{Kind: KindBudget, Name: "max_agents", Note: "cap"}),
+	})
+	if len(s.Overrides) != 2 {
+		t.Fatalf("overrides: %+v", s.Overrides)
+	}
+	o := s.Overrides[0]
+	if o.LoopsRule != "SOLID_GO §9" || o.ProjectRule != "AGENTS.md:12 use testify" || o.Note != "used testify" || o.Agent != "a1" ||
+		o.Role != "domain-engineer" || o.Phase != PhaseImplement || !o.At.Equal(t0.Add(2*time.Second)) {
+		t.Fatalf("override: %+v", o)
+	}
+	if s.Overrides[1].Phase != PhaseQA {
+		t.Fatalf("explicit phase: %+v", s.Overrides[1])
+	}
+	pl := s.Limits.Phases[PhaseImplement]
+	if s.Limits.MaxAgents != 4 || pl.MaxTokens != 2000000 || pl.MaxAgents != 12 || len(pl.Roles) != 2 {
+		t.Fatalf("limits: %+v", s.Limits)
+	}
+	if len(s.Budgets) != 2 {
+		t.Fatalf("budgets: %+v", s.Budgets)
+	}
+	b := s.Budgets[0]
+	if b.Phase != PhaseImplement || b.Role != "a" || b.Limit != "tokens" || !strings.Contains(b.Reason, "2.1M") || !b.At.Equal(t0.Add(6*time.Second)) {
+		t.Fatalf("budget: %+v", b)
+	}
+	if s.Budgets[1].Phase != PhaseImplement || s.Budgets[1].Limit != "max_agents" {
+		t.Fatalf("budget phase defaults to current: %+v", s.Budgets[1])
+	}
+	// a later limits event replaces the earlier one; "{}" clears.
+	s = Fold([]Event{
+		at(0, Event{Kind: KindLimits, Note: `{"max_agents":4}`}),
+		at(1, Event{Kind: KindLimits, Note: `{}`}),
+	})
+	if !s.Limits.IsZero() {
+		t.Fatalf("cleared: %+v", s.Limits)
+	}
+}
+
+func TestFoldTokens(t *testing.T) {
+	s := Fold([]Event{
+		at(0, Event{Kind: KindRun, Run: "r", Name: "T"}),
+		at(1, Event{Kind: KindAgentStop, Agent: "early", Tokens: 7}), // no phase yet: lane only
+		at(2, Event{Kind: KindPhase, Phase: PhaseResearch}),
+		at(3, Event{Kind: KindAgentStart, Agent: "a1", Role: "web-researcher"}),
+		at(4, Event{Kind: KindPhase, Phase: PhaseImplement}),
+		at(5, Event{Kind: KindAgentStop, Agent: "a1", OK: Bool(true), Tokens: 100}), // lane phase (research), not current
+		at(6, Event{Kind: KindAgentStart, Agent: "a2", Role: "domain-engineer"}),
+		at(7, Event{Kind: KindAgentStop, Agent: "a2", OK: Bool(true), Tokens: 50}),
+		at(8, Event{Kind: KindAgentStop, Agent: "ghost", Tokens: 30}), // no lane: current phase
+		at(9, Event{Kind: KindAgentStop, Agent: "a2", Tokens: 0}),     // no transcript: unchanged
+	})
+	if s.PhaseTokens[PhaseResearch] != 100 || s.PhaseTokens[PhaseImplement] != 80 || len(s.PhaseTokens) != 2 {
+		t.Fatalf("phase tokens: %+v", s.PhaseTokens)
+	}
+	want := map[string]int64{"early": 7, "a1": 100, "a2": 50, "ghost": 30}
+	for _, l := range s.Lanes {
+		if l.Tokens != want[l.Agent] {
+			t.Errorf("lane %s tokens %d want %d", l.Agent, l.Tokens, want[l.Agent])
+		}
+	}
+	if s.Lanes[1].OK == nil || !*s.Lanes[1].OK || s.Lanes[1].Running {
+		t.Fatalf("stop behaviour kept: %+v", s.Lanes[1])
+	}
+}
+
+// A resumed agent keeps its id and appends to the same transcript, so a
+// second agent_stop reports the cumulative total: only the growth is added
+// to the phase the resumed lane works in.
+func TestFoldTokensResumedLaneCountsGrowthOnly(t *testing.T) {
+	s := Fold([]Event{
+		at(0, Event{Kind: KindPhase, Phase: PhaseImplement}),
+		at(1, Event{Kind: KindAgentStart, Agent: "a1"}),
+		at(2, Event{Kind: KindAgentStop, Agent: "a1", Tokens: 100}),
+		at(3, Event{Kind: KindPhase, Phase: PhaseQA}),
+		at(4, Event{Kind: KindAgentStart, Agent: "a1"}), // resumed after a QA loop-back
+		at(5, Event{Kind: KindAgentStop, Agent: "a1", Tokens: 160}),
+		at(6, Event{Kind: KindAgentStop, Agent: "a1", Tokens: 120}), // never shrinks
+	})
+	if s.Lanes[0].Tokens != 160 || s.PhaseTokens[PhaseImplement] != 100 || s.PhaseTokens[PhaseQA] != 60 {
+		t.Fatalf("lane %d phases %+v", s.Lanes[0].Tokens, s.PhaseTokens)
+	}
+}
+
+func TestFoldLimitsAt(t *testing.T) {
+	t0 := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	s := Fold([]Event{
+		{Time: t0, Kind: KindRun, Run: "r"},
+		{Time: t0.Add(time.Minute), Kind: KindLimits, Note: `{"max_agents":4}`},
+		{Time: t0.Add(2 * time.Minute), Kind: KindLimits, Note: `not json`},
+	})
+	if !s.LimitsAt.Equal(t0.Add(time.Minute)) || s.Limits.MaxAgents != 4 {
+		t.Fatalf("LimitsAt = %v, Limits = %+v; a bad limits event must not move LimitsAt", s.LimitsAt, s.Limits)
+	}
+}

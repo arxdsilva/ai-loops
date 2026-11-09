@@ -5,7 +5,7 @@ A Claude Code plugin for working on Go backends with agents. Every ticket goes t
 ```
 /loops:work #123
   0 intake    ticket → ticket.md (GitHub · GitLab · Jira · Linear · free text)
-  1 research  web-researcher ∥ practices-researcher ∥ code-researcher   (ai-memory first)
+  1 research  web ∥ practices ∥ code ∥ hardware researchers   (ai-memory first)
   2 plan      planner (opus) ⇄ plan-reviewer (opus)   [+ your approval with --approve]
   3 implement architect (contract, wave 0) → role engineers in parallel waves
   4 qa        a qa-verifier per engineer checks every claim ⇄ sends failures back with a repro
@@ -111,6 +111,24 @@ Then, in your Go repo (Claude Code shown; other platforms use their own command 
 
 Everything is recorded in `.loops/runs/<id>/events.jsonl`, written by the skills (`loops run …`) and by the plugin's hooks.
 
+## Parallelism & hardware
+
+Waves are sized to an effective cap: the smallest of `parallel.max_agents` in `.loops/config.json` (default **100**), what `loops hw` recommends for this machine (CPU, RAM, load; the hardware-researcher runs it in the research phase), and any opt-in limit. The same role can run as several agents when their file scopes are disjoint, and a wave over the cap is split into sub-waves. `loops plan check` rejects plans that break the cap or overlap. Tune it with `parallel`: `{"max_agents": 100, "agent_ram_gib": 1, "cpu_slots_per_core": 4, "max_test_runs": 0}`.
+
+## Optional limits
+
+Off by default: nothing is limited and nothing asks. Opt in per run with `/loops:work` flags, or persistently with `limits` in `.loops/config.json`:
+
+```
+--max-agents 12   --budget research=200k,implement=2M   --agents implement=12   --roles implement=domain-engineer,api-engineer
+```
+
+Before each spawn the lead runs `loops budget check`. If a limit would be exceeded, the run pauses and asks you to raise it, continue once, or stop. `loops budget show` prints usage. Token budgets are measured on Claude Code, Codex and Copilot, and advisory elsewhere.
+
+## Project rules win
+
+Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs, existing layout) always beat loops' defaults. Whenever an agent follows one instead of a loops rule it logs it (`loops run override`). At the end the reflector writes `overrides.md` and posts it as a comment on the PR/MR (never in the description), so you see exactly where your rules were applied.
+
 ## Guardrails (hooks)
 
 | Hook | What it does |
@@ -126,7 +144,7 @@ Everything is recorded in `.loops/runs/<id>/events.jsonl`, written by the skills
 
 ## Layout
 
-- `agents/`: the 16 roles, summarised in `ROLES.md`.
+- `agents/`: the 17 roles, summarised in `ROLES.md`.
 - `skills/`: the `work` orchestrator, `init`, `status`, `report`, and the reference skills.
 - `specs/`: the workflow spec, plus the Go and architecture rules.
 - `templates/`: what the agents fill in.

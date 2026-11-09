@@ -17,6 +17,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/goparse"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gotool"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/htmlreport"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/hwprobe"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/portfs"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runstore"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/vcs"
@@ -90,6 +91,9 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Hooks: hook.New(hook.Deps{
 			Rec: trk, Files: fsys.New(), Cmd: gotool.New(), Env: os.Getenv, Getwd: os.Getwd,
 		}),
+		HW:         hwprobe.New(),
+		Parallel:   cfg.Parallel,
+		Limits:     cfg.Limits,
 		Source:     ailoops.Source,
 		Packages:   portfs.New(),
 		Root:       root,

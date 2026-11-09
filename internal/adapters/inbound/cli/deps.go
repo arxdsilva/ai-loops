@@ -8,6 +8,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/application/ticket"
 	"github.com/arxdsilva/ai-loops/internal/application/tracker"
 	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/domain/hw"
 	"github.com/arxdsilva/ai-loops/internal/domain/plugin"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
@@ -60,4 +61,9 @@ type PackageWriter interface {
 	// Place copies files to absolute destinations (installer), skipping
 	// existing files unless force; it returns the destinations written.
 	Place(placements []plugin.Placement, force bool) ([]string, error)
+}
+
+// HWProbe measures the machine.
+type HWProbe interface {
+	Probe(ctx context.Context, dir string) (hw.Facts, error)
 }

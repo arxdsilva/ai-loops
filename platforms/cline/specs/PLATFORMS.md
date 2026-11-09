@@ -217,3 +217,7 @@ Tiers (`haiku`, `sonnet`, `opus`) are Claude names. Other platforms inherit the 
   - `duration` is in milliseconds, and `CLAUDE_PROJECT_DIR` is an alias of `CURSOR_PROJECT_DIR`.
 - **Gemini:** `AfterAgent` carries `stop_hook_active`, and a deny there forces a retry. The env vars are `GEMINI_PROJECT_DIR`, `GEMINI_CWD` and `GEMINI_SESSION_ID`.
 - **Devin (Windsurf):** there is no `stop_hook_active`. On every platform, the stop gate releases itself after 3 blocks in a row with no tool step between them.
+
+## 8. Budgets and hardware
+
+The `hardware-researcher` is a normal haiku subagent on tiers A-C. On tier D the lead runs `loops hw --write` itself (WORKFLOW §2.1). Token budgets (`--budget`, WORKFLOW §4a) are measured from each agent's own transcript (`agent_transcript_path` on SubagentStop). Claude Code sends that field. Codex and Copilot are measured only if their SubagentStop payload carries it *(unverified)*. On every other platform, token budgets are advisory. Agent-count, role and concurrency limits are enforced by the lead on every platform.

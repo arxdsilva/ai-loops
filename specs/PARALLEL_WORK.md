@@ -34,6 +34,7 @@ A contract change after wave 0 is additive, made by the architect, and relayed t
 
 | Do | Don't |
 | --- | --- |
+| Run the same role as several agents when their globs are disjoint, up to the effective cap (min of `parallel.max_agents` (default 100), `loops hw`, opt-in `limits.max_agents`); split larger waves into sub-waves (`specs/WORKFLOW.md §2.2`) | Cap a wave at a fixed small number, or exceed the effective cap |
 | Give every agent explicit owned globs, forbidden globs, the spec sections it follows, targeted verification commands and a word-capped report | Launch an agent with "fix whatever you find" |
 | Split along the hexagon: one agent per layer or package area (`ROLES.md` default scopes, narrowed in the plan) | Give two agents the same file |
 | When ownership cannot be disjoint, split the file, give it to one agent, or sequence the work | Hope concurrent edits to one file work out |

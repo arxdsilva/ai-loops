@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/domain/hw"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 // Config is .loops/config.json. Every field is optional.
@@ -22,6 +24,11 @@ type Config struct {
 	Gate GateConfig `json:"gate"`
 	// Memory overrides the ai-memory scope; empty = .ai-memory.toml or git remote owner/repo.
 	Memory MemoryConfig `json:"memory"`
+	// Parallel is the always-on parallelism default (max_agents 100 when unset)
+	// and the hardware-formula knobs (specs/WORKFLOW.md §2.2).
+	Parallel hw.Knobs `json:"parallel"`
+	// Limits are opt-in per-run/per-phase limits; zero = none (WORKFLOW §4a).
+	Limits run.Limits `json:"limits"`
 }
 
 // GateConfig tunes the gate pipeline.

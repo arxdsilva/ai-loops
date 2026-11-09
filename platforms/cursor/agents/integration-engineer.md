@@ -20,6 +20,8 @@ Clients for external APIs and brokers, retries and timeouts, contract tests with
 ## Cannot
 Leak library types past a port. Retry non-idempotent calls without a key. Omit timeouts and context propagation. Edit outside `Owns`: internal/adapters/outbound/<client>/** (narrowed by the plan). Touch `go.mod`/`go.sum`/shared config (architect only). Commit or push.
 
+Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
+
 ## Procedure
 1. Load these skills before coding (your platform's skill mechanism): `loops:hexagonal`, `loops:consistency`, `loops:testing`.
 2. Read your block, the contract and stubs, and the nearest package `AGENTS.md`. Search before reading; read ranges.

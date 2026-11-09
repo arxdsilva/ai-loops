@@ -35,3 +35,6 @@ None in v1 (no deny, no trace, no gofmt, no stop gate). The lead runs `loops gat
 loops install --target amp
 ```
 Writes `.agents/skills/`; rules come from AGENTS.md. Needs Go. Verify: `loops version`; `loops path agents`.
+
+## Hardware and budgets
+The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.

@@ -33,6 +33,7 @@ var cursorBackground = map[string]bool{
 	"web-researcher":       true,
 	"practices-researcher": true,
 	"code-researcher":      true,
+	"hardware-researcher":  true,
 	"planner":              false,
 	"plan-reviewer":        false,
 	"architect":            false,

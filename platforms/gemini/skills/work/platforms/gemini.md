@@ -37,3 +37,6 @@ git clone https://github.com/arxdsilva/ai-loops
 gemini extensions install ./ai-loops/platforms/gemini   # no subdirectory install; `link` for development
 ```
 *(unverified: subdirectory installs; otherwise clone and `gemini extensions install ./ai-loops/platforms/gemini`)*. Needs Go. Verify: `loops version`.
+
+## Hardware and budgets
+The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.

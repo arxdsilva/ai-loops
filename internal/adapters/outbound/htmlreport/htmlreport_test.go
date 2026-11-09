@@ -244,3 +244,53 @@ func checkBalanced(doc string) error {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+func limitsFixture() (run.State, []run.Event) {
+	s, ev := fixture()
+	s.Overrides = []run.OverrideInfo{{LoopsRule: "tdd <rule>", ProjectRule: "CLAUDE.md#tests", Note: "project <wins>", Agent: "a1", Role: "domain-engineer", Phase: run.PhaseImplement, At: at(40)}}
+	s.Limits = run.Limits{Phases: map[run.Phase]run.PhaseLimit{run.PhaseImplement: {MaxTokens: 1_000_000, MaxAgents: 4}}}
+	s.PhaseTokens = map[run.Phase]int64{run.PhaseImplement: 1_250_000}
+	s.Budgets = []run.BudgetInfo{{Phase: run.PhaseImplement, Role: "adapter-engineer", Limit: "tokens", Reason: "implement <tokens> exhausted", At: at(50)}}
+	s.Lanes[0].Tokens = 12_400
+	return s, ev
+}
+
+func TestRenderOverridesAndLimits(t *testing.T) {
+	s, ev := limitsFixture()
+	out := render(t, s, ev, "testdata/run1")
+	for _, want := range []string{
+		`id="overrides"`, "Project-rule overrides", "tdd &lt;rule&gt;", "CLAUDE.md#tests", "project &lt;wins&gt;", "domain-engineer",
+		`id="limits"`, "Limits &amp; tokens", "Implement", "1.2M", "1M", "over limit", "implement &lt;tokens&gt; exhausted", "adapter-engineer", "12k tok",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if strings.Contains(out, "<rule>") || strings.Contains(out, "<tokens>") {
+		t.Error("unescaped content")
+	}
+	if err := checkBalanced(out); err != nil {
+		t.Error(err)
+	}
+	if m := extRe.FindString(out); m != "" {
+		t.Errorf("external resource %q", m)
+	}
+}
+
+func TestRenderNoOverridesNoLimitsUnchanged(t *testing.T) {
+	s, ev := fixture()
+	out := render(t, s, ev, "testdata/run1")
+	for _, bad := range []string{`id="overrides"`, `id="limits"`, "Project-rule overrides", " tok"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("unexpected %q", bad)
+		}
+	}
+}
+
+func TestFmtTokens(t *testing.T) {
+	for in, want := range map[int64]string{0: "0", 999: "999", 12_400: "12k", 1_250_000: "1.2M", 2_000_000: "2M"} {
+		if got := fmtTokens(in); got != want {
+			t.Errorf("fmtTokens(%d)=%q want %q", in, got, want)
+		}
+	}
+}

@@ -365,3 +365,118 @@ func TestReportUnknownRun(t *testing.T) {
 		t.Error("file written")
 	}
 }
+
+func limitsState() run.State {
+	s := fixtureState()
+	t0 := s.Started
+	s.PhaseLog = []run.PhaseEntry{{Phase: run.PhaseQA, At: t0.Add(30 * time.Minute)}}
+	s.Overrides = []run.OverrideInfo{{LoopsRule: "tdd", ProjectRule: "CLAUDE.md#tests"}, {LoopsRule: "commit", ProjectRule: "AGENTS.md#git", At: t0}}
+	s.Limits = run.Limits{Phases: map[run.Phase]run.PhaseLimit{run.PhaseQA: {MaxTokens: 2_000_000}}}
+	s.PhaseTokens = map[run.Phase]int64{run.PhaseQA: 1_250_000}
+	s.Lanes[1].Tokens = 12_400
+	return s
+}
+
+func TestFmtTokens(t *testing.T) {
+	for in, want := range map[int64]string{0: "0", 999: "999", 1000: "1k", 12_400: "12k", 1_250_000: "1.2M", 2_000_000: "2M"} {
+		if got := fmtTokens(in); got != want {
+			t.Errorf("fmtTokens(%d)=%q want %q", in, got, want)
+		}
+	}
+}
+
+func TestStatuslineOverridesLimitsBudget(t *testing.T) {
+	s := limitsState()
+	plain := stripANSI(statusLine(statusInput{}, s, true))
+	for _, want := range []string{"overrides 2", "tok 1.2M/2M"} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("missing %q in %q", want, plain)
+		}
+	}
+	if strings.Contains(plain, "⏸ budget") {
+		t.Errorf("no budget event yet: %q", plain)
+	}
+	// stale budget (before the phase change) is not shown
+	s.Budgets = []run.BudgetInfo{{Phase: run.PhaseQA, Limit: "tokens", At: s.Started.Add(10 * time.Minute)}}
+	if strings.Contains(stripANSI(statusLine(statusInput{}, s, true)), "⏸") {
+		t.Error("stale budget shown")
+	}
+	// other phase is not shown
+	s.Budgets = []run.BudgetInfo{{Phase: run.PhaseImplement, Limit: "tokens", At: s.Started.Add(40 * time.Minute)}}
+	if strings.Contains(stripANSI(statusLine(statusInput{}, s, true)), "⏸") {
+		t.Error("other-phase budget shown")
+	}
+	s.Budgets = []run.BudgetInfo{{Phase: run.PhaseQA, Limit: "tokens", At: s.Started.Add(40 * time.Minute)}}
+	if !strings.Contains(stripANSI(statusLine(statusInput{}, s, true)), "⏸ budget") {
+		t.Error("budget marker missing")
+	}
+	// no phase log: any budget in the phase counts
+	s.PhaseLog = nil
+	if !strings.Contains(plainLine(s), "⏸ budget") {
+		t.Error("budget marker missing without phase log")
+	}
+}
+
+func TestStatuslineNoLimitsUnchanged(t *testing.T) {
+	plain := plainLine(fixtureState())
+	for _, bad := range []string{"overrides", "tok ", "⏸"} {
+		if strings.Contains(plain, bad) {
+			t.Errorf("unexpected %q in %q", bad, plain)
+		}
+	}
+}
+
+func TestSubagentLinesTokens(t *testing.T) {
+	a, out, _ := newApp(&fakeTracker{st: limitsState()}, `{"columns":200,"tasks":[{"id":"t1","agentType":"loops:adapter-engineer","description":"d"},{"id":"t2","agentType":"loops:domain-engineer","description":"d"}]}`)
+	a.Run(context.Background(), []string{"status", "--subagent"})
+	got := out.String()
+	if !strings.Contains(got, "· 12k tok") {
+		t.Errorf("missing tokens: %s", got)
+	}
+	if strings.Count(got, "tok") != 1 {
+		t.Errorf("zero-token lane must not show tok: %s", got)
+	}
+}
+
+func TestSubagentSameRoleMatchesByID(t *testing.T) {
+	s := fixtureState()
+	s.Lanes = []run.Lane{
+		{Agent: "d1", Label: "W1-a", Role: "domain-engineer", Running: true, Steps: 3, Tokens: 5000},
+		{Agent: "d2", Label: "W1-b", Role: "domain-engineer", Running: true, Steps: 9},
+	}
+	in := `{"columns":200,"tasks":[{"id":"d2","agentType":"loops:domain-engineer","description":"x"},{"id":"zz","agentType":"loops:domain-engineer","description":"own desc"}]}`
+	a, out, _ := newApp(&fakeTracker{st: s}, in)
+	a.Run(context.Background(), []string{"status", "--subagent"})
+	got := out.String()
+	if !strings.Contains(got, "W1-b · 9 steps") || strings.Contains(got, "W1-a") {
+		t.Errorf("id match: %s", got)
+	}
+	if !strings.Contains(got, "own desc · 0 steps · QA pending") {
+		t.Errorf("ambiguous role must not borrow lane stats: %s", got)
+	}
+}
+
+func TestBudgetPauseClearedBySpawn(t *testing.T) {
+	s := limitsState()
+	s.Budgets = []run.BudgetInfo{{Phase: run.PhaseQA, Limit: "tokens", At: s.Started.Add(40 * time.Minute)}}
+	if !budgetPaused(s) {
+		t.Fatal("want paused")
+	}
+	s.Lanes = append(s.Lanes, run.Lane{Agent: "q2", Phase: run.PhaseQA, Started: s.Started.Add(50 * time.Minute)})
+	if budgetPaused(s) {
+		t.Error("later agent_start in phase must clear the pause")
+	}
+}
+
+func TestBudgetPauseClearedByLimitsEvent(t *testing.T) {
+	s := limitsState()
+	s.Budgets = []run.BudgetInfo{{Phase: run.PhaseQA, Limit: "tokens", At: s.Started.Add(40 * time.Minute)}}
+	s.LimitsAt = s.Started.Add(45 * time.Minute)
+	if budgetPaused(s) || strings.Contains(renderWatch(s, true, false), "⏸") {
+		t.Error("later limits event must clear the pause")
+	}
+	s.LimitsAt = s.Started.Add(35 * time.Minute)
+	if !budgetPaused(s) {
+		t.Error("older limits event must not clear the pause")
+	}
+}

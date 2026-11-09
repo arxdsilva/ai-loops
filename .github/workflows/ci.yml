@@ -18,6 +18,9 @@ jobs:
         run: |
           out=$(gofmt -l . | grep -v /testdata/ || true)
           if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
+      - name: no references to the old module owner
+        run: |
+          if grep -rInE "insurgency[g]ames" --exclude-dir=.git .; then echo "replace the old owner with arxdsilva"; exit 1; fi
       - run: go vet ./...
       - run: go test -race -count=1 ./...
       - name: loops arch

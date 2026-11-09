@@ -29,6 +29,9 @@ const (
 	KindNote       Kind = "note"        // free annotation: Note
 	KindPR         Kind = "pr"          // PR/MR opened: Ref=URL
 	KindLabel      Kind = "label"       // names a lane: Agent=Claude agent id (from the Agent tool result), Name=plan agent id ("W1-domain"), Role, Wave
+	KindOverride   Kind = "override"    // a project rule superseded a loops rule: Name=loops rule ("SOLID_GO §9"), Target=project rule + file:line, Note=what was done, Agent
+	KindLimits     Kind = "limits"      // limits in force for the run (opt-in): Note=JSON of run.Limits
+	KindBudget     Kind = "budget"      // a spawn was blocked by a limit: Phase, Role, Name=limit ("tokens","agents","roles"), Note=reason
 	KindEnd        Kind = "end"         // run finished: Status=outcome ("done","abandoned","failed")
 )
 
@@ -72,6 +75,7 @@ type Event struct {
 	DurationMS int64     `json:"ms,omitempty"`
 	Ref        string    `json:"ref,omitempty"`
 	Note       string    `json:"note,omitempty"`
+	Tokens     int64     `json:"tokens,omitempty"` // agent_stop: tokens the agent used (from its transcript, when the platform exposes one)
 }
 
 // Bool returns a pointer to b, for Event.OK.

@@ -19,6 +19,8 @@ WebSearch, WebFetch, read the repo, ai-memory `memory_query` (narrow, filtered).
 ## Cannot
 Edit any repo file. Write anywhere except `research/web.md`. Judge the design (the planner does).
 
+Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
+
 ## Procedure
 1. Read `ticket.md`; list at most 5 questions that outside sources can answer.
 2. Search; prefer official docs, changelogs and issue trackers over blogs. Fetch only pages you will cite.

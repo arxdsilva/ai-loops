@@ -151,6 +151,59 @@ func qaLoopBacks(s run.State) int {
 	return n
 }
 
+// fmtTokens renders a token count in k/M units ("12k", "1.2M").
+func fmtTokens(n int64) string {
+	switch {
+	case n >= 1_000_000:
+		t := n / 100_000 // truncated tenths of a million
+		if t%10 == 0 {
+			return fmt.Sprintf("%dM", t/10)
+		}
+		return fmt.Sprintf("%d.%dM", t/10, t%10)
+	case n >= 1000:
+		return fmt.Sprintf("%dk", n/1000)
+	}
+	return fmt.Sprintf("%d", n)
+}
+
+// phaseTokSeg is "tok <used>/<limit>" for the current phase when it has a
+// token limit, else "".
+func phaseTokSeg(s run.State) string {
+	if s.Limits.IsZero() {
+		return ""
+	}
+	pl, ok := s.Limits.Phases[s.Phase]
+	if !ok || pl.MaxTokens <= 0 {
+		return ""
+	}
+	return "tok " + fmtTokens(s.PhaseTokens[s.Phase]) + "/" + fmtTokens(pl.MaxTokens)
+}
+
+// budgetPaused reports whether the latest budget block is in the current
+// phase and newer than the last phase change.
+func budgetPaused(s run.State) bool {
+	if len(s.Budgets) == 0 {
+		return false
+	}
+	b := s.Budgets[len(s.Budgets)-1]
+	if b.Phase != s.Phase {
+		return false
+	}
+	if n := len(s.PhaseLog); n > 0 && !b.At.After(s.PhaseLog[n-1].At) {
+		return false
+	}
+	if !s.LimitsAt.IsZero() && !b.At.After(s.LimitsAt) {
+		return false
+	}
+	// a successful spawn in this phase after the block ends the pause
+	for _, l := range s.Lanes {
+		if l.Phase == s.Phase && l.Started.After(b.At) {
+			return false
+		}
+	}
+	return true
+}
+
 // statusSegments builds the segments shared by --statusline (coloured) and the
 // plain human line (uncoloured).
 func statusSegments(s run.State, color bool) []string {
@@ -174,6 +227,15 @@ func statusSegments(s run.State, color bool) []string {
 	if c.verified+c.failed+lb > 0 {
 		segs = append(segs, "QA "+paint(color && c.verified > 0, ansiGreen, fmt.Sprintf("%d✓", c.verified))+" "+
 			paint(color && c.failed > 0, ansiRed, fmt.Sprintf("%d✗", c.failed))+fmt.Sprintf(" %d↺", lb))
+	}
+	if n := len(s.Overrides); n > 0 {
+		segs = append(segs, fmt.Sprintf("overrides %d", n))
+	}
+	if t := phaseTokSeg(s); t != "" {
+		segs = append(segs, t)
+	}
+	if budgetPaused(s) {
+		segs = append(segs, paint(color, ansiYellow, "⏸ budget"))
 	}
 	if s.PlanRounds > 0 {
 		segs = append(segs, fmt.Sprintf("plan r%d", s.PlanRounds))
@@ -238,7 +300,8 @@ func (a *App) writeSubagentLines(s run.State, active bool) {
 			continue
 		}
 		label, steps, qa := "", 0, "pending"
-		if l := findLane(s, role); l != nil {
+		l := laneForTask(s, t.ID, role)
+		if l != nil {
 			label, steps = l.Label, l.Steps
 			if l.QA != "" {
 				qa = strings.ToLower(l.QA)
@@ -248,6 +311,9 @@ func (a *App) writeSubagentLines(s run.State, active bool) {
 			label = truncRunes(t.Description, 40)
 		}
 		content := fmt.Sprintf("%s · %s · %d steps · QA %s", role, label, steps, qa)
+		if l != nil && l.Tokens > 0 {
+			content += " · " + fmtTokens(l.Tokens) + " tok"
+		}
 		out, err := json.Marshal(struct {
 			ID      string `json:"id"`
 			Content string `json:"content"`
@@ -258,18 +324,23 @@ func (a *App) writeSubagentLines(s run.State, active bool) {
 	}
 }
 
-// findLane prefers a running lane with the role, else the latest one.
-func findLane(s run.State, role string) *run.Lane {
-	var found *run.Lane
+// laneForTask matches a task to its lane by agent id; it falls back to the
+// role only when exactly one running lane has that role (else nil).
+func laneForTask(s run.State, id, role string) *run.Lane {
+	var byRole *run.Lane
+	n := 0
 	for i := range s.Lanes {
 		l := &s.Lanes[i]
-		if l.Role != role {
-			continue
-		}
-		if l.Running {
+		if id != "" && l.Agent == id {
 			return l
 		}
-		found = l
+		if l.Role == role && l.Running {
+			byRole = l
+			n++
+		}
 	}
-	return found
+	if n == 1 {
+		return byRole
+	}
+	return nil
 }

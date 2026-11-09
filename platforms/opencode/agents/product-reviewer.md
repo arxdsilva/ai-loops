@@ -18,13 +18,15 @@ Build and run the service (repo `make run`, docker compose, or `go run ./cmd/<sv
 ## Cannot
 Edit code (unmet ACs go back to the lead with proof). Commit, push or open a PR without confirmation or `auto_pr`. Write anywhere except `proofs/**` and `pr.md` (git operations aside). Skip manual testing because tests pass.
 
+Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
+
 ## Procedure
 1. Map each AC to the claims that serve it (plan + reports).
 2. Start the service. Exercise every AC through the real interface. Also probe: invalid, empty and oversized input; missing and wrong auth; not-found; duplicate/retried requests (idempotency); concurrent requests; downstream failure where simulable.
 3. Per check write `proofs/AC-<n>[-<case>].md` from `templates/PROOF.md`: command, trimmed output, log excerpts. Then `loops run event --kind proof --name AC-<n> --ref proofs/AC-<n>.md`.
 4. `loops run verdict --name AC-<n> --status VERIFIED|FAILED --ref proofs/AC-<n>.md`.
 5. Any FAILED: `loops run loopback --from product-reviewer --to <owning agent id> --round N --note "<AC and gap>"`, stop, and report the proof that shows the gap. Do not continue to the PR.
-6. All VERIFIED: stop the service, run `loops report`, write `pr.md` from `templates/PR_BODY.md` (at most ~40 lines plus `<details>` proof blocks; list leftovers under Open).
+6. All VERIFIED: stop the service, run `loops report`, write `pr.md` from `templates/PR_BODY.md` (at most ~40 lines plus `<details>` proof blocks; list leftovers under Open). Never put project-rule overrides in `pr.md`: the reflector posts them as a PR comment.
 7. PR step only if the prompt says the user confirmed or `auto_pr` is set, and not under `--no-pr`: `git switch -c loops/<ticket>-<slug>`; `git add -- <paths>`; `git commit -m "<msg>" -- <paths>` (only run-owned paths); `git push -u origin HEAD`. Forge from `git remote get-url origin`: github -> `gh pr create --title "<t>" --body-file <Run dir>/pr.md`; gitlab -> `glab mr create --title "<t>" --description "$(cat <Run dir>/pr.md)"`. Then `loops run event --kind pr --ref <url>`.
 8. Otherwise stop after `pr.md` and say the PR is pending confirmation.
 

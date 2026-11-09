@@ -36,3 +36,6 @@ Interrupt from the OpenCode UI; re-spawn with a tighter block.
 loops install --target opencode
 ```
 Writes `.opencode/agents/loops/`, `.opencode/commands/loops/`, `.opencode/plugins/loops.ts`, `.agents/skills/`. Needs Go. Verify: `loops version`; AGENTS.md is read natively.
+
+## Hardware and budgets
+The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.

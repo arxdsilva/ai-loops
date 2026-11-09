@@ -26,10 +26,12 @@ import (
 	"strings"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/domain/hw"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 // Version is the loops version reported by `loops version`.
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 // App holds the use cases and the process environment.
 type App struct {
@@ -44,6 +46,10 @@ type App struct {
 	Source fs.FS
 	// Packages writes and diffs generated package files.
 	Packages PackageWriter
+
+	HW       HWProbe    // hardware probe (loops hw)
+	Parallel hw.Knobs   // .loops/config.json "parallel"
+	Limits   run.Limits // .loops/config.json "limits" (opt-in; zero = none)
 
 	Root       string          // project root
 	PluginRoot string          // plugin root ("" when unknown)
@@ -62,7 +68,7 @@ type command struct {
 }
 
 var commands = map[string]command{
-	"run":     {(*App).cmdRun, "run start|phase|event|label|loopback|verdict|end|dir …  record the workflow"},
+	"run":     {(*App).cmdRun, "run start|phase|event|label|loopback|verdict|override|end|dir …  record the workflow"},
 	"gate":    {(*App).cmdGate, "gate [--pkgs p,…] [--only c,…] [--skip c,…] [--vuln] [--fail-fast]"},
 	"ticket":  {(*App).cmdTicket, "ticket fetch [REF] [--source s] [--body-file f|-]"},
 	"arch":    {(*App).cmdArch, "arch [--json] [--root dir]"},
@@ -71,6 +77,9 @@ var commands = map[string]command{
 	"hook":    {(*App).cmdHook, "hook <name> [--platform p]   (agent hooks; reads hook JSON on stdin)"},
 	"port":    {(*App).cmdPort, "port build|check [--out dir] [--platform p,…] [--models file] [--src dir]   generate per-platform packages"},
 	"install": {(*App).cmdInstall, "install --target <platform> [--scope project|user] [--project dir] [--force] [--dry-run]"},
+	"hw":      {(*App).cmdHW, "hw [--json] [--write]   hardware facts + parallelism recommendation for the planner"},
+	"budget":  {(*App).cmdBudget, "budget check [--phase p] [--spawn n] [--role r] [--verbose] | show | parse [--budget …] [--agents …] [--roles …] [--max-agents n]   opt-in limits (exit 3 = over budget)"},
+	"plan":    {(*App).cmdPlan, "plan check <plan.md> [--cap n] [--json]   waves vs parallelism cap and scope overlap"},
 	"watch":   {(*App).cmdWatch, "watch [--interval 2s] [--once]   live run view in a terminal (any platform)"},
 	"path":    {(*App).cmdPath, "path [root|specs|templates|skills|agents]"},
 	"version": {(*App).cmdVersion, "version"},

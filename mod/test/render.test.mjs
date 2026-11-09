@@ -48,3 +48,44 @@ test('ended with PR', () => {
   assert.ok(buildRows(ended, NOW).length <= 30)
 })
 test('fmtDuration', () => { assert.equal(fmtDuration(3725000), '1h02m') })
+
+const lim = { active: true, state: { ...mid.state,
+  phase_log: ['intake', 'research', 'plan'].map(p => ({ phase: p, at: T0 })).concat([{ phase: 'implement', at: '2026-11-09T10:05:00Z' }]),
+  overrides: [{ loops_rule: 'tdd', project_rule: 'CLAUDE.md#tests' }, { loops_rule: 'commit', project_rule: 'AGENTS.md#git' }],
+  limits: { phases: { implement: { max_tokens: 2000000 }, qa: { max_tokens: 500000 } } },
+  phase_tokens: { implement: 1250000, qa: 12400 },
+  budgets: [{ phase: 'implement', limit: 'tokens', reason: 'implement tokens reached', at: '2026-11-09T10:06:00Z' }],
+  lanes: [{ ...mid.state.lanes[0], tokens: 12400 }, mid.state.lanes[1]],
+} }
+
+test('overrides, tokens and budget pause render when present', () => {
+  const out = toPlain(buildRows(lim, NOW))
+  console.log(out)
+  assert.match(out, /overrides 2 · last: commit → AGENTS.md#git/)
+  assert.match(out, /Implement 1\.2M\/2M tok/)
+  assert.match(out, /QA 12k\/500k tok/)
+  assert.match(out, /⏸ budget: implement tokens reached/)
+  assert.match(out, /tokens\s+QA\n.*W1-domain\|domain-engineer.*12k/)
+})
+test('stale or other-phase budget is not a pause', () => {
+  const stale = structuredClone(lim); stale.state.budgets[0].at = '2026-11-09T10:01:00Z'
+  assert.doesNotMatch(toPlain(buildRows(stale, NOW)), /⏸/)
+  const other = structuredClone(lim); other.state.budgets[0].phase = 'qa'
+  assert.doesNotMatch(toPlain(buildRows(other, NOW)), /⏸/)
+})
+test('no overrides/limits/tokens renders exactly as before', () => {
+  const out = toPlain(buildRows(mid, NOW))
+  assert.doesNotMatch(out, /overrides|tok|⏸/)
+  const rows = buildRows(mid, NOW)
+  assert.ok(!toPlain(rows).includes('tokens'))
+})
+test('a later spawn in the phase clears the budget pause', () => {
+  const c = structuredClone(lim); c.state.lanes.push({ agent: 'a9', phase: 'implement', started: '2026-11-09T10:07:00Z' })
+  assert.doesNotMatch(toPlain(buildRows(c, NOW)), /⏸/)
+})
+test('a later limits event clears the budget pause', () => {
+  const c = structuredClone(lim); c.state.limits_at = '2026-11-09T10:08:00Z'
+  assert.doesNotMatch(toPlain(buildRows(c, NOW)), /⏸/)
+  c.state.limits_at = '2026-11-09T10:02:00Z'
+  assert.match(toPlain(buildRows(c, NOW)), /⏸/)
+})

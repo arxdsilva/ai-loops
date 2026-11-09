@@ -34,3 +34,6 @@ None in v1 (no deny, trace, gofmt, stop gate, session context). Run `loops gate`
 loops install --target cline
 ```
 Writes `.agents/skills/` and `.cline/skills/`. Needs Go. Verify: `loops version`.
+
+## Hardware and budgets
+Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.

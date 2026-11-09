@@ -20,6 +20,8 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 ## Cannot
 Implement behaviour beyond stubs. Break existing exported APIs (changes are additive). Edit outside `Owns`: interfaces and ports, typed commands and DTOs, stubs, go.mod/go.sum, cmd/**, internal/compose/**, Makefile, CI, as listed in the plan's contract. Commit or push. Go beyond the plan's contract list.
 
+Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
+
 ## Procedure
 1. Load these skills before coding (your platform's skill mechanism): `loops:hexagonal`, `loops:feature`, `loops:consistency`; also `loops arch` after writing stubs to check layering. Wave 0 is done only when `go build ./... && go vet ./...` pass (this is the one exception to the targeted-checks rule).
 2. Read your block, the contract and stubs, and the nearest package `AGENTS.md`. Search before reading; read ranges.

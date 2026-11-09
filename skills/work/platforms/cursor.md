@@ -35,3 +35,6 @@ Cancel from the Cursor UI; re-spawn with a tighter block.
 
 ## Install and verify
 Cursor marketplace / team marketplace import of `arxdsilva/ai-loops` (package `platforms/cursor`). Local dev: copy it to `~/.cursor/plugins/local/loops`. Needs Go. Verify: `loops version`.
+
+## Hardware and budgets
+The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.

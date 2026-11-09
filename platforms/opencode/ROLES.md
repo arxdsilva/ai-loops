@@ -9,6 +9,7 @@ The "Owns (default)" column is the default scope. The plan narrows it per agent 
 | web-researcher | research | sonnet | no | `research/web.md` | WebSearch, WebFetch, ai-memory query | Edit the repo |
 | practices-researcher | research | sonnet | no | `research/practices.md` | Read plugin specs, skills and repo docs; ai-memory query; official Go docs | Edit the repo |
 | code-researcher | research | haiku | no | `research/code.md` | grep, find, ranged Read, LSP; ai-memory query | Edit the repo, judge correctness |
+| hardware-researcher | research | haiku | no | `research/hardware.{json,md}` | Run `loops hw --write`, then reply with the one-line recommendation | Anything else (3 turns max) |
 | planner | plan | opus | no | `plan.v<N>.md` | Read the briefs and repo; write the plan | Edit code |
 | plan-reviewer | plan | opus | no | `plan-review.r<N>.md` | Read; write the review | Edit the plan or code |
 | architect | implement (wave 0) | opus | yes | Interfaces and ports, typed commands and DTOs, stubs, `go.mod`/`go.sum`, `cmd/**`, `internal/compose/**`, Makefile, CI | `go get`, `go mod tidy`; shared config | Implement behaviour beyond stubs |
@@ -22,6 +23,10 @@ The "Owns (default)" column is the default scope. The plan narrows it per agent 
 | qa-verifier | qa | sonnet | no | `qa/<agent-id>.r<N>.md` | Read; run tests, `loops gate --pkgs`, `loops arch`; put counterexample test snippets in its QA file (never in the repo) | Edit repo code (it reports; the owner fixes) |
 | product-reviewer | product | opus | no | `proofs/**`, `pr.md`, `report.html` | Run the service; curl, grpcurl, CLI; `loops report`; branch, commit, push; `gh` or `glab` PR only after the lead resumes it with the user's confirmation (or `auto_pr`) | Edit code (unmet ACs go back) |
 | reflector | reflect | sonnet | no | `reflection.md` | Read the run dir; ai-memory query and write | Edit code; store secrets in memory |
+
+## Project rules first (every role)
+
+The target project's own rules always take precedence over loops rules (WORKFLOW §1). When you follow one instead of a loops rule, record it right away with `loops run override --rule … --project … --note …`. The reflector reports every override to the user as a PR comment.
 
 ## Rules shared by every implementer (architect and the engineers)
 

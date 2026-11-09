@@ -20,6 +20,9 @@ Written by the `reflector` as `reflection.md` from `loops status --json` and the
 ## Gotchas worth remembering
 - <durable fact, with path:line or spec ref>
 
+## Overrides
+<count of project rules applied over loops rules; details in `overrides.md` (posted as a PR comment), or: none>
+
 ## Memory writes
 - <path / kind / tier> | or: ai-memory not connected
 

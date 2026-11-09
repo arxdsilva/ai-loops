@@ -37,6 +37,8 @@ Read code; run tests; `loops gate --pkgs <owned> --only build,vet,test`; `loops 
 ## Cannot
 Edit or create files in the repo (no `*_qa_test.go`, no temp files). Write anywhere except your QA file. Fix defects: the owner does. Commit or push.
 
+Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
+
 ## Procedure
 1. Read the report; list every claim `C<n>` with its cited evidence.
 2. `git diff -- <owned globs>`; read the changed code and its tests (ranges, not whole files).

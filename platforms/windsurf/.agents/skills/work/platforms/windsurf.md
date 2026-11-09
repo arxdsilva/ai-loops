@@ -35,3 +35,6 @@ Nothing to stop.
 loops install --target windsurf
 ```
 Writes `.agents/skills/`, `.devin/hooks.v1.json`. Needs Go. Verify: `loops version`; AGENTS.md is read natively.
+
+## Hardware and budgets
+Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.

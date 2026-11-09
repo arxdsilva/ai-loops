@@ -186,7 +186,7 @@ func TestCursorAgents(t *testing.T) {
 func TestCursorBackgroundTable(t *testing.T) {
 	// Lead decision: parallel-wave roles run in background.
 	for role, want := range map[string]bool{
-		"web-researcher": true, "practices-researcher": true, "code-researcher": true,
+		"web-researcher": true, "practices-researcher": true, "code-researcher": true, "hardware-researcher": true,
 		"domain-engineer": true, "application-engineer": true, "api-engineer": true,
 		"persistence-engineer": true, "integration-engineer": true, "test-engineer": true,
 		"docs-writer": true, "qa-verifier": true,
@@ -196,8 +196,8 @@ func TestCursorBackgroundTable(t *testing.T) {
 			t.Errorf("%s background = %v (known %v), want %v", role, got, ok, want)
 		}
 	}
-	if len(cursorBackground) != 16 {
-		t.Errorf("table has %d roles, want 16", len(cursorBackground))
+	if len(cursorBackground) != 17 {
+		t.Errorf("table has %d roles, want 17", len(cursorBackground))
 	}
 }
 

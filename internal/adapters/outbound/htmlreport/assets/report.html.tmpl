@@ -41,7 +41,7 @@
 {{if .Lanes}}
 <div class="gantt">
 {{range .Lanes}}<div class="lane">
-<div class="name"><b>{{.Name}}</b><br><span class="mut">{{.Role}}{{if .Model}} · {{.Model}}{{end}}{{if .Wave}} · W{{.Wave}}{{end}} · {{.Steps}} steps</span>{{if .QA}} <span class="badge {{.QAClass}}">QA {{.QA}}{{if .QARounds}} r{{.QARounds}}{{end}}</span>{{end}}</div>
+<div class="name"><b>{{.Name}}</b><br><span class="mut">{{.Role}}{{if .Model}} · {{.Model}}{{end}}{{if .Wave}} · W{{.Wave}}{{end}} · {{.Steps}} steps{{if .Tokens}} · {{.Tokens}} tok{{end}}</span>{{if .QA}} <span class="badge {{.QAClass}}">QA {{.QA}}{{if .QARounds}} r{{.QARounds}}{{end}}</span>{{end}}</div>
 <div class="track" title="{{.Span}}"><div class="bar {{.Class}}" style="left:{{.Left}}%;width:{{.Width}}%"><span>{{.Span}}</span></div></div>
 </div>
 {{end}}
@@ -52,6 +52,31 @@
 {{range .S.LoopBacks}}<li>↺ {{.From}} → {{.To}}{{if .Round}} (round {{.Round}}){{end}}{{if .Phase}} <span class="mut">[{{.Phase}}]</span>{{end}}{{if .Reason}}: {{.Reason}}{{end}}</li>
 {{end}}</ul>{{else}}<p class="empty">None.</p>{{end}}
 </section>
+
+{{if .Overrides}}<section id="overrides">
+<h2>Project-rule overrides</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Loops rule</th><th>Project rule</th><th>Note</th><th>Agent / role</th><th>Phase</th></tr></thead>
+<tbody>
+{{range .Overrides}}<tr><td class="wrap">{{.LoopsRule}}</td><td class="wrap">{{.ProjectRule}}</td><td class="wrap">{{.Note}}</td><td>{{.Who}}</td><td>{{.Phase}}</td></tr>
+{{end}}</tbody></table></div>
+</section>{{end}}
+
+{{if or .Limits .GlobalMaxAgents .Budgets}}<section id="limits">
+<h2>Limits &amp; tokens</h2>
+{{if .GlobalMaxAgents}}<p>Concurrent agents capped at <b>{{.GlobalMaxAgents}}</b>.</p>{{end}}
+{{if .Limits}}<div class="tablewrap"><table>
+<thead><tr><th>Phase</th><th>Tokens used</th><th>Token limit</th><th>Max agents</th><th>Roles</th></tr></thead>
+<tbody>
+{{range .Limits}}<tr><td>{{.Phase}}</td><td class="n">{{.Used}}{{if .Over}} <span class="badge bad">over limit</span>{{end}}</td><td class="n">{{if .Max}}{{.Max}}{{else}}<span class="mut">–</span>{{end}}</td><td>{{if .Agents}}{{.Agents}}{{else}}<span class="mut">–</span>{{end}}</td><td class="wrap">{{if .Roles}}{{.Roles}}{{else}}<span class="mut">any</span>{{end}}</td></tr>
+{{end}}</tbody></table></div>{{end}}
+<h3>Budget blocks</h3>
+{{if .Budgets}}<div class="tablewrap"><table>
+<thead><tr><th>Time</th><th>Phase</th><th>Role</th><th>Limit</th><th>Reason</th></tr></thead>
+<tbody>
+{{range .Budgets}}<tr><td class="n">{{.Time}}</td><td>{{.Phase}}</td><td>{{.Role}}</td><td>{{.Limit}}</td><td class="wrap">{{.Reason}}</td></tr>
+{{end}}</tbody></table></div>{{else}}<p class="empty">None.</p>{{end}}
+</section>{{end}}
 
 <section id="verdicts">
 <h2>Verdicts</h2>

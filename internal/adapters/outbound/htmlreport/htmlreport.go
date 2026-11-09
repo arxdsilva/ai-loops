@@ -45,10 +45,19 @@ type phaseView struct {
 }
 
 type laneView struct {
-	Name, Role, Model, QA, QAClass, Class, Span string
-	Wave, Steps, QARounds                       int
-	Left, Width                                 string
+	Name, Role, Model, QA, QAClass, Class, Span, Tokens string
+	Wave, Steps, QARounds                               int
+	Left, Width                                         string
 }
+
+type overrideView struct{ LoopsRule, ProjectRule, Note, Who, Phase string }
+
+type limitView struct {
+	Phase, Used, Max, Agents, Roles string
+	Over                            bool
+}
+
+type budgetView struct{ Time, Phase, Role, Limit, Reason string }
 
 type proofView struct{ Ref, URL, Note string }
 
@@ -90,6 +99,10 @@ type view struct {
 	LaneOpts                                         []string
 	Denials, Memory                                  []noteView
 	Docs                                             []docView
+	Overrides                                        []overrideView
+	Limits                                           []limitView
+	GlobalMaxAgents                                  int
+	Budgets                                          []budgetView
 }
 
 // Render writes the report for state/events; dir is the run directory (for
@@ -227,7 +240,56 @@ func buildView(s run.State, events []run.Event, dir string) *view {
 		}
 	}
 	v.Docs = docViews(dir)
+	v.Overrides, v.Limits, v.Budgets = limitViews(s)
+	v.GlobalMaxAgents = s.Limits.MaxAgents
 	return v
+}
+
+// fmtTokens renders a token count in k/M units ("12k", "1.2M").
+func fmtTokens(n int64) string {
+	switch {
+	case n >= 1_000_000:
+		t := n / 100_000 // truncated tenths of a million
+		if t%10 == 0 {
+			return strconv.FormatInt(t/10, 10) + "M"
+		}
+		return strconv.FormatInt(t/10, 10) + "." + strconv.FormatInt(t%10, 10) + "M"
+	case n >= 1000:
+		return strconv.FormatInt(n/1000, 10) + "k"
+	}
+	return strconv.FormatInt(n, 10)
+}
+
+func limitViews(s run.State) ([]overrideView, []limitView, []budgetView) {
+	var ov []overrideView
+	for _, o := range s.Overrides {
+		who := o.Role
+		if who == "" {
+			who = o.Agent
+		}
+		ov = append(ov, overrideView{o.LoopsRule, o.ProjectRule, o.Note, who, string(o.Phase)})
+	}
+	var lv []limitView
+	for _, p := range run.Phases {
+		pl, ok := s.Limits.Phases[p]
+		if !ok {
+			continue
+		}
+		v := limitView{Phase: p.Title(), Used: fmtTokens(s.PhaseTokens[p]), Roles: strings.Join(pl.Roles, ", ")}
+		if pl.MaxTokens > 0 {
+			v.Max = fmtTokens(pl.MaxTokens)
+			v.Over = s.PhaseTokens[p] > pl.MaxTokens
+		}
+		if pl.MaxAgents > 0 {
+			v.Agents = strconv.Itoa(pl.MaxAgents)
+		}
+		lv = append(lv, v)
+	}
+	var bv []budgetView
+	for _, b := range s.Budgets {
+		bv = append(bv, budgetView{fmtTime(b.At), b.Phase.Title(), b.Role, b.Limit, b.Reason})
+	}
+	return ov, lv, bv
 }
 
 func laneTitle(l run.Lane) string {
@@ -296,6 +358,9 @@ func laneViews(s run.State) []laneView {
 	for _, l := range s.Lanes {
 		lv := laneView{Name: laneTitle(l), Role: l.Role, Model: l.Model, Wave: l.Wave, Steps: l.Steps,
 			QA: l.QA, QAClass: statusClass(l.QA), QARounds: l.QARounds}
+		if l.Tokens > 0 {
+			lv.Tokens = fmtTokens(l.Tokens)
+		}
 		stop := l.Stopped
 		if stop.IsZero() || stop.Before(l.Started) {
 			stop = hi

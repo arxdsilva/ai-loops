@@ -67,9 +67,40 @@ export function phaseStrip(st) {
   return row
 }
 
+export function fmtTokens(n) {
+  n = Number(n) || 0
+  if (n >= 1e6) return String(Math.floor(n / 1e5) / 10) + 'M'
+  if (n >= 1e3) return Math.floor(n / 1e3) + 'k'
+  return String(n)
+}
+
+// Overrides count, per-phase tokens vs limits, and the budget pause marker.
+// Empty when the run has none of them.
+export function limitRows(st) {
+  const rows = []
+  const ov = st.overrides || []
+  if (ov.length) {
+    const last = ov[ov.length - 1]
+    rows.push([seg('overrides ' + ov.length, { color: 'yellow' }), seg(` · last: ${trunc(last.loops_rule, 30)} → ${trunc(last.project_rule, 40)}`, { dim: true })])
+  }
+  const phases = (st.limits && st.limits.phases) || {}
+  const parts = PHASES.filter(p => phases[p] && phases[p].max_tokens > 0)
+    .map(p => `${PHASE_NAME[p]} ${fmtTokens((st.phase_tokens || {})[p])}/${fmtTokens(phases[p].max_tokens)} tok`)
+  if (parts.length) rows.push([seg('limits ', { dim: true }), seg(parts.join('  '))])
+  const b = (st.budgets || []).at(-1)
+  if (b && b.phase === st.phase) {
+    const log = st.phase_log || []
+    const since = log.length ? ts(log[log.length - 1].at) : NaN
+    const spawned = (st.lanes || []).some(l => l.phase === st.phase && ts(l.started) > ts(b.at))
+    if (!(ts(b.at) <= since) && !spawned && !(ts(b.at) <= ts(st.limits_at))) rows.push([seg('⏸ budget: ' + trunc(b.reason || b.limit, 70), { color: 'yellow' })])
+  }
+  return rows
+}
+
 export function laneRows(st) {
   const lanes = st.lanes || []
-  const out = [[seg(pad('lane', 30) + pad('model', 8) + pad('wave', 5) + pad('state', 8) + pad('steps', 6) + 'QA', { dim: true })]]
+  const tok = lanes.some(l => l.tokens > 0)
+  const out = [[seg(pad('lane', 30) + pad('model', 8) + pad('wave', 5) + pad('state', 8) + pad('steps', 6) + (tok ? pad('tokens', 8) : '') + 'QA', { dim: true })]]
   for (const l of lanes.slice(-10)) {
     const name = (l.label || l.agent || '') + '|' + (l.role || '')
     const state = l.running ? 'running' : l.ok === false ? 'failed' : 'done'
@@ -81,6 +112,7 @@ export function laneRows(st) {
       seg(pad(l.wave != null && l.wave !== 0 ? 'w' + l.wave : (l.wave === 0 ? 'w0' : '-'), 5), { dim: true }),
       seg(pad(state, 8), { color: l.running ? 'yellow' : l.ok === false ? 'red' : 'green' }),
       seg(pad(String(l.steps ?? 0) + (l.errors ? '!' + l.errors : ''), 6)),
+      ...(tok ? [seg(pad(l.tokens > 0 ? fmtTokens(l.tokens) : '', 8), { dim: true })] : []),
       seg(qaTxt, { color: qa === '✓' ? 'green' : qa === '✗' ? 'red' : undefined }),
     ])
   }
@@ -136,6 +168,7 @@ export function buildRows(status, now = Date.now()) {
   return [
     header(st, now),
     phaseStrip(st),
+    ...limitRows(st),
     [seg('')],
     ...laneRows(st),
     [seg('')],

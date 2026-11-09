@@ -296,3 +296,32 @@ func TestTicketCmd(t *testing.T) {
 		t.Fatal("missing file")
 	}
 }
+
+func TestRunOverride(t *testing.T) {
+	e := rcSetup(t, "")
+	if code := e.do("run", "override", "--rule", "R", "--project", "P"); code != 1 || !strings.Contains(e.err.String(), "no active run") {
+		t.Fatalf("no run: %d %q", code, e.err)
+	}
+	e.do("run", "start", "--title", "x")
+	e.do("run", "phase", "implement")
+	if e.do("run", "override", "--rule", "SOLID_GO §9", "--project", "AGENTS.md:12 testify", "--note", "used testify", "--agent", "a1", "--role", "domain-engineer") != 0 {
+		t.Fatal(e.err)
+	}
+	o := e.events()[len(e.events())-1]
+	if o.Kind != run.KindOverride || o.Name != "SOLID_GO §9" || o.Target != "AGENTS.md:12 testify" || o.Note != "used testify" ||
+		o.Agent != "a1" || o.Role != "domain-engineer" || o.Phase != run.PhaseImplement {
+		t.Fatalf("%+v", o)
+	}
+	st, _ := e.app.Tracker.State(t.Context(), "")
+	if len(st.Overrides) != 1 || st.Overrides[0].ProjectRule != "AGENTS.md:12 testify" {
+		t.Fatalf("%+v", st.Overrides)
+	}
+	for _, args := range [][]string{
+		{"run", "override", "--rule", "R"}, {"run", "override", "--project", "P"}, {"run", "override", "--rule", " ", "--project", "P"},
+		{"run", "override", "--rule", "R", "--project", "P", "extra"}, {"run", "override", "--bogus"},
+	} {
+		if code := e.do(args...); code != 2 {
+			t.Errorf("%v: %d", args, code)
+		}
+	}
+}

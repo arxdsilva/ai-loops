@@ -21,6 +21,8 @@ Write package `AGENTS.md`, `README.md` sections, `docs/adr/**`. Load skill `loop
 ## Cannot
 Edit code. Invent facts (mark unknowns `TODO(lead): ...` in your report instead). Edit outside `Owns`. Commit or push. Touch `go.mod` or shared config.
 
+Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
+
 ## Procedure
 1. Load `loops:documentation`.
 2. Read each supplied fact and verify it with grep or a ranged Read of the current code.

@@ -100,10 +100,30 @@ func renderWatch(s run.State, active, color bool) string {
 	w("%s", head)
 	w("%s", phaseStrip(s, color))
 
+	if n := len(s.Overrides); n > 0 {
+		last := s.Overrides[n-1]
+		w("Overrides %d  last: %s → %s", n, truncRunes(last.LoopsRule, 30), truncRunes(last.ProjectRule, 40))
+	}
+	if lim := limitsLine(s); lim != "" {
+		w("Limits  %s", lim)
+		if budgetPaused(s) {
+			b := s.Budgets[len(s.Budgets)-1]
+			w("%s", paint(color, ansiYellow, "⏸ budget: "+truncRunes(b.Reason, 70)))
+		}
+	}
+
 	// lanes
 	if len(s.Lanes) > 0 {
+		tokens := false
+		for _, l := range s.Lanes {
+			tokens = tokens || l.Tokens > 0
+		}
 		w("")
-		w("%s", paint(color, ansiDim, fmt.Sprintf("%-18s %-24s %-4s %-7s %5s  %s", "ROLE", "LABEL", "WAVE", "STATE", "STEPS", "QA")))
+		hdr := fmt.Sprintf("%-18s %-24s %-4s %-7s %5s  %s", "ROLE", "LABEL", "WAVE", "STATE", "STEPS", "QA")
+		if tokens {
+			hdr = fmt.Sprintf("%-18s %-24s %-4s %-7s %5s %7s  %s", "ROLE", "LABEL", "WAVE", "STATE", "STEPS", "TOKENS", "QA")
+		}
+		w("%s", paint(color, ansiDim, hdr))
 		for _, l := range s.Lanes {
 			st := "done"
 			if l.Running {
@@ -115,6 +135,14 @@ func renderWatch(s run.State, active, color bool) string {
 			wave := ""
 			if l.Wave > 0 {
 				wave = fmt.Sprintf("W%d", l.Wave)
+			}
+			if tokens {
+				tk := ""
+				if l.Tokens > 0 {
+					tk = fmtTokens(l.Tokens)
+				}
+				w("%-18s %-24s %-4s %s %5d %7s  %s", truncRunes(l.Role, 18), truncRunes(l.Label, 24), wave, st, l.Steps, tk, qaCell(l, color))
+				continue
 			}
 			w("%-18s %-24s %-4s %s %5d  %s", truncRunes(l.Role, 18), truncRunes(l.Label, 24), wave, st, l.Steps, qaCell(l, color))
 		}
@@ -171,6 +199,30 @@ func renderWatch(s run.State, active, color bool) string {
 		}
 	}
 	return b.String()
+}
+
+// limitsLine summarises per-phase token usage against limits, in phase order.
+func limitsLine(s run.State) string {
+	if s.Limits.IsZero() {
+		return ""
+	}
+	var parts []string
+	for _, p := range run.Phases {
+		pl, ok := s.Limits.Phases[p]
+		if !ok {
+			continue
+		}
+		switch {
+		case pl.MaxTokens > 0:
+			parts = append(parts, fmt.Sprintf("%s %s/%s tok", p.Title(), fmtTokens(s.PhaseTokens[p]), fmtTokens(pl.MaxTokens)))
+		case pl.MaxAgents > 0:
+			parts = append(parts, fmt.Sprintf("%s ≤%d agents", p.Title(), pl.MaxAgents))
+		}
+	}
+	if s.Limits.MaxAgents > 0 {
+		parts = append(parts, fmt.Sprintf("≤%d concurrent", s.Limits.MaxAgents))
+	}
+	return strings.Join(parts, "  ")
 }
 
 // phaseStrip renders the seven phases with the current one marked and the

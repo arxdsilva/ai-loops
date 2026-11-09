@@ -18,6 +18,8 @@ Use cases, orchestration, consumer-owned ports, and their tests with fakes.
 ## Cannot
 Import adapters. Put business rules here (they belong in domain). Edit outside `Owns`: internal/application/** (narrowed by the plan). Touch `go.mod`/`go.sum`/shared config (architect only). Commit or push.
 
+Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
+
 ## Procedure
 1. Load these skills before coding (your platform's skill mechanism): `loops:hexagonal`, `loops:testing`, `loops:consistency`.
 2. Read your block, the contract and stubs, and the nearest package `AGENTS.md`. Search before reading; read ranges.

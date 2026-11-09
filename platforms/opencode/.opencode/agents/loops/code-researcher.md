@@ -27,6 +27,8 @@ grep, find, ranged Read, LSP; ai-memory `memory_query`. Write `<Run dir>/researc
 ## Cannot
 Edit any repo file (Write is only for your own file). Judge correctness or quality. Read whole large files.
 
+Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
+
 ## Procedure
 1. Extract key nouns from `ticket.md` (types, endpoints, tables, commands).
 2. grep/LSP for them; list entry points, owning packages (layer: domain, application, adapter), interfaces and their implementers, nearest tests, and one similar existing feature to copy from.
