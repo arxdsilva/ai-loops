@@ -25,10 +25,18 @@ This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and 
 - **Cite, don't duplicate.** Say each rule once, in its spec, and cite it elsewhere (`WORKFLOW §4`). Skill bodies stay under ~220 lines and agent bodies under ~90.
 - **No game content.** This was extracted from rimworld-go, and nothing game-specific belongs here.
 
+- `docs/media/`: the readme's workflow graphic. Regenerate it with `python3 docs/media/make_svg.py docs/media`. For the video, run `node docs/media/record.mjs docs/media/loops-workflow.svg <tmp>/frames 15 30`, then encode with ffmpeg into `loops-workflow.mp4` and `loops-workflow.webm`.
+
 ## Gates before committing
 `gofmt -l .` (must print nothing) · `go vet ./...` · `go test -race -count=1 ./...` · `go run ./cmd/loops arch` · `go run ./cmd/loops port check` · `jq . hooks/hooks.json .claude-plugin/*.json settings.json`
 
 The module and repository are `github.com/arxdsilva/ai-loops`. CI fails if the previous owner name reappears anywhere.
 
 ## Releases
-A release is a `v<version>` tag. That version must match `.claude-plugin/plugin.json` and `cli.Version`, because the generated package shims `go install …/cmd/loops@v<version>`.
+A release is a `v<version>` tag, and the version lives only in `.claude-plugin/plugin.json` (the `loops` binary embeds it; there is no version constant). The generated package shims `go install …/cmd/loops@v<version>`.
+
+Versions bump automatically: on every push to main, the CI `release` job runs `loops release --push`, which picks the level from the commits since the last tag (conventional commits: `feat!:` or a `BREAKING CHANGE` body is major, `feat:` minor, anything else patch; while the major version is 0, breaking changes bump minor), rewrites `plugin.json`, regenerates `platforms/` and the marketplaces, then commits `release vX.Y.Z`, tags it and pushes. The release commit and tag make the next run skip, so it does not loop. Write conventional commit subjects so the level is right.
+
+- Preview: `go run ./cmd/loops release --dry-run` (works on a dirty tree).
+- Manual override locally: `loops release minor` (or `patch`/`major`) on a clean tree; add `--push` to publish.
+- Never edit the version by hand.

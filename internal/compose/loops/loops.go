@@ -4,9 +4,11 @@ package loops
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/adapters/inbound/cli"
 	"github.com/arxdsilva/ai-loops/internal/adapters/inbound/hook"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/fsys"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gitcli"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/goparse"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/goproxy"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gotool"
@@ -23,8 +26,10 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runstore"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/updatestate"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/vcs"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/versionfile"
 	"github.com/arxdsilva/ai-loops/internal/application/archcheck"
 	"github.com/arxdsilva/ai-loops/internal/application/gate"
+	apprelease "github.com/arxdsilva/ai-loops/internal/application/release"
 	"github.com/arxdsilva/ai-loops/internal/application/ticket"
 	"github.com/arxdsilva/ai-loops/internal/application/tracker"
 	"github.com/arxdsilva/ai-loops/internal/application/updatecheck"
@@ -89,7 +94,15 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 	updates := updatecheck.New(goproxy.New("github.com/arxdsilva/ai-loops"), upState, clock)
 	updateOff := cfg.UpdateCheck != nil && !*cfg.UpdateCheck
 
+	version := embeddedVersion()
+	pkgs := portfs.New()
+	releases := apprelease.New(gitcli.New(root),
+		versionfile.New(filepath.Join(root, ".claude-plugin", "plugin.json")),
+		func() error { return cli.RegeneratePackages(root, pkgs, io.Discard, errw) })
+
 	app := &cli.App{
+		Version: version,
+		Release: releases,
 		Tracker: trk,
 		Gate:    gates,
 		Arch:    arch,
@@ -97,7 +110,7 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Report:  htmlreport.New(),
 		Hooks: hook.New(hook.Deps{
 			Rec: trk, Files: fsys.New(), Cmd: gotool.New(), Env: os.Getenv, Getwd: os.Getwd,
-			Update: updates, Version: cli.Version, UpdateOff: updateOff,
+			Update: updates, Version: version, UpdateOff: updateOff,
 		}),
 		Update:      updates,
 		UpdateState: upState,
@@ -106,7 +119,7 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Parallel:    cfg.Parallel,
 		Limits:      cfg.Limits,
 		Source:      ailoops.Source,
-		Packages:    portfs.New(),
+		Packages:    pkgs,
 		Root:        root,
 		PluginRoot:  os.Getenv("LOOPS_PLUGIN_ROOT"),
 		Layers:      cfg.Layers,
@@ -123,4 +136,27 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 // (hooks fail open silently; status lines must print exactly one line).
 func quiet(args []string) bool {
 	return len(args) > 0 && (args[0] == "hook" || args[0] == "status")
+}
+
+// DevVersion is reported when the embedded plugin.json cannot be parsed.
+const DevVersion = "0.0.0-dev"
+
+// embeddedVersion is the "version" of the embedded .claude-plugin/plugin.json,
+// the single source of truth for the loops version.
+func embeddedVersion() string {
+	data, err := ailoops.Source.ReadFile(".claude-plugin/plugin.json")
+	if err != nil {
+		return DevVersion
+	}
+	return parseVersion(data)
+}
+
+func parseVersion(data []byte) string {
+	var m struct {
+		Version string `json:"version"`
+	}
+	if json.Unmarshal(data, &m) != nil || m.Version == "" {
+		return DevVersion
+	}
+	return m.Version
 }

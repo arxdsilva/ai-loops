@@ -31,8 +31,7 @@ func buildPackage(src fs.FS, target plugin.Platform) ([]plugin.File, []string, e
 		return nil, nil, err
 	}
 	return port.Build(p, src, target, port.Options{
-		Module:  "github.com/arxdsilva/ai-loops",
-		Version: "v" + Version,
+		Module: "github.com/arxdsilva/ai-loops",
 	})
 }
 

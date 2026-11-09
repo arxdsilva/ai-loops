@@ -33,9 +33,11 @@ func clearEnv(t *testing.T) {
 	}
 }
 
+const testVersion = "0.3.0"
+
 func TestVersionPlain(t *testing.T) {
-	c, o, _ := runApp(&App{}, "version")
-	if c != 0 || o != "loops "+Version+"\n" {
+	c, o, _ := runApp(&App{Version: testVersion}, "version")
+	if c != 0 || o != "loops "+testVersion+"\n" {
 		t.Fatalf("%d %q", c, o)
 	}
 	if c, _, _ := runApp(&App{}, "version", "--bogus"); c != 2 {
@@ -45,9 +47,9 @@ func TestVersionPlain(t *testing.T) {
 
 func TestVersionCheck(t *testing.T) {
 	clearEnv(t)
-	a := &App{Update: fakeUpd{st: update.State{Latest: "v9.0.0"}}}
+	a := &App{Version: testVersion, Update: fakeUpd{st: update.State{Latest: "v9.0.0"}}}
 	c, o, _ := runApp(a, "version", "--check", "--platform", "claude")
-	if c != 0 || !strings.Contains(o, "loops "+Version) || !strings.Contains(o, "latest: v9.0.0") ||
+	if c != 0 || !strings.Contains(o, "loops "+testVersion) || !strings.Contains(o, "latest: v9.0.0") ||
 		!strings.Contains(o, "update available: "+updatecheck.Command("claude")) {
 		t.Fatalf("%d %q", c, o)
 	}
@@ -56,7 +58,7 @@ func TestVersionCheck(t *testing.T) {
 	if !strings.Contains(o, updatecheck.Command("claude")) {
 		t.Fatalf("autodetect: %q", o)
 	}
-	a = &App{Update: fakeUpd{st: update.State{Latest: "v" + Version}}}
+	a = &App{Version: testVersion, Update: fakeUpd{st: update.State{Latest: "v" + testVersion}}}
 	if _, o, _ = runApp(a, "version", "--check"); !strings.Contains(o, "up to date") {
 		t.Fatalf("%q", o)
 	}
@@ -112,7 +114,7 @@ func TestDetectPlatform(t *testing.T) {
 func TestStatusLineUpdateMarker(t *testing.T) {
 	clearEnv(t)
 	newer := fakeUpd{st: update.State{Latest: "v9.0.0"}}
-	a := &App{Tracker: fakeNoRun{}, UpdateState: newer}
+	a := &App{Version: testVersion, Tracker: fakeNoRun{}, UpdateState: newer}
 	_, o, _ := runApp(a, "status", "--statusline")
 	if !strings.Contains(o, " · ⬆ v9.0.0") {
 		t.Fatalf("%q", o)
@@ -120,17 +122,17 @@ func TestStatusLineUpdateMarker(t *testing.T) {
 	for name, mod := range map[string]func(*App){
 		"off":     func(a *App) { a.UpdateOff = true },
 		"nostate": func(a *App) { a.UpdateState = nil },
-		"same":    func(a *App) { a.UpdateState = fakeUpd{st: update.State{Latest: "v" + Version}} },
+		"same":    func(a *App) { a.UpdateState = fakeUpd{st: update.State{Latest: "v" + testVersion}} },
 		"err":     func(a *App) { a.UpdateState = fakeUpd{err: errors.New("x")} },
 	} {
-		a := &App{Tracker: fakeNoRun{}, UpdateState: newer}
+		a := &App{Version: testVersion, Tracker: fakeNoRun{}, UpdateState: newer}
 		mod(a)
 		if _, o, _ := runApp(a, "status", "--statusline"); strings.Contains(o, "⬆") {
 			t.Errorf("%s: %q", name, o)
 		}
 	}
 	t.Setenv("LOOPS_NO_UPDATE_CHECK", "1")
-	if _, o, _ := runApp(&App{Tracker: fakeNoRun{}, UpdateState: newer}, "status", "--statusline"); strings.Contains(o, "⬆") {
+	if _, o, _ := runApp(&App{Version: testVersion, Tracker: fakeNoRun{}, UpdateState: newer}, "status", "--statusline"); strings.Contains(o, "⬆") {
 		t.Errorf("env: %q", o)
 	}
 }

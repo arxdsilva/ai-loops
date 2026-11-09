@@ -32,11 +32,11 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
-// Version is the loops version reported by `loops version`.
-const Version = "0.3.0"
-
 // App holds the use cases and the process environment.
 type App struct {
+	// Version is the loops version (.claude-plugin/plugin.json "version").
+	Version string
+
 	Tracker Tracker
 	Gate    Gater
 	Arch    Archer
@@ -62,6 +62,7 @@ type App struct {
 	// Update checks the Go proxy (nil = update features off); UpdateState is
 	// the cached state read by the status line (no network).
 	Update      Updater
+	Release     Releaser // loops release (nil = unavailable)
 	UpdateState UpdateStore
 	UpdateOff   bool // .loops/config.json "update_check": false
 
@@ -90,6 +91,7 @@ var commands = map[string]command{
 	"plan":    {(*App).cmdPlan, "plan check <plan.md> [--cap n] [--json]   waves vs parallelism cap and scope overlap"},
 	"watch":   {(*App).cmdWatch, "watch [--interval 2s] [--once]   live run view in a terminal (any platform)"},
 	"path":    {(*App).cmdPath, "path [root|specs|templates|skills|agents]"},
+	"release": {cmdRelease, "release [auto|patch|minor|major] [--dry-run] [--push]   bump the version from the commits, regenerate packages, commit and tag"},
 	"version": {(*App).cmdVersion, "version [--check [--platform p]]   print the version; --check asks the Go proxy for the latest release"},
 	"update":  {(*App).cmdUpdate, "update [--platform p]   print how to update loops (all platforms when unknown)"},
 }

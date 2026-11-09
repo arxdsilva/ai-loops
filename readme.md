@@ -1,6 +1,26 @@
 # ai-loops: the `loops` plugin
 
-A Claude Code plugin for working on Go backends with agents. Every ticket goes through six visible phases, each staffed by specialised **role agents**. Review loops send work back with context until it is right. The run ends with a pull request backed by proofs, and a reflection saved to long-term memory.
+**Give an AI coding agent a ticket, get back a pull request with proof that it works.**
+`loops` is a plugin for Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI and other coding agents. It turns one request into a team of specialist AI agents that research, plan, build, check each other's work and prove the result, for Go backends.
+
+<p align="center">
+  <img src="docs/media/loops-workflow.svg" alt="How loops works: a ticket goes through Research, Plan, Build, Verify, Prove and Reflect, with review loops, ending in a pull request with proofs" width="100%">
+</p>
+
+<p align="center"><a href="docs/media/loops-workflow.mp4">▶ Watch the 15-second walkthrough</a> · <a href="docs/media/loops-workflow.png">Static image (PNG)</a></p>
+
+### In plain words
+
+1. **Research.** Before anything is decided, agents read the web, best practices, your existing code, and what your machine can handle.
+2. **Plan.** One agent writes the plan and another challenges it until it holds up. You can approve it first if you want.
+3. **Build.** An architect agrees the shared pieces first. Then specialist engineers work side by side, each in its own area.
+4. **Verify.** A separate checker re-tests everything each engineer claims and sends back anything that doesn't hold, with proof of what broke.
+5. **Prove.** A product reviewer tries every requirement by hand and opens the pull request with the evidence attached.
+6. **Reflect.** Lessons are saved for next time. Where your project's own rules overrode the plugin's defaults, a note is posted on the pull request.
+
+You can watch all of it live (status line, live pane, `loops watch`), and an HTML report records every step.
+
+### Under the hood
 
 ```
 /loops:work #123
@@ -103,6 +123,7 @@ When a newer release exists, the session context carries one line: `loops vX is 
 
 - Opt out with `LOOPS_NO_UPDATE_CHECK=1` or `"update_check": false` in `.loops/config.json`. It is also skipped when `CI=true`.
 - `loops version --check` checks on demand; `loops update [platform]` prints the command for your platform.
+- Releases are produced automatically: each push to main bumps the version from its conventional commits (`loops release`), regenerates the packages and tags `vX.Y.Z`.
 
 | Platform | Update command |
 |---|---|

@@ -32,3 +32,25 @@ jobs:
           node-version: 22
       - name: mod pane tests
         run: node --test mod/test/render.test.mjs
+  release:
+    # Bumps the version from conventional commits, regenerates the platform
+    # packages, then pushes a "release vX.Y.Z" commit and tag. That commit's
+    # subject (and tag) make the next run skip, so it cannot loop.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - run: go run ./cmd/loops release --push

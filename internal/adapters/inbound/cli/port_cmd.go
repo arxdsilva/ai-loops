@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -44,9 +45,6 @@ func (a *App) cmdPort(ctx context.Context, args []string) int {
 	if err != nil {
 		fmt.Fprintln(a.Err, "loops port:", err)
 		return 1
-	}
-	if p.Version != Version {
-		fmt.Fprintf(a.Err, "loops port: warning: .claude-plugin/plugin.json version %s differs from loops %s\n", p.Version, Version)
 	}
 	var drift []string
 	for _, pl := range plan.platforms {
@@ -233,4 +231,15 @@ func relTo(base, target string) string {
 		return target
 	}
 	return r
+}
+
+// RegeneratePackages runs `loops port build` for the checkout at root, reading
+// the canonical sources from disk (not the embedded copy) so a just-edited
+// plugin.json is honoured. Progress goes to out; failures to errw.
+func RegeneratePackages(root string, pk PackageWriter, out, errw io.Writer) error {
+	a := &App{Source: os.DirFS(root), Packages: pk, Root: root, Out: out, Err: errw}
+	if code := a.cmdPort(context.Background(), []string{"build"}); code != 0 {
+		return fmt.Errorf("loops port build exited %d", code)
+	}
+	return nil
 }

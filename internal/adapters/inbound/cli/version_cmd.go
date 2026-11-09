@@ -32,7 +32,7 @@ func (a *App) cmdVersion(ctx context.Context, args []string) int {
 		fmt.Fprintln(a.Err, "usage: loops version [--check [--platform p]]")
 		return 2
 	}
-	fmt.Fprintln(a.Out, "loops", Version)
+	fmt.Fprintln(a.Out, "loops", a.Version)
 	if !*check {
 		return 0
 	}
@@ -48,7 +48,7 @@ func (a *App) cmdVersion(ctx context.Context, args []string) int {
 		return 0
 	}
 	fmt.Fprintln(a.Out, "latest:", st.Latest)
-	if update.Newer(st.Latest, Version) {
+	if update.Newer(st.Latest, a.Version) {
 		p := *platform
 		if p == "" {
 			p = detectPlatform(os.Getenv)
@@ -84,7 +84,7 @@ func updateMarker(a *App) string {
 		return ""
 	}
 	st, err := a.UpdateState.Load()
-	if err != nil || !update.Newer(st.Latest, Version) {
+	if err != nil || !update.Newer(st.Latest, a.Version) {
 		return ""
 	}
 	return " · ⬆ " + strings.TrimSpace(st.Latest)

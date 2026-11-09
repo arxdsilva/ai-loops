@@ -57,7 +57,7 @@ func (m *memPackages) Place(p []plugin.Placement, force bool) ([]string, error) 
 func portSource() fstest.MapFS {
 	f := func(s string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(s)} }
 	return fstest.MapFS{
-		".claude-plugin/plugin.json":  f(`{"name":"loops","version":"` + Version + `","description":"d","author":{"name":"A"}}`),
+		".claude-plugin/plugin.json":  f(`{"name":"loops","version":"0.3.0","description":"d","author":{"name":"A"}}`),
 		"skills/work/SKILL.md":        f("---\nname: work\ndescription: Work.\n---\nbody\n"),
 		"agents/planner.md":           f("---\nname: planner\ndescription: Plan.\nmodel: opus\ndisallowedTools: Edit\n---\nPlan.\n"),
 		"hooks/hooks.json":            f(`{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"loops hook stop-gate","timeout":10}]}]}}`),
@@ -322,20 +322,11 @@ func TestPortWriterErrors(t *testing.T) {
 	}
 }
 
-func TestPortBuildErrorAndVersionWarning(t *testing.T) {
+func TestPortBuildError(t *testing.T) {
 	src := portSource()
-	src[".claude-plugin/plugin.json"] = &fstest.MapFile{Data: []byte(`{"name":"loops","version":"9.9.9"}`)}
-	a, _, _, errw, _ := portApp(t, src)
-	if code := a.Run(context.Background(), []string{"port", "build", "--platform", "claude"}); code != 0 {
-		t.Fatalf("exit %d: %s", code, errw)
-	}
-	if !strings.Contains(errw.String(), "version 9.9.9 differs") {
-		t.Errorf("no version warning: %q", errw)
-	}
-	src = portSource()
 	delete(src, "skills/work/SKILL.md")
 	src["skills/work/notes.md"] = &fstest.MapFile{Data: []byte("x")}
-	a, _, _, errw, _ = portApp(t, src)
+	a, _, _, errw, _ := portApp(t, src)
 	if code := a.Run(context.Background(), []string{"port", "build", "--platform", "codex"}); code != 1 {
 		t.Fatalf("exit %d: %s", code, errw)
 	}
@@ -378,7 +369,7 @@ func TestPortRealTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load(repo): %v", err)
 	}
-	if p.Name != "loops" || p.Version != Version || len(p.Agents) < 16 || len(p.Hooks) < 9 {
+	if p.Name != "loops" || p.Version == "" || len(p.Agents) < 16 || len(p.Hooks) < 9 {
 		t.Fatalf("loaded %s %s: %d agents, %d hooks", p.Name, p.Version, len(p.Agents), len(p.Hooks))
 	}
 	commands := 0
