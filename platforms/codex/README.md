@@ -20,7 +20,7 @@ Commands are skills: `$work`, `$init`, `$status`, `$report`.
 
 ## Binary
 
-`bin/loops` uses `loops` from PATH when it reports version 0.3.0, else a cached binary, else downloads the prebuilt release binary for your OS/arch (checksum-verified, no Go needed). Only when no prebuilt binary exists does it fall back to `go install github.com/arxdsilva/ai-loops/cmd/loops@v0.3.0`.
+`bin/loops` uses `loops` from PATH when it reports version 0.4.0, else a cached binary, else downloads the prebuilt release binary for your OS/arch (checksum-verified, no Go needed). Only when no prebuilt binary exists does it fall back to `go install github.com/arxdsilva/ai-loops/cmd/loops@v0.4.0`.
 
 ## Caveats
 

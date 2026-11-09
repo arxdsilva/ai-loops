@@ -2,5 +2,5 @@
   "contextFileName": "GEMINI.md",
   "description": "Agent-driven Go backend workflow: research → plan (+review loop) → role-based parallel implementation → QA verification loop → product proof + PR → reflection into ai-memory. Every step is traced live (status line, pane) and in an HTML report.",
   "name": "loops",
-  "version": "0.3.0"
+  "version": "0.4.0"
 }
