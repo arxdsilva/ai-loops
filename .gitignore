@@ -1,0 +1,5 @@
+/.loops/
+/dist/
+*.test
+*.out
+/.loops-qa/

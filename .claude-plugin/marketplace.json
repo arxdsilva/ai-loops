@@ -1,0 +1,11 @@
+{
+  "name": "ai-loops",
+  "owner": { "name": "Arthur Silva" },
+  "plugins": [
+    {
+      "name": "loops",
+      "source": "./",
+      "description": "Agent-driven Go backend workflow with visible phases, role agents, QA loops, proof-backed PRs and ai-memory reflection."
+    }
+  ]
+}

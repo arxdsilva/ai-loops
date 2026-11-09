@@ -1,0 +1,24 @@
+#!/bin/sh
+# loops shim: builds cmd/loops from the plugin sources on first use (or when
+# the sources change) and execs the cached binary. On the Bash PATH while the
+# plugin is enabled; hooks call it via ${CLAUDE_PLUGIN_ROOT}/bin/loops.
+set -e
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export LOOPS_PLUGIN_ROOT="$root"
+cache="${CLAUDE_PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/loops}"
+# Source fingerprint: newest mtime + file count of the Go sources (cheap, no hashing tool needed).
+stamp=$(find "$root/cmd" "$root/internal" "$root/go.mod" -type f \( -name '*.go' -o -name 'go.mod' -o -name '*.tmpl' -o -name '*.css' -o -name '*.js' \) 2>/dev/null \
+  | xargs ls -l 2>/dev/null | awk '{print $5,$6,$7,$8,$9}' | cksum | awk '{print $1}')
+bin="$cache/loops-$stamp"
+if [ ! -x "$bin" ]; then
+  if ! command -v go >/dev/null 2>&1; then
+    echo "loops: the Go toolchain is required (https://go.dev/dl)" >&2
+    exit 1
+  fi
+  mkdir -p "$cache"
+  (cd "$root" && CGO_ENABLED=0 go build -trimpath -o "$bin.tmp" ./cmd/loops) >&2
+  mv -f "$bin.tmp" "$bin"
+  # keep only the newest 3 builds
+  ls -1t "$cache"/loops-* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
+fi
+exec "$bin" "$@"
