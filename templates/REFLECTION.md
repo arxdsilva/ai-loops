@@ -11,6 +11,12 @@ Written by the `reflector` as `reflection.md` from `loops status --json` and the
 ## Loop-backs and root causes
 - <from -> to, round N: root cause>
 
+## Premises attacked
+- <round, check: the premise in one sentence, and what replaced it | or: none>
+
+## Quality pass
+- <findings fixed by metric (CRAP, duplication, mutation); tools not run and why; pre-existing debt noted>
+
 ## Gate failures
 - <check: cause, fixed by>
 

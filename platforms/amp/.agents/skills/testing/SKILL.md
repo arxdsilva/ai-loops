@@ -27,7 +27,7 @@ Every test run follows the pack's race policy (WORKFLOW §6): the race flag (`fl
 
 ## Behaviour, not trivia
 
-Name tests for behaviour (`refund rejects an already refunded order`; Go `TestRefund_RejectsAlreadyRefundedOrder`), not tests tied to private helper call counts. One reason to fail per test.
+A test that would still pass with every function under test returning nothing is hollow: QA fails it (`specs/ENGINEERING.md §12`), and the quality pass's mutation testing finds it (`loops:quality`). See every new test fail for the reason you expect before you make it pass (§7). Name tests for behaviour (`refund rejects an already refunded order`; Go `TestRefund_RejectsAlreadyRefundedOrder`), not tests tied to private helper call counts. One reason to fail per test.
 
 ## Table and parametrised tests
 

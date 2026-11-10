@@ -14,9 +14,15 @@
 1. **Research.** Before anything is decided, agents read the web, best practices, your existing code, and what your machine can handle.
 2. **Plan.** One agent writes the plan and another challenges it until it holds up. You can approve it first if you want.
 3. **Build.** An architect agrees the shared pieces first. Then specialist engineers work side by side, each in its own area.
-4. **Verify.** A separate checker re-tests everything each engineer claims and sends back anything that doesn't hold, with proof of what broke.
+4. **Verify.** A separate checker re-tests everything each engineer claims and sends back anything that doesn't hold, with proof of what broke. Then one quality pass scores the changed code for complexity, duplication and tests that don't really test (crapper, dryer, mutator).
 5. **Prove.** A product reviewer tries every requirement by hand and opens the pull request with the evidence attached.
 6. **Reflect.** Lessons are saved for next time. Where your project's own rules overrode the plugin's defaults, a note is posted on the pull request.
+
+**Make it work, then make it right:** every phase follows [specs/ENGINEERING.md](specs/ENGINEERING.md), adapted from Robert C. Martin's [ub-mode](https://github.com/unclebob/ub-mode):
+- the plan models the data first, removes before it adds, and redesigns instead of bolting on;
+- engineers write the failing test first and record why it failed;
+- after two failed fixes on one premise, the agent must name that premise and remove it rather than patch a third time;
+- the run is committed in small ordered commits that each say how they were proven.
 
 **Hard gate:** new code must ship with unit tests: ≥70% coverage of new code, and every test run under the language's race detector or its race substitute — enforced by `loops gate` and the test-guard hook.
 
@@ -222,7 +228,7 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
 
 - `agents/`: the 32 roles (17 workflow and layer roles, 15 language roles), summarised in `ROLES.md`.
 - `skills/`: the `work` orchestrator, `init`, `status`, `report`, the reference skills, and one `lang-<id>` skill per language.
-- `specs/`: the workflow spec, the language-neutral rules (architecture, SOLID, testing, repository practices), and `specs/languages/<id>/` (pack and rules) per language.
+- `specs/`: the workflow spec, the engineering discipline (`ENGINEERING.md`), the language-neutral rules (architecture, SOLID, testing, repository practices), and `specs/languages/<id>/` (pack and rules) per language.
 - `templates/`: what the agents fill in.
 - `cmd/loops` and `internal/`: the Go tool, stdlib only.
 

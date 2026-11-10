@@ -43,7 +43,7 @@
   "cache_env": {"GOCACHE": "cache", "GOTMPDIR": "tmp"},
   "shared_env": ["GOMODCACHE", "GOPATH"],
   "env_hints": {"GOFLAGS": "-p=2"},
-  "artifacts": ["*.test", "*.test.exe", "*.out", "*.prof", "*.pprof", "*.cov", "*.exe"],
+  "artifacts": ["*.test", "*.test.exe", "*.out", "*.prof", "*.pprof", "*.cov", "*.exe", ".metrics/", "target/coverage/"],
   "arch": {
     "parser": "go", "resolver": "module-path",
     "forbidden_in_domain": ["os", "net/http"],

@@ -515,7 +515,8 @@
     "dependency-reduced-pom.xml",
     ".flattened-pom.xml",
     "**/target/",
-    "**/build/"
+    "**/build/",
+    ".metrics/"
   ],
   "arch": {
     "parser": "regex",

@@ -3,7 +3,7 @@
 This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and templates, plus the `loops` Go binary they drive. Read only what your task needs.
 
 ## Where things are
-- The workflow spec, which everything implements: `specs/WORKFLOW.md`. Roles: `ROLES.md` (matrix) and `agents/*.md` (definitions).
+- The workflow spec, which everything implements: `specs/WORKFLOW.md`. The engineering discipline each phase applies (adapted from ub-mode): `specs/ENGINEERING.md`. Roles: `ROLES.md` (matrix) and `agents/*.md` (definitions).
 - Language-neutral rules for target repos (and this one): `specs/ARCHITECTURE.md`, `specs/SOLID.md`, `specs/TESTING.md`, `specs/REPO_PRACTICES.md`. Agent rules: `specs/PARALLEL_WORK.md`, `specs/CONTEXT_DISCIPLINE.md`.
 - Languages: `specs/languages/<id>/` holds each pack (`pack.json`, validated by `loops lang validate`) and its rule book (`RULES.md`); Go also has `ARCHITECTURE.md`, and its `RULES.md` governs this repo's Go code. Each pack has a `skills/lang-<id>/` skill and an `agents/<id>-engineer.md` role (15 languages; `loops lang list`).
 - Skills: `skills/<name>/SKILL.md`. The `work` skill is the orchestrator; the rest are reference skills that roles load, including one `lang-<id>` per language.

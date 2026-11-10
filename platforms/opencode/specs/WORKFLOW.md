@@ -12,6 +12,11 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 - **Project rules win.** The target repository's own rules always take precedence over loops' specs, skills and templates. That means its AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs and established architecture. Any agent that follows a project rule instead of a loops rule records it immediately: `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what was done>"`. The reflector posts the list as a PR comment (§2.6).
 - **Everything is visible.** Every phase change, agent lane, tool call, verdict, loop-back, gate, proof and memory access lands in `events.jsonl` (§5).
 - **Runs leave no trace.** Each run builds with its own build caches and tmp dirs under the run directory, one set per detected language pack (the pack's `cache_env` and `cache_argv`; Go: `GOCACHE`, `GOTMPDIR`). `loops run end` deletes them along with the build leftovers agents created (the pack's `artifacts`; §2.6, §5). Download and package caches stay shared (the pack's `shared_env`), and the user's global caches are never touched.
+- **Make it work, then make it right.** Every phase applies `specs/ENGINEERING.md`:
+  - plan: smallest edit, data shape first, subtract before adding, redesign instead of bolting on, levers (§1–§6);
+  - implement: test first with the red seen, the domain modelled, idempotency (§7–§9);
+  - QA: root causes, no hollow tests, the quality pass (§10–§14);
+  - every loop: attack the premise after two failed rounds (§11).
 - **Smallest sufficient context.** Search before reading, read ranges, cite by path and section, and never paste whole specs (`specs/CONTEXT_DISCIPLINE.md`).
 
 ## 2. Phases
@@ -22,7 +27,7 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 | 1 | `research` | `web-researcher`, `practices-researcher`, `code-researcher`, `hardware-researcher` (parallel) | `research/web.md`, `research/practices.md`, `research/code.md`, `research/hardware.{json,md}` | All four outputs are written |
 | 2 | `plan` | `planner` ↔ `plan-reviewer` (+ the user when approval is required) | `plan.v<N>.md`, `plan-review.r<N>.md` | The latest review is `APPROVE` (and the user approved, if required) |
 | 3 | `implement` | `architect` (wave 0), then role engineers in waves 1…n | `reports/<agent-id>.md` (claims reports) | Every lane has reported |
-| 4 | `qa` | one `qa-verifier` per implementer (pipelined), then the lead runs the gates | `qa/<agent-id>.r<N>.md` | Every claim is `VERIFIED` and `loops gate` is green |
+| 4 | `qa` | one `qa-verifier` per implementer (pipelined), one `qa-quality` pass, then the lead runs the gates | `qa/<agent-id>.r<N>.md`, `qa/quality.r<N>.md` | Every claim is `VERIFIED`, the quality pass is `VERIFIED`, and `loops gate` is green |
 | 5 | `product` | `product-reviewer` | `proofs/AC-<n>.md`, `pr.md`, `report.html` | Every AC is `VERIFIED` with a proof, and the PR/MR is opened (or the PR body is written under `--no-pr`) |
 | 6 | `reflect` | `reflector` | `reflection.md` (+ ai-memory pages) | Reflection is written; `loops run end` |
 
@@ -63,12 +68,13 @@ Flags on `/loops:work`:
   - acceptance criteria (`AC-1`…, taken from the ticket, or marked *derived*);
   - the task packet;
   - the contract;
+  - the design (`## Design`): the data shape, what is removed first, whether the change fits the current design or what redesign it needs, planned breaks and levers (`specs/ENGINEERING.md §2–§6`);
   - the waves table, with each agent's claims;
   - the QA pairing;
   - the proof plan.
 - The `plan-reviewer` writes `plan-review.r1.md` from `templates/PLAN_REVIEW.md` and ends with a verdict:
   - `APPROVE`; or
-  - `CHANGES`, followed by numbered **blocking** items, each with what to change and why. Non-blocking items are allowed but never block.
+  - `CHANGES`, followed by numbered **blocking** items, each with what to change and why. Non-blocking items are allowed but never block. A missing or empty `## Design`, a bolt-on (`specs/ENGINEERING.md §4`) and a lane whose end state no other agent can check (§5) are blocking.
 - On `CHANGES`:
   1. Record `loops run loopback --from plan-reviewer --to planner --round N --note "<one line>"`.
   2. Send the review file back to the same planner (resume or re-spawn per platform tier). It writes `plan.v<N+1>.md`.
@@ -86,7 +92,7 @@ Flags on `/loops:work`:
 - **Waves 1…n:** launch every agent of a wave together, in parallel where the platform allows.
   - The order is producers (domain, application) before consumers (inbound and outbound adapters). Consumers may start early against the stubs.
   - Each agent gets its own block from the plan: Goal, Starts at, Behaviour, Owns, Must not touch, Claims to prove, Done when, and Out.
-- Every implementer finishes with a **claims report** (`templates/CLAIMS_REPORT.md`, at most 400 words) saved to `reports/<agent-id>.md`. Each claim has the form `C<n>: <statement> — evidence: <test name | command → result | file:line>`.
+- Every implementer finishes with a **claims report** (`templates/CLAIMS_REPORT.md`, at most 400 words) saved to `reports/<agent-id>.md`. Each claim has the form `C<n>: <statement> — evidence: <test name | command → result | file:line>`. Under `## Red first` the report gives each new test and the failure it showed before the change (`specs/ENGINEERING.md §7`).
 
 ### 2.4 QA
 
@@ -107,7 +113,10 @@ Flags on `/loops:work`:
   - expected vs actual;
   - the suggested fix area.
 
-  The verifier also lists **unclaimed problems** it found.
+  The verifier also lists **unclaimed problems** it found. It also checks **test honesty** (`specs/ENGINEERING.md §10, §12, §8`):
+  - a test that would still pass with every function under test returning nothing fails the claim it supports;
+  - a fix that only guards the symptom, with no reproducing test, fails;
+  - an unexplained compiler or lint suppression fails.
 - For each verdict, record `loops run verdict --name <agent-id>:C<n> --status VERIFIED|FAILED --round N --ref qa/<file>`.
 - When anything has FAILED:
   1. Record `loops run loopback --from qa-verifier --to <agent-id> --round N`.
@@ -115,7 +124,12 @@ Flags on `/loops:work`:
   3. When it reports again, re-verify with the same verifier (resume or re-spawn).
 - After `EscalateAfter` (2) failed rounds, relaunch the implementer one model tier up (haiku → sonnet → opus), with a summary of the history.
 - After `MaxQARounds` (3) failed rounds, escalate to the user.
-- When every lane is verified, the lead runs the full `loops gate`. Gate failures go back to the owning lane the same way.
+- **Attack the premise.** When the same claim fails a second round, the implementer does not try a third fix on the same premise. Its next report states that premise under `## Premise`, and the lead records it (`specs/ENGINEERING.md §11`, §4).
+- **Quality pass.** When every lane is verified, one `qa-verifier` with Agent id `qa-quality` runs `skills/quality` on the run's changed code.
+  - It measures CRAP, structural duplication and mutation survivors (`specs/ENGINEERING.md §13`) and writes `qa/quality.r<N>.md` (`templates/QUALITY.md`).
+  - Each finding names its owning lane. The lead records `loops run verdict --name quality:Q<n> …` and sends the findings back to that lane like a failed claim (`loopback --from qa-quality --to <agent-id>`), with the same limits (§4). That lane's verifier then re-verifies, and the pass runs again.
+  - A tool that isn't installed is recorded and never blocks.
+- Then the lead runs the full `loops gate`. Gate failures go back to the owning lane the same way.
 
 ### 2.5 Product
 
@@ -137,7 +151,7 @@ The `product-reviewer` does the following, in order:
    2. Writes `pr.md` (`templates/PR_BODY.md`, at most ~40 lines plus `<details>` proof blocks).
    3. Stops and reports to the lead (proof summary + `pr.md` path). Unless `--no-pr` is set, the lead asks the user to confirm the push and PR (skipped when `auto_pr: true`), then sends the same product-reviewer "user confirmed" (resume or re-spawn per platform tier). Only then it:
       - creates the branch `loops/<ticket>-<slug>`;
-      - commits with `git commit -m … -- <paths>`;
+      - commits in small ordered commits, wave 0 first and then each wave's lanes. Each is `git commit -m … -- <paths>`, with a conventional subject and a body saying why, what changed and how it was proven (claim ids, QA file, AC proofs) (`specs/ENGINEERING.md §18`);
       - pushes;
       - opens the PR with `gh pr create --body-file pr.md` (or `glab mr create`; the forge is chosen from `git remote get-url origin`);
       - records `loops run event --kind pr --ref <url>`.
@@ -148,7 +162,8 @@ The `reflector`:
 1. Reads `events.jsonl` through `loops status --json` and the run files.
 2. Writes `reflection.md` (`templates/REFLECTION.md`), covering:
    - the outcome;
-   - each loop-back and its root cause;
+   - each loop-back and its root cause, and every premise attacked (`specs/ENGINEERING.md §11`);
+   - the quality pass: findings fixed, tools that did not run, and pre-existing debt noted;
    - gate failures;
    - what the plan missed;
    - gotchas worth remembering;
@@ -213,6 +228,8 @@ Right after each spawn, the lead names the lane: `loops run label --agent <platf
 | product → implementer | `MaxProductRounds` = 2 | The user decides |
 
 Every pass around any loop is recorded with `loops run loopback`, which feeds the status line counters and the report's arrows.
+
+**Attack the premise** (`specs/ENGINEERING.md §11`) applies to every loop in the table. This covers a claim, a quality finding, a gate check, an AC, or a blocking plan item that fails in two rounds. The author's next report opens with `## Premise`: the premise both attempts shared, in one sentence, and the actors that hold the conflicting responsibility. The next attempt removes that assignment instead of patching again, and that can mean a plan revision. The lead records `loops run event --kind note --name premise --note "<sentence>"` and passes the premise to any agent escalated one tier up.
 
 ## 4a. Opt-in limits (only when the user asks)
 
@@ -323,7 +340,7 @@ A run is done when every item below holds. (Adapted from the rimworld-go MASTER_
 1. Every AC is `VERIFIED` with a proof.
 2. Behaviour is implemented in its owning layer (`specs/ARCHITECTURE.md`), and `loops arch` reports no errors.
 3. Every new or changed module has unit tests, including failure paths; new-code coverage is at least 70% (`loops gate` coverage, `specs/TESTING.md §8.1`); all tests run under the pack's race policy (§6).
-4. Every claim is verified by QA, and `loops gate` is green for every detected pack.
+4. Every claim is verified by QA, the quality pass is `VERIFIED` (`specs/ENGINEERING.md §13`; a tool that isn't installed is noted, not required), and `loops gate` is green for every detected pack.
 5. Consistency impact is stated (ordering, idempotency, clock and RNG, migrations), with `skills/consistency` followed where it applies.
 6. Performance is measured (a benchmark before and after) if a hot path changed.
 7. Compatibility is analysed: API, persisted schema, config, migrations, and the manifest and lockfile when dependencies changed (`specs/REPO_PRACTICES.md §3`).

@@ -112,9 +112,16 @@ loops run verdict --name <id>:C<n> --status VERIFIED|FAILED --round N --ref qa/<
 loops run loopback --from qa-verifier --to <id> --round N --note "<claims>"
 ```
    Send the **same** implementer (resume or re-spawn per your tier, adding its previous report, the QA file and a ≤10-line history): `Fix the FAILED claims in <abs QA file>; re-run your scope; overwrite your report.` Then have the same verifier re-verify (round N+1) the same way.
+   On the second failed round of the same claim, the implementer's report must open with `## Premise` (ENGINEERING §11). Record it with `loops run event --kind note --name premise --note "<sentence>"` and include it in any escalation.
 4. Limits (§4): after 2 failed rounds, relaunch the implementer one tier up (haiku -> sonnet -> opus) via a new spawn with a higher model, plus a history summary and the QA files; relabel it. After 3 failed rounds, ask the user.
 5. Verified lanes: stop the implementer and verifier of a lane once all of that wave's claims are VERIFIED and you do not plan to resume them.
-6. When every lane is VERIFIED run the full gate yourself. It runs every detected pack's checks at its root, each under the pack's race policy (WORKFLOW §6):
+6. **Quality pass** (WORKFLOW §2.4): when every lane is VERIFIED, spawn one `qa-verifier` with Agent id `qa-quality` (round N, every `Language:` line) to run `loops:quality` over the run's changed code. Label it. For each finding:
+   - record `loops run verdict --name quality:Q<n> --status FAILED --round N --ref qa/quality.r<N>.md`;
+   - record `loops run loopback --from qa-quality --to <id> --round N`;
+   - send it to its lane like a failed claim. That lane's verifier re-verifies, and the pass runs again.
+
+   Same limits.
+7. When the quality pass is VERIFIED, run the full gate yourself. It runs every detected pack's checks at its root, each under the pack's race policy (WORKFLOW §6):
 ```
 loops gate
 ```

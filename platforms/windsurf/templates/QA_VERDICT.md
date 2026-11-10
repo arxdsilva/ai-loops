@@ -18,6 +18,12 @@ Written by `qa-verifier` as `qa/<agent-id>.r<N>.md`. Verify every claim independ
   - Expected vs actual: <expected> / <actual>
   - Suggested fix area: <module/function>
 
+## Test honesty (specs/ENGINEERING.md §10, §12, §8)
+- Hollow tests (would pass if every function returned nothing): <test - claim it fails, or "none">
+- Symptom-only fixes (guard without a reproducing test and stated cause): <file:line, or "none">
+- Unexplained compiler or lint suppressions: <file:line, or "none">
+- Red first recorded in the report: <yes | missing for: <tests>>
+
 ## Unclaimed problems
 - <file:line - problem, or "none">
 

@@ -32,7 +32,7 @@ relevant log window (<= 20 lines)
 3. Narrow by layer: transport, application, domain, adapter, dependency. Check the boundary values at each port.
 4. Reduce the input and the setup until removing anything makes the bug vanish.
 5. Write the failing test or fixture first.
-6. Inspect the owning package and its invariant; fix the root cause, not the symptom.
+6. Inspect the owning package and its invariant; fix the root cause, not the symptom. A guard that only hides the crash is not a fix (`specs/ENGINEERING.md §10`). If two fixes on one premise have failed, attack the premise instead (§11).
 7. Verify repeatedly under the pack's race policy: repeat runs, shuffled order with the failing seed, the race flag or substitute (Go: `-count=N -race -shuffle=on`); run nearby tests and benchmarks.
 
 ## Logs

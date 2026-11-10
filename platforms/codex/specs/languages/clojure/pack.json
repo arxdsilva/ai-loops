@@ -370,7 +370,8 @@
     "hs_err_pid*.log",
     ".lein-failures",
     ".lein-repl-history",
-    "**/target/"
+    "**/target/",
+    ".metrics/"
   ],
   "arch": {
     "parser": "regex",

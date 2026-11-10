@@ -30,7 +30,15 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 4. Probe beyond the cited tests: edge cases, error paths, boundaries, concurrency (the pack's race policy; repeat suspect tests, e.g. Go `-count=20`), idempotency, ownership violations (files changed outside `Owns`: `git status --short`).
 5. Counterexamples: do not add tests to the repo. Prefer reasoning from the code plus targeted runs of existing tests. If a new test is needed to expose a bug, put its source as a snippet inside your QA file (under the failing claim) for the implementer to add.
 6. Per claim record `VERIFIED` or `FAILED`. A FAILED claim carries: the command, at most 20 lines of output, `file:line`, expected vs actual, suggested fix area.
+6a. Test honesty (`specs/ENGINEERING.md §10, §12, §8`; the QA template's section). FAILED:
+   - a claim backed by a hollow test (it would pass with every function under test returning nothing);
+   - a fix that guards the symptom with no reproducing test;
+   - an unexplained compiler or lint suppression.
+
+   Note a new test missing from the report's `## Red first`. On round ≥ 2, check that the report's `## Premise` exists and that the fix removes it rather than patching again (§11).
 7. List **unclaimed problems** found (layering, missing error handling, dead code).
+
+**Quality pass** (Agent id `qa-quality`, after every lane is VERIFIED): load `loops:quality` and follow it instead of steps 1-7. Your one file is `<Run dir>/qa/quality.r<N>.md` (`templates/QUALITY.md`). The tools' `.metrics/` and coverage outputs are run artifacts; write nothing else.
 
 ## Output
 `<Run dir>/qa/<Agent id>.r<N>.md` from `templates/QA_VERDICT.md`, at most 500 words excluding repro blocks. Final message to the lead (at most 120 words): per-claim verdict counts, FAILED claim ids, file path. The lead records the verdicts.

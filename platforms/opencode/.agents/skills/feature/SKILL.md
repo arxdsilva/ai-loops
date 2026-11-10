@@ -19,7 +19,7 @@ Specs live at the absolute path in your prompt (`loops path specs`). Cite by `sp
 1. Restate the behaviour as observable acceptance criteria.
 2. Identify the owning package; search for existing canonical types and primitives before adding any (Go: `specs/languages/go/RULES.md §48`).
 3. Write or update the failing behavioural test first.
-4. Implement the smallest complete change in the right layer: business rules in the domain layer, orchestration in the application layer, technology in the adapters (the pack's layout tree; Go: `internal/domain`, `internal/application`, `internal/adapters`). No business rules in HTTP handlers, queue consumers, SQL repositories or entry points.
+4. Implement the smallest complete change in the right layer, removing before adding and keeping each decision in one place (`specs/ENGINEERING.md §1, §3`); model illegal states out and parse input once at the boundary (§8): business rules in the domain layer, orchestration in the application layer, technology in the adapters (the pack's layout tree; Go: `internal/domain`, `internal/application`, `internal/adapters`). No business rules in HTTP handlers, queue consumers, SQL repositories or entry points.
 5. Add wiring only where the feature crosses a port; construct concrete types at the composition root.
 6. Check consistency (`skills/consistency`) and compatibility: API, persisted schema, events, config, migrations.
 7. Run the pack's checks on your scope: `loops gate --only <check>,… --pkgs <owned>` while iterating, then `loops gate --pkgs <owned>` (the race policy is the pack's, WORKFLOW §6); benchmark if a hot path changed (`skills/performance`).

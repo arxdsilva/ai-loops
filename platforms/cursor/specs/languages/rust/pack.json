@@ -380,7 +380,8 @@
     "mutants.out/",
     "flamegraph.svg",
     "perf.data",
-    "perf.data.old"
+    "perf.data.old",
+    ".metrics/"
   ],
   "arch": {
     "parser": "regex",

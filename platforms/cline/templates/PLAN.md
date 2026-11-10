@@ -8,6 +8,13 @@ Written by the `planner` as `plan.v<N>.md` (`specs/WORKFLOW.md §2.2`). Run `loo
 ## Summary
 <3-6 lines: what changes, which layers, why this approach>
 
+## Design (specs/ENGINEERING.md §2-§6)
+- Data shape: <types, states and transitions this change adds or alters; how illegal states are made unrepresentable>
+- Subtract first: <what is removed or simplified before anything is added, or "nothing to remove: <why>">
+- Fit: <fits the current design | redesign: the design we would have built with this requirement from the start, and which waves reach it>
+- Planned breaks: <intermediate state between waves (expand/contract, old path kept) and how it is undone | none>
+- Levers: <repetitive work turned into a tool: the site done by hand, the lane that builds the tool, how its output is checked | none>
+
 ## Acceptance criteria
 - AC-1 (source: ticket|derived): <observable outcome>
 - AC-2 (source: ticket|derived): <observable outcome>
@@ -31,6 +38,7 @@ Written by the `planner` as `plan.v<N>.md` (`specs/WORKFLOW.md §2.2`). Run `loo
 - Languages: <id (root, variant) per pack from research/language.json, e.g. go (., -); typescript (web/, -)>
 - Ports / interfaces (signatures):
 - Typed commands / DTOs / read models:
+- Domain terms (glossary, specs/ENGINEERING.md §8): <term: meaning, for each new term | none>
 - Stubs so every package compiles:
 - Dependencies (manifest + lockfile, frozen-install clean; Go: go get):
 - Toolchain and repo files (<id>-engineer): pins, format/lint/typecheck configs, test and coverage prerequisites (specs/REPO_PRACTICES.md):

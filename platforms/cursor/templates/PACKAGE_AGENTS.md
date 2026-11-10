@@ -8,6 +8,9 @@ A package (module) `AGENTS.md` says only what is local to its module, in 300-800
 ## Purpose
 What the package owns and why it exists.
 
+## Glossary
+Domain terms this package defines, one line each: term, meaning, the type that models it (specs/ENGINEERING.md §8). Domain packages only.
+
 ## Owns
 Its types and their roles; method or field counts only when near a limit (specs/SOLID.md §8).
 

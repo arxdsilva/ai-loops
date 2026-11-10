@@ -347,7 +347,9 @@
     ".benchmarks/",
     "*.egg-info/",
     "**/__pycache__/",
-    "**/*.egg-info/"
+    "**/*.egg-info/",
+    ".metrics/",
+    "target/coverage/"
   ],
   "arch": {
     "parser": "none",
