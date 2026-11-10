@@ -3,7 +3,7 @@
 # specs/PLATFORMS.md §6). Runs the loops binary that matches this package:
 # loops on PATH when its version matches, else the cache, else the release
 # binary for this OS/arch (sha256-verified), else
-# 'go install github.com/arxdsilva/ai-loops/cmd/loops@v0.4.1' into the cache.
+# 'go install github.com/arxdsilva/ai-loops/cmd/loops@v0.5.0' into the cache.
 set -e
 # Resolve symlinks to this script (relative targets are relative to the
 # link's directory) so the package root is found from any link on PATH.
@@ -17,9 +17,9 @@ while [ -h "$self" ]; do
 done
 root=$(CDPATH= cd -- "$(dirname -- "$self")/.." && pwd)
 export LOOPS_PLUGIN_ROOT="$root"
-V='0.4.1'
+V='0.5.0'
 module='github.com/arxdsilva/ai-loops'
-tag='v0.4.1'
+tag='v0.5.0'
 loops_base='https://github.com/arxdsilva/ai-loops/releases/download'
 cache="${LOOPS_BIN_CACHE:-${CLAUDE_PLUGIN_DATA:-${PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/loops}}}"
 
