@@ -8,8 +8,8 @@ import (
 
 // Spec references the finding messages cite.
 const (
-	hexSpec   = "specs/HEXAGONAL_ARCHITECTURE.md"
-	solidSpec = "specs/SOLID_GO.md"
+	hexSpec   = "specs/ARCHITECTURE.md"
+	solidSpec = "specs/SOLID.md"
 )
 
 // Limits of the SOLID size rules (warnings) and of the cmd rule (errors).

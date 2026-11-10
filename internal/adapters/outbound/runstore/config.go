@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 	"github.com/arxdsilva/ai-loops/internal/domain/hw"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
@@ -29,6 +30,9 @@ type Config struct {
 	Parallel hw.Knobs `json:"parallel"`
 	// Limits are opt-in per-run/per-phase limits; zero = none (WORKFLOW §4a).
 	Limits run.Limits `json:"limits"`
+	// Languages pins the language packs and their roots; empty = detect
+	// (loops lang detect).
+	Languages []langpack.Override `json:"languages,omitempty"`
 	// UpdateCheck false turns off the new-release check; nil = on.
 	UpdateCheck *bool `json:"update_check,omitempty"`
 }

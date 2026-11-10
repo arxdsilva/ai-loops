@@ -51,7 +51,7 @@ type Layers struct {
 	Adapters    []string `json:"adapters"` // root of every adapter tree; Inbound and Outbound refine it
 }
 
-// DefaultLayers is the layout of specs/HEXAGONAL_ARCHITECTURE.md §4.
+// DefaultLayers is the layout of specs/ARCHITECTURE.md §4.
 func DefaultLayers() Layers {
 	return Layers{
 		Domain:      []string{"internal/domain"},

@@ -7,8 +7,8 @@ description: Use when implementing or reviewing background jobs, workflows, saga
 
 ## Load
 
-- `specs/GO_BEST_PRACTICES.md §43` state transitions, `§34` ordering, `§53` escalation.
-- `specs/HEXAGONAL_ARCHITECTURE.md §17` state machines, `§12` ownership.
+- `specs/languages/go/RULES.md §43` state transitions, `§34` ordering, `§53` escalation.
+- `specs/ARCHITECTURE.md §17` state machines, `§12` ownership.
 
 ## State machines
 
@@ -31,7 +31,7 @@ Transitions are visible functions or events, not ad hoc field assignments from s
 
 ## Typed outcomes
 
-Expected failures (declined, out of stock, not eligible, lease lost) are typed results, not generic Go errors. Infrastructure errors are wrapped errors (`specs/GO_BEST_PRACTICES.md §8`).
+Expected failures (declined, out of stock, not eligible, lease lost) are typed results, not generic Go errors. Infrastructure errors are wrapped errors (`specs/languages/go/RULES.md §8`).
 
 ## Leases and locks
 

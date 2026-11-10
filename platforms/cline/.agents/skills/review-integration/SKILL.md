@@ -12,14 +12,14 @@ Read only the acceptance criteria, the diff, the affected package `AGENTS.md`, t
 ## Review order
 
 1. correctness
-2. architecture ownership (`specs/HEXAGONAL_ARCHITECTURE.md §29`)
+2. architecture ownership (`specs/ARCHITECTURE.md §29`)
 3. consistency: clock, RNG, ordering, idempotency (`skills/consistency`)
 4. invariants
 5. data complexity and performance
 6. concurrency and `-race`
 7. persistence, API and config compatibility
 8. tests: behaviour named, failure paths, no weakened tests
-9. Go API and readability (`specs/GO_BEST_PRACTICES.md §51`)
+9. Go API and readability (`specs/languages/go/RULES.md §51`)
 10. documentation: package `AGENTS.md` for changed contracts
 11. observability: errors explicit, logs and metrics where operators need them
 

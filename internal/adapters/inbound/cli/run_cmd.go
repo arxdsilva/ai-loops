@@ -284,7 +284,7 @@ func (a *App) runVerdict(ctx context.Context, args []string) int {
 // runOverride records a project rule that superseded a loops rule (WORKFLOW §1).
 func (a *App) runOverride(ctx context.Context, args []string) int {
 	fs := a.newFlagSet("run override")
-	rule := fs.String("rule", "", "loops rule superseded, e.g. \"SOLID_GO §9\" (required)")
+	rule := fs.String("rule", "", "loops rule superseded, e.g. \"SOLID §9\" (required)")
 	project := fs.String("project", "", "project rule that won, with file:line (required)")
 	note := fs.String("note", "", "what was done instead")
 	agent := fs.String("agent", "", "")

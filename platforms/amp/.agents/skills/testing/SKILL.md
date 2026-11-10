@@ -7,8 +7,8 @@ description: Use when writing, reviewing or running Go tests - unit, table, inte
 
 ## Load
 
-- `specs/GO_BEST_PRACTICES.md §30` testing, `§31` benchmarks.
-- `specs/HEXAGONAL_ARCHITECTURE.md §24` testing architecture.
+- `specs/languages/go/RULES.md §30` testing, `§31` benchmarks.
+- `specs/ARCHITECTURE.md §24` testing architecture.
 - Gate commands: `specs/WORKFLOW.md §6`.
 
 ## Always `-race`

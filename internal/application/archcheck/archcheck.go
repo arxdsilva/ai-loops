@@ -1,5 +1,5 @@
 // Package archcheck runs the hexagonal + SOLID architecture rules
-// (specs/HEXAGONAL_ARCHITECTURE.md, specs/SOLID_GO.md) over a Go module.
+// (specs/ARCHITECTURE.md, specs/SOLID.md) over a Go module.
 package archcheck
 
 import (

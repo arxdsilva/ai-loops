@@ -186,7 +186,7 @@ func TestFoldOverridesLimitsBudgets(t *testing.T) {
 	s := Fold([]Event{
 		at(0, Event{Kind: KindRun, Run: "r", Name: "T"}),
 		at(1, Event{Kind: KindPhase, Phase: PhaseImplement}),
-		at(2, Event{Kind: KindOverride, Name: "SOLID_GO §9", Target: "AGENTS.md:12 use testify", Note: "used testify", Agent: "a1", Role: "domain-engineer"}),
+		at(2, Event{Kind: KindOverride, Name: "SOLID §9", Target: "AGENTS.md:12 use testify", Note: "used testify", Agent: "a1", Role: "domain-engineer"}),
 		at(3, Event{Kind: KindOverride, Name: "R2", Target: "P2", Phase: PhaseQA}),
 		at(4, Event{Kind: KindLimits, Note: `{"max_agents":4,"phases":{"implement":{"max_tokens":2000000,"max_agents":12,"roles":["a","b"]}}}`}),
 		at(5, Event{Kind: KindLimits, Note: `{not json`}), // ignored: keeps the previous limits
@@ -197,7 +197,7 @@ func TestFoldOverridesLimitsBudgets(t *testing.T) {
 		t.Fatalf("overrides: %+v", s.Overrides)
 	}
 	o := s.Overrides[0]
-	if o.LoopsRule != "SOLID_GO §9" || o.ProjectRule != "AGENTS.md:12 use testify" || o.Note != "used testify" || o.Agent != "a1" ||
+	if o.LoopsRule != "SOLID §9" || o.ProjectRule != "AGENTS.md:12 use testify" || o.Note != "used testify" || o.Agent != "a1" ||
 		o.Role != "domain-engineer" || o.Phase != PhaseImplement || !o.At.Equal(t0.Add(2*time.Second)) {
 		t.Fatalf("override: %+v", o)
 	}

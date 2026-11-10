@@ -6,6 +6,7 @@
 //	run_cmd.go     run start|phase|event|label|loopback|verdict|end|dir|env|clean (tracker)
 //	go_cmd.go      go, run env|clean, start/end workspace hooks    (run-scoped go cache, cleanup)
 //	gate_cmd.go    gate                                            (gate pipeline)
+//	lang_cmd.go    lang list|show|validate|detect                  (language packs)
 //	ticket_cmd.go  ticket fetch                                    (tickets)
 //	arch_cmd.go    arch                                            (arch checker)
 //	status_cmd.go  status [--json|--statusline|--subagent]         (status line, mod pane)
@@ -28,6 +29,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 	"github.com/arxdsilva/ai-loops/internal/domain/hw"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
@@ -51,6 +53,11 @@ type App struct {
 	Source fs.FS
 	// Packages writes and diffs generated package files.
 	Packages PackageWriter
+
+	// Langs loads and detects language packs; Languages pins them
+	// (.loops/config.json "languages"; empty = detect).
+	Langs     LangPacks
+	Languages []langpack.Override
 
 	HW       HWProbe    // hardware probe (loops hw)
 	Parallel hw.Knobs   // .loops/config.json "parallel"
@@ -92,6 +99,7 @@ var commands = map[string]command{
 	"install": {(*App).cmdInstall, "install --target <platform> [--scope project|user] [--project dir] [--force] [--dry-run]"},
 	"hw":      {(*App).cmdHW, "hw [--json] [--write]   hardware facts + parallelism recommendation for the planner"},
 	"budget":  {(*App).cmdBudget, "budget check [--phase p] [--spawn n] [--role r] [--verbose] | show | parse [--budget …] [--agents …] [--roles …] [--max-agents n]   opt-in limits (exit 3 = over budget)"},
+	"lang":    {cmdLang, "lang list [--json] | show <id> [--variant v] | validate [pack.json…] | detect [--json] [--write] [--root dir]   language packs (specs/languages/<id>/pack.json)"},
 	"plan":    {(*App).cmdPlan, "plan check <plan.md> [--cap n] [--json]   waves vs parallelism cap and scope overlap"},
 	"watch":   {(*App).cmdWatch, "watch [--interval 2s] [--once]   live run view in a terminal (any platform)"},
 	"path":    {(*App).cmdPath, "path [root|specs|templates|skills|agents]"},

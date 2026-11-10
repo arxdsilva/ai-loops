@@ -304,11 +304,11 @@ func TestRunOverride(t *testing.T) {
 	}
 	e.do("run", "start", "--title", "x")
 	e.do("run", "phase", "implement")
-	if e.do("run", "override", "--rule", "SOLID_GO §9", "--project", "AGENTS.md:12 testify", "--note", "used testify", "--agent", "a1", "--role", "domain-engineer") != 0 {
+	if e.do("run", "override", "--rule", "SOLID §9", "--project", "AGENTS.md:12 testify", "--note", "used testify", "--agent", "a1", "--role", "domain-engineer") != 0 {
 		t.Fatal(e.err)
 	}
 	o := e.events()[len(e.events())-1]
-	if o.Kind != run.KindOverride || o.Name != "SOLID_GO §9" || o.Target != "AGENTS.md:12 testify" || o.Note != "used testify" ||
+	if o.Kind != run.KindOverride || o.Name != "SOLID §9" || o.Target != "AGENTS.md:12 testify" || o.Note != "used testify" ||
 		o.Agent != "a1" || o.Role != "domain-engineer" || o.Phase != run.PhaseImplement {
 		t.Fatalf("%+v", o)
 	}

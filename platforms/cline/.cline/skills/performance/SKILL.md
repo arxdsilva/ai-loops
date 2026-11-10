@@ -7,8 +7,8 @@ description: Use when optimizing or reviewing latency, throughput, CPU, memory, 
 
 ## Load
 
-- `specs/GO_BEST_PRACTICES.md §22` allocation, `§31` benchmarks, `§32` complexity, `§33` data layout, `§53` escalation.
-- `specs/HEXAGONAL_ARCHITECTURE.md §12` ownership (what may be parallel).
+- `specs/languages/go/RULES.md §22` allocation, `§31` benchmarks, `§32` complexity, `§33` data layout, `§53` escalation.
+- `specs/ARCHITECTURE.md §12` ownership (what may be parallel).
 
 ## Escalation order
 

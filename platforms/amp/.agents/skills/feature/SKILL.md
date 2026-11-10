@@ -10,13 +10,13 @@ Specs live at the absolute path in your prompt (`loops path specs`). Cite by `sp
 ## Load
 
 - Root `AGENTS.md`, the nearest package `AGENTS.md`, the public contracts and existing tests of the behaviour.
-- Layering and ports: `specs/HEXAGONAL_ARCHITECTURE.md §3, §6`. Definition of done: `specs/WORKFLOW.md §8`.
+- Layering and ports: `specs/ARCHITECTURE.md §3, §6`. Definition of done: `specs/WORKFLOW.md §8`.
 - Context rules: `specs/CONTEXT_DISCIPLINE.md §8-10`.
 
 ## Steps
 
 1. Restate the behaviour as observable acceptance criteria.
-2. Identify the owning package; search for existing canonical types and primitives before adding any (`specs/GO_BEST_PRACTICES.md §48`).
+2. Identify the owning package; search for existing canonical types and primitives before adding any (`specs/languages/go/RULES.md §48`).
 3. Write or update the failing behavioural test first.
 4. Implement the smallest complete change in the right layer: business rules in `internal/domain`, orchestration in `internal/application`, technology in `internal/adapters`. Nothing in HTTP handlers, queue consumers, SQL repositories or `cmd`.
 5. Add wiring only where the feature crosses a port; construct concrete types at the composition root.
@@ -27,7 +27,7 @@ Specs live at the absolute path in your prompt (`loops path specs`). Cite by `sp
 
 ## New package or command
 
-Create one only when a task needs it. Give it a `AGENTS.md` from `templates/PACKAGE_AGENTS.md` once it is real. `cmd/<tool>/main.go` is wiring only (`specs/SOLID_GO.md §8a`); only the architect edits `cmd/**` and `internal/compose/**` (`ROLES.md`).
+Create one only when a task needs it. Give it a `AGENTS.md` from `templates/PACKAGE_AGENTS.md` once it is real. `cmd/<tool>/main.go` is wiring only (`specs/SOLID.md §8a`); only the architect edits `cmd/**` and `internal/compose/**` (`ROLES.md`).
 
 ## Answer before coding
 

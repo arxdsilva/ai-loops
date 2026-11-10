@@ -13,7 +13,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: `ticket.md`, `research/memory.md`, the root and nearest package `AGENTS.md`.
 
 ## Can
-Read plugin specs (`specs/GO_BEST_PRACTICES.md`, `HEXAGONAL_ARCHITECTURE.md`, `SOLID_GO.md`, `PARALLEL_WORK.md`), plugin skills, repo docs; ai-memory `memory_query`; official Go docs. Write `research/practices.md`.
+Read plugin specs (`specs/languages/go/RULES.md`, `ARCHITECTURE.md`, `SOLID.md`, `PARALLEL_WORK.md`), plugin skills, repo docs; ai-memory `memory_query`; official Go docs. Write `research/practices.md`.
 
 ## Cannot
 Edit any repo file. Write anywhere except `research/practices.md`. Restate whole specs.

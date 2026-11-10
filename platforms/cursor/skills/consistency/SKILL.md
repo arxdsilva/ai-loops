@@ -7,8 +7,8 @@ description: Use when implementing or reviewing code whose results must be repea
 
 ## Load
 
-- `specs/GO_BEST_PRACTICES.md §13` (ordering and clocks), `§20` time, `§21` randomness, `§45` migrations, `§46` idempotency.
-- `specs/HEXAGONAL_ARCHITECTURE.md §12` one owner per state, `§18` persistence, `§20` time boundary.
+- `specs/languages/go/RULES.md §13` (ordering and clocks), `§20` time, `§21` randomness, `§45` migrations, `§46` idempotency.
+- `specs/ARCHITECTURE.md §12` one owner per state, `§18` persistence, `§20` time boundary.
 
 ## Procedure
 
@@ -25,7 +25,7 @@ snapshot -> request(sequence, revision) -> parallel compute -> collect
 
 6. **Schema migrations.** Versioned and explicit; never infer from "field missing" when a version exists. Prefer expand, backfill, switch, contract. Test with historical fixtures and corrupt/truncated input. Never "best effort" corrupt authoritative state.
 7. **Atomic writes.** Files: temp file, fsync where policy requires, rename. Databases: one transaction per command; outbox for events that must publish with the change.
-8. **Untrusted persisted or external input.** Bound sizes, counts, nesting, string lengths, decompression expansion, referenced IDs and schema versions (`specs/GO_BEST_PRACTICES.md §28, §38`).
+8. **Untrusted persisted or external input.** Bound sizes, counts, nesting, string lengths, decompression expansion, referenced IDs and schema versions (`specs/languages/go/RULES.md §28, §38`).
 9. **Hashes and checksums.** Stable ordering, fixed numeric encoding, no pointers, no wall-clock fields.
 
 ## Tests to add

@@ -403,9 +403,9 @@ func TestFindingsSortedAndCiteSpecs(t *testing.T) {
 	rules := map[string]bool{}
 	for _, f := range r.Findings {
 		rules[f.Rule] = true
-		spec := "specs/SOLID_GO.md"
+		spec := "specs/SOLID.md"
 		if f.Rule == "imports" || f.Rule == "clock" || f.Rule == "rand" || f.Rule == "go" {
-			spec = "specs/HEXAGONAL_ARCHITECTURE.md"
+			spec = "specs/ARCHITECTURE.md"
 		}
 		if !strings.Contains(f.Msg, spec) {
 			t.Errorf("%s finding must cite %s: %q", f.Rule, spec, f.Msg)

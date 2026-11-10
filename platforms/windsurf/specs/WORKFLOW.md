@@ -291,7 +291,7 @@ The **Stop gate** stops the lead from ending its turn while the run is active, `
 A run is done when every item below holds. (Adapted from the rimworld-go MASTER_SPEC §70.)
 
 1. Every AC is `VERIFIED` with a proof.
-2. Behaviour is implemented in its owning layer (`specs/HEXAGONAL_ARCHITECTURE.md`).
+2. Behaviour is implemented in its owning layer (`specs/ARCHITECTURE.md`).
 3. Every new or changed package has unit tests, including failure paths; new-code coverage is at least 70% (`loops gate` coverage, §6); all tests run with `-race` (enforced by the race-guard hook).
 4. Every claim is verified by QA, and `loops gate` is green.
 5. Consistency impact is stated (ordering, idempotency, clock and RNG, migrations), with `skills/consistency` followed where it applies.

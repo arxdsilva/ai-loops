@@ -22,7 +22,7 @@ Load the least that is sufficient, in this order: task statement; root `AGENTS.m
 
 - Always: the task, root and package `AGENTS.md`.
 - Usually: the relevant interfaces, tests, one spec section.
-- Architecture questions add the specific ADR and `specs/HEXAGONAL_ARCHITECTURE.md` sections.
+- Architecture questions add the specific ADR and `specs/ARCHITECTURE.md` sections.
 - Everything else only when a concrete question needs it.
 
 ## 4. Context budget targets
@@ -81,7 +81,7 @@ Advisory rules did not hold, so `loops` enforces two guards as `PreToolUse` hook
 
 ## 12. Do not re-send stable docs
 
-Reference architecture documents by path and section; summarise only when needed. Say "Follow `specs/HEXAGONAL_ARCHITECTURE.md §6`", do not paste §6.
+Reference architecture documents by path and section; summarise only when needed. Say "Follow `specs/ARCHITECTURE.md §6`", do not paste §6.
 
 ## 13. Canonical facts, DRY
 

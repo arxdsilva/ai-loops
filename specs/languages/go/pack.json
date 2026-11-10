@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "id": "go",
+  "name": "Go",
+  "versions": {"stable": "1.27", "as_of": "2026-11"},
+  "detect": [{"file": "go.mod"}],
+  "scope": {"pkgs": ["./..."], "pkg_dirs": ["."]},
+  "source_globs": ["**/*.go"],
+  "test_globs": ["**/*_test.go"],
+  "generated": {
+    "globs": ["**/*.pb.go", "**/*_gen.go", "**/zz_generated*"],
+    "header_regex": "^// Code generated .* DO NOT EDIT\\.$"
+  },
+  "manifest": "go.mod",
+  "checks": [
+    {"name": "build", "kind": "build", "argv": ["go", "build", "{pkgs}"], "required": true, "tool": "go"},
+    {"name": "gofmt", "kind": "format", "argv": ["gofmt", "-l", "{pkg_dirs}"], "required": false, "tool": "gofmt",
+     "fails_on": "output", "output_exclude": ["vendor/", "testdata/"], "note": "files need gofmt:"},
+    {"name": "vet", "kind": "lint", "argv": ["go", "vet", "{pkgs}"], "required": true, "tool": "go"},
+    {"name": "staticcheck", "kind": "lint", "argv": ["staticcheck", "{pkgs}"], "required": false, "tool": "staticcheck",
+     "install": "go install honnef.co/go/tools/cmd/staticcheck@latest",
+     "skip_on": {"output_regex": "unsupported version|internal error in importing",
+                 "note": "staticcheck too old for this Go toolchain — upgrade: go install honnef.co/go/tools/cmd/staticcheck@latest"}},
+    {"name": "arch", "kind": "arch", "internal": "arch", "required": false},
+    {"name": "test", "kind": "test", "required": true, "tool": "go",
+     "argv": ["go", "test", "-race", "-count=1", "{coverage_args}", "{pkgs}"],
+     "coverage_args": ["-covermode=atomic", "-coverprofile={coverage}"],
+     "signal_regex": "^FAIL|--- FAIL|panic|DATA RACE|_test\\.go:"},
+    {"name": "coverage", "kind": "coverage", "internal": "coverage", "required": true, "skippable": false},
+    {"name": "govulncheck", "kind": "vuln", "argv": ["govulncheck", "{pkgs}"], "required": false, "tool": "govulncheck",
+     "default": "off", "install": "go install golang.org/x/vuln/cmd/govulncheck@latest"}
+  ],
+  "test_commands": [{"argv_prefix": ["go", "test"]}, {"argv_prefix": ["gotestsum"]}, {"argv_prefix": ["richgo", "test"]}],
+  "race": {
+    "mode": "flag", "flags": ["-race"], "env": {"GOFLAGS": "-race"}, "checks": ["test"],
+    "reason": "Go's built-in race detector; needs CGO_ENABLED=1 and a C compiler"
+  },
+  "coverage": {
+    "format": "gocover", "path": "{coverage}", "produced_by": ["test"], "granularity": "statement",
+    "exclude": ["cmd/**", "internal/compose/**", "**/testdata/**"]
+  },
+  "post_edit": {"format_file": ["gofmt", "-w", "{file}"], "lint_dir": ["go", "vet", "./{dir}"]},
+  "cache_env": {"GOCACHE": "cache", "GOTMPDIR": "tmp"},
+  "shared_env": ["GOMODCACHE", "GOPATH"],
+  "env_hints": {"GOFLAGS": "-p=2"},
+  "artifacts": ["*.test", "*.test.exe", "*.out", "*.prof", "*.pprof", "*.cov", "*.exe"],
+  "arch": {
+    "parser": "go", "resolver": "module-path",
+    "forbidden_in_domain": ["os", "net/http"],
+    "third_party_forbidden_in": ["domain", "application", "pkg"],
+    "impure_calls": ["time.Now", "math/rand", "math/rand/v2", "go"]
+  },
+  "test_jobs": "-p=2",
+  "config_files": [".golangci.yml", ".golangci.yaml", ".golangci.toml", ".golangci.json", ".editorconfig"],
+  "sources": {"checks": "https://pkg.go.dev/cmd/go", "race": "https://go.dev/doc/articles/race_detector"}
+}

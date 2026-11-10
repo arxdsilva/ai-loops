@@ -9,7 +9,7 @@ Read only what the current task needs.
 
 ## Where things are
 - `.loops/`: loops config and run directories (`.loops/config.json`, `.loops/runs/<id>/`).
-- Loops plugin specs and skills: run `loops path specs` for the absolute path (`GO_BEST_PRACTICES.md`, `HEXAGONAL_ARCHITECTURE.md`, `SOLID_GO.md`, `CONTEXT_DISCIPLINE.md`, `WORKFLOW.md`).
+- Loops plugin specs and skills: run `loops path specs` for the absolute path (`languages/go/RULES.md`, `ARCHITECTURE.md`, `SOLID.md`, `CONTEXT_DISCIPLINE.md`, `WORKFLOW.md`).
 - Package contracts: the nearest package `AGENTS.md`. Decisions: `docs/adr/`.
 
 ## Non-negotiables

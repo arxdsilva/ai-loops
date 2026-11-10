@@ -21,7 +21,7 @@ Edit code or any other file. Implement. Leave an ambiguity unflagged.
 Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
 
 ## Procedure
-1. Read the briefs fully; read `specs/PARALLEL_WORK.md`, `HEXAGONAL_ARCHITECTURE.md` by section as needed. Verify the code facts you rely on.
+1. Read the briefs fully; read `specs/PARALLEL_WORK.md`, `ARCHITECTURE.md` by section as needed. Verify the code facts you rely on.
 2. List ACs (`AC-1`...): from the ticket, or marked *derived*. Each is observable.
 3. Write the contract: ports, consumer-owned interfaces, typed commands/DTOs, stubs, deps, shared config. This is wave 0 for the `architect`.
 4. Split work into waves sized to the effective cap = min(`parallel.max_agents` in `.loops/config.json`, default 100; `research/hardware.json` `max_parallel_agents`; opt-in `limits.max_agents`). A wave larger than the cap becomes sub-waves (`W1a`, `W1b`). The same role may appear several times in a wave (`W1-domain-orders`, `W1-domain-payments`) when their globs are disjoint; each gets its own qa-verifier (WORKFLOW §2.2). Split work into waves (producers before consumers). Per implementer give: id (`W1-domain`), role, model reason, **disjoint** `Owns` globs, `Must not touch`, Goal, Starts at (`file:line`), Behaviour (numbered, with edge cases), Claims to prove (`C1...`, each testable by a named test or command), Done when, Out. No two agents' globs may overlap; shared files go to the architect.

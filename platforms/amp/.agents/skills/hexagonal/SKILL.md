@@ -7,8 +7,8 @@ description: Use when designing or reviewing Go package boundaries, ports, adapt
 
 ## Load
 
-- `specs/HEXAGONAL_ARCHITECTURE.md §3` dependency rule, `§6` consumer-owned ports, `§15` package boundaries, `§27` smells, `§29` compliance.
-- `specs/SOLID_GO.md §6-7` interfaces, `§8` limits, `§9` package state, `§10` splitting.
+- `specs/ARCHITECTURE.md §3` dependency rule, `§6` consumer-owned ports, `§15` package boundaries, `§27` smells, `§29` compliance.
+- `specs/SOLID.md §6-7` interfaces, `§8` limits, `§9` package state, `§10` splitting.
 
 ## Boundary test
 
@@ -38,14 +38,14 @@ Before adding a shared interface or type: search for an existing one; find the c
 ## Transport and persistence rules
 
 - Handlers receive requests, build typed commands, call an inbound port, map the result and errors to the transport. They hold no business rules.
-- Domain types are not the storage schema; repositories translate (`specs/HEXAGONAL_ARCHITECTURE.md §18`).
+- Domain types are not the storage schema; repositories translate (`specs/ARCHITECTURE.md §18`).
 - Reads return read models, never mutable entities or rows (`§11`).
 
 ## Adding to a type, interface or package
 
 When a change adds a method or field to an existing type, declares an interface, adds a package-level var or `init()`, or creates or splits a package:
 
-1. Read `specs/SOLID_GO.md §8` before adding to a type or package already over a limit.
+1. Read `specs/SOLID.md §8` before adding to a type or package already over a limit.
 2. Put new state and behaviour on its own type with a consumer-owned interface and a constructor called from the composition root.
 3. Register tables at the composition root, never from `init()`; a test hook is a field, not a global.
 4. Run `loops arch`; fix errors, and treat warnings on code you touched as a prompt to split.
@@ -68,4 +68,4 @@ Reject or request redesign when:
 
 ## ADR trigger
 
-Write or update an ADR (`templates/ADR.md`) for changes to layers, state ownership, canonical primitives, the command protocol, the persistence or wire schema strategy, the concurrency model or the consistency model (`specs/HEXAGONAL_ARCHITECTURE.md §26`).
+Write or update an ADR (`templates/ADR.md`) for changes to layers, state ownership, canonical primitives, the command protocol, the persistence or wire schema strategy, the concurrency model or the consistency model (`specs/ARCHITECTURE.md §26`).

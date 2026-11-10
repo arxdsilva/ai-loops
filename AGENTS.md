@@ -4,7 +4,7 @@ This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and 
 
 ## Where things are
 - The workflow spec, which everything implements: `specs/WORKFLOW.md`. Roles: `ROLES.md` (matrix) and `agents/*.md` (definitions).
-- Rules for Go code, here and in target repos: `specs/GO_BEST_PRACTICES.md`, `specs/HEXAGONAL_ARCHITECTURE.md`, `specs/SOLID_GO.md`. Agent rules: `specs/PARALLEL_WORK.md`, `specs/CONTEXT_DISCIPLINE.md`.
+- Rules for Go code, here and in target repos: `specs/languages/go/RULES.md`, `specs/ARCHITECTURE.md`, `specs/SOLID.md`. Agent rules: `specs/PARALLEL_WORK.md`, `specs/CONTEXT_DISCIPLINE.md`.
 - Skills: `skills/<name>/SKILL.md`. The `work` skill is the orchestrator; the rest are reference skills that roles load.
 - Templates the agents fill in: `templates/`.
 - Plugin wiring for Claude Code (and Copilot, which reads the same layout): `.claude-plugin/`, `hooks/hooks.json`, `bin/loops` (a shim that builds `cmd/loops` on first use), `mod/` (the live pane), `settings.json`.

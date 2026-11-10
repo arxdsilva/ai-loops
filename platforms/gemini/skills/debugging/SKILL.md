@@ -8,7 +8,7 @@ description: Use when investigating a backend bug, regression, flaky test or pro
 ## Load
 
 - `specs/CONTEXT_DISCIPLINE.md §27, §29-30` (logs, error reports, repro artifacts).
-- `specs/GO_BEST_PRACTICES.md §13, §24` (ordering, observational logging).
+- `specs/languages/go/RULES.md §13, §24` (ordering, observational logging).
 
 ## Goal
 
@@ -37,7 +37,7 @@ relevant log window (<= 20 lines)
 
 ## Logs
 
-Filter by request ID, entity ID, time range or component. Logging stays observational: it must not change ordering, randomness or state (`specs/GO_BEST_PRACTICES.md §24`). Do not add logging that would stay in the fix unless operators need it.
+Filter by request ID, entity ID, time range or component. Logging stays observational: it must not change ordering, randomness or state (`specs/languages/go/RULES.md §24`). Do not add logging that would stay in the fix unless operators need it.
 
 ## Common classes to check early
 

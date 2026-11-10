@@ -23,6 +23,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gotool"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/htmlreport"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/hwprobe"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/packfs"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/portfs"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runspace"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runstore"
@@ -31,6 +32,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/versionfile"
 	"github.com/arxdsilva/ai-loops/internal/application/archcheck"
 	"github.com/arxdsilva/ai-loops/internal/application/gate"
+	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	apprelease "github.com/arxdsilva/ai-loops/internal/application/release"
 	"github.com/arxdsilva/ai-loops/internal/application/ticket"
 	"github.com/arxdsilva/ai-loops/internal/application/tracker"
@@ -122,6 +124,8 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Update:      updates,
 		UpdateState: upState,
 		UpdateOff:   updateOff,
+		Langs:       langpack.New(packfs.Embedded{FS: ailoops.Source}, packfs.OS{}),
+		Languages:   cfg.Languages,
 		HW:          hwprobe.New(),
 		Parallel:    cfg.Parallel,
 		Limits:      cfg.Limits,

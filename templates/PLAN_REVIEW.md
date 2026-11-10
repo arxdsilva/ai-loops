@@ -9,7 +9,7 @@ Written by the `plan-reviewer` as `plan-review.r<N>.md`. Blocking findings (B) m
 - [ ] Every AC is observable and testable; derived ACs are marked
 - [ ] Task packet complete, including consistency and compatibility impact
 - [ ] Contract (wave 0) lists ports, commands/DTOs, stubs, deps, shared config
-- [ ] Layering respects specs/HEXAGONAL_ARCHITECTURE.md (inward deps, consumer-owned ports, cmd wiring only)
+- [ ] Layering respects specs/ARCHITECTURE.md (inward deps, consumer-owned ports, cmd wiring only)
 - [ ] Waves table has every column; each agent has Goal/Starts at/Behaviour/Owns/Must not touch/Claims/Done when/Out
 - [ ] File ownership is disjoint across agents; go.mod and shared config belong to the architect only
 - [ ] Models are the cheapest competent tier, each with a reason (ROLES.md)

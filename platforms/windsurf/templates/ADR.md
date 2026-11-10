@@ -1,6 +1,6 @@
 # ADR template
 
-Write an ADR only for a decision that changes a contract: a port, the persisted or wire schema, the concurrency model, the command set, the consistency model (`specs/HEXAGONAL_ARCHITECTURE.md §26`). Save as `docs/adr/NNNN-<slug>.md`. Decisions, not tutorials; no reasoning transcripts. At most one page.
+Write an ADR only for a decision that changes a contract: a port, the persisted or wire schema, the concurrency model, the command set, the consistency model (`specs/ARCHITECTURE.md §26`). Save as `docs/adr/NNNN-<slug>.md`. Decisions, not tutorials; no reasoning transcripts. At most one page.
 
 ```markdown
 # ADR NNNN: <decision in a few words>

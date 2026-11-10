@@ -51,6 +51,36 @@ func Env(runDir string) []string {
 	return []string{"GOCACHE=" + GoCache(runDir), "GOTMPDIR=" + GoTmp(runDir)}
 }
 
+// PackDir is a language pack's scratch directory (<run dir>/<pack id>); for
+// Go it is GoDir.
+func PackDir(runDir, id string) string { return filepath.Join(runDir, id) }
+
+// PackEnv is the environment that scopes a pack's tools to the run: each
+// cache_env entry becomes VAR=<value>, where "cache" and "tmp" mean
+// <run>/<id>/cache and <run>/<id>/tmp, and a template may use {run},
+// {cache} and {tmp}. Keys are sorted. For the Go pack it equals Env.
+func PackEnv(runDir, id string, cacheEnv map[string]string) []string {
+	base := PackDir(runDir, id)
+	r := strings.NewReplacer("{run}", runDir, "{cache}", filepath.Join(base, "cache"), "{tmp}", filepath.Join(base, "tmp"))
+	keys := make([]string, 0, len(cacheEnv))
+	for k := range cacheEnv {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		v := cacheEnv[k]
+		switch v {
+		case "cache", "tmp":
+			v = filepath.Join(base, v)
+		default:
+			v = r.Replace(v)
+		}
+		out = append(out, k+"="+v)
+	}
+	return out
+}
+
 // ShellQuote quotes s for a POSIX shell (single quotes).
 func ShellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"

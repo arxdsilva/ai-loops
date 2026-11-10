@@ -223,3 +223,19 @@ func TestReport(t *testing.T) {
 		t.Fatal((Report{}).Note())
 	}
 }
+
+func TestPackEnv(t *testing.T) {
+	run := "/r/run"
+	got := PackEnv(run, "go", map[string]string{"GOTMPDIR": "tmp", "GOCACHE": "cache"})
+	if strings.Join(got, " ") != strings.Join(Env(run), " ") {
+		t.Fatalf("Go pack env %v != Env %v", got, Env(run))
+	}
+	got = PackEnv(run, "java", map[string]string{"JAVA_TOOL_OPTIONS": "-Djava.io.tmpdir={tmp}", "X": "{run}/x", "C": "{cache}/c"})
+	want := "C=/r/run/java/cache/c JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=/r/run/java/tmp X=/r/run/x"
+	if strings.Join(got, " ") != want {
+		t.Fatalf("%v", got)
+	}
+	if PackDir(run, "go") != GoDir(run) {
+		t.Fatal("PackDir")
+	}
+}

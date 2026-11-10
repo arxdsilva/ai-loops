@@ -6,6 +6,8 @@ import (
 	"path"
 	"sort"
 	"strings"
+
+	"github.com/arxdsilva/ai-loops/internal/domain/glob"
 )
 
 // DefaultMin is the minimum new-code coverage (percent); lower minimums are
@@ -25,7 +27,13 @@ type Options struct {
 	Exclude []string // extra globs (module-relative; "**" spans directories; no "/" = base name)
 	Module  string   // module path, stripped from profile file names
 	Pkgs    []string // package patterns limiting the files judged; empty = all
-	Whole   bool     // no diff base: judge whole-package coverage only
+	// SourceGlobs and TestGlobs select the judged files (a language pack's
+	// source_globs/test_globs); nil = Go: *.go, not *_test.go.
+	SourceGlobs, TestGlobs []string
+	// BaseExclude replaces DefaultExclude (a pack's coverage.exclude plus
+	// its generated globs); nil = DefaultExclude. Exclude still adds to it.
+	BaseExclude []string
+	Whole       bool // no diff base: judge whole-package coverage only
 }
 
 // FileRow is one judged file.
@@ -229,8 +237,7 @@ func WholeChanges(p Profile, module string) Changes {
 func Candidates(ch Changes, o Options) []string {
 	var out []string
 	for f, c := range ch {
-		if len(c.Ranges) == 0 || !strings.HasSuffix(f, ".go") || strings.HasSuffix(f, "_test.go") ||
-			excluded(f, o.Exclude) || !inScope(f, o.Pkgs, o.Module) {
+		if len(c.Ranges) == 0 || !isSource(f, o) || excluded(f, o) || !inScope(f, o.Pkgs, o.Module) {
 			continue
 		}
 		out = append(out, f)
@@ -253,8 +260,20 @@ func PkgDirs(files []string) []string {
 	return out
 }
 
-func excluded(f string, extra []string) bool {
-	for _, pat := range append(append([]string{}, DefaultExclude...), extra...) {
+// isSource reports whether f is a judged source file (not a test).
+func isSource(f string, o Options) bool {
+	if o.SourceGlobs == nil {
+		return strings.HasSuffix(f, ".go") && !strings.HasSuffix(f, "_test.go")
+	}
+	return glob.Any(o.SourceGlobs, f) && !glob.Any(o.TestGlobs, f)
+}
+
+func excluded(f string, o Options) bool {
+	base := DefaultExclude
+	if o.BaseExclude != nil {
+		base = o.BaseExclude
+	}
+	for _, pat := range append(append([]string{}, base...), o.Exclude...) {
 		if matchGlob(pat, f) {
 			return true
 		}
@@ -296,32 +315,5 @@ func inScope(f string, pkgs []string, module string) bool {
 	return false
 }
 
-// matchGlob matches a slash path against a glob where "**" spans any number
-// of directories; a pattern without "/" matches the base name anywhere. A
-// malformed pattern matches nothing.
-func matchGlob(pat, p string) bool {
-	if !strings.Contains(pat, "/") {
-		ok, err := path.Match(pat, path.Base(p))
-		return err == nil && ok
-	}
-	return matchSegs(strings.Split(pat, "/"), strings.Split(p, "/"))
-}
-
-func matchSegs(pat, segs []string) bool {
-	if len(pat) == 0 {
-		return len(segs) == 0
-	}
-	if pat[0] == "**" {
-		for i := 0; i <= len(segs); i++ {
-			if matchSegs(pat[1:], segs[i:]) {
-				return true
-			}
-		}
-		return false
-	}
-	if len(segs) == 0 {
-		return false
-	}
-	ok, err := path.Match(pat[0], segs[0])
-	return err == nil && ok && matchSegs(pat[1:], segs[1:])
-}
+// matchGlob matches a slash path against a glob (see package glob).
+func matchGlob(pat, p string) bool { return glob.Match(pat, p) }
