@@ -35,6 +35,11 @@ type State struct {
 	GoDirty      bool      `json:"go_dirty"`
 	LastGreen    time.Time `json:"last_green,omitzero"`
 	LastGoChange time.Time `json:"last_go_change,omitzero"`
+	// SourceDirty is true when a source file of any language pack (a file
+	// for which pack.LooksLikeSource holds, .go included) was edited after
+	// the last passing GateAll; the Stop gate reads it.
+	SourceDirty      bool      `json:"source_dirty"`
+	LastSourceChange time.Time `json:"last_source_change,omitzero"`
 
 	// Overrides are project rules that superseded loops rules (WORKFLOW §1).
 	Overrides []OverrideInfo `json:"overrides"`

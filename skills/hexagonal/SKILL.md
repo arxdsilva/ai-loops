@@ -1,6 +1,6 @@
 ---
 name: hexagonal
-description: Use when designing or reviewing Go package boundaries, ports, adapters, dependency direction, cross-layer interfaces, wiring in cmd/compose, or SOLID size limits and splitting a god type.
+description: Use when designing or reviewing package or module boundaries in any language pack - ports, adapters, dependency direction, cross-layer interfaces, wiring at the composition root, or SOLID size limits and splitting a god type.
 ---
 
 # Hexagonal architecture
@@ -9,18 +9,21 @@ description: Use when designing or reviewing Go package boundaries, ports, adapt
 
 - `specs/ARCHITECTURE.md §3` dependency rule, `§6` consumer-owned ports, `§15` package boundaries, `§27` smells, `§29` compliance.
 - `specs/SOLID.md §6-7` interfaces, `§8` limits, `§9` package state, `§10` splitting.
+- Your language's layout tree and its domain bans (`arch.forbidden_in_domain`, `impure_calls`): `skills/lang-<id>/architecture.md` (load `loops:lang-<id>`).
 
 ## Boundary test
 
 For every dependency ask: does the inner model need to know this technology exists? If not, keep it outside.
 
-Forbidden in `domain`: HTTP/gRPC, SQL drivers and ORMs, queue clients, `os`/filesystem, generated transport or persistence types, YAML/JSON parsers, CLI frameworks, config loaders, vendor SDKs, behaviour-changing logging.
+Forbidden in `domain`: HTTP/gRPC, SQL drivers and ORMs, queue clients, OS and filesystem access, generated transport or persistence types, YAML/JSON parsers, CLI frameworks, config loaders, vendor SDKs, behaviour-changing logging.
 
 ## Ports
 
-- Create a port only at a real boundary. Consumer-owned, narrow, at most 8 methods.
+- Create a port only at a real boundary. Consumer-owned, narrow, at most 8 methods. The language's form of a port (interface, protocol, trait, behaviour, abstract class) is in its language skill.
 - Consumers depend on a small interface for the behaviour they call, never the concrete type; construct concrete types only at the composition root.
 - Do not create an interface merely because a concrete type exists, but always create one at an adapter/application or application/domain boundary.
+
+Go example:
 
 ```go
 type OrderWriter interface { Save(ctx context.Context, o order.Order) error }
@@ -43,14 +46,14 @@ Before adding a shared interface or type: search for an existing one; find the c
 
 ## Adding to a type, interface or package
 
-When a change adds a method or field to an existing type, declares an interface, adds a package-level var or `init()`, or creates or splits a package:
+When a change adds a method or field to an existing type, declares an interface, adds module-level mutable state or import-time registration (Go: a package var or `init()`), or creates or splits a package or module:
 
 1. Read `specs/SOLID.md §8` before adding to a type or package already over a limit.
 2. Put new state and behaviour on its own type with a consumer-owned interface and a constructor called from the composition root.
-3. Register tables at the composition root, never from `init()`; a test hook is a field, not a global.
-4. Run `loops arch`; fix errors, and treat warnings on code you touched as a prompt to split.
+3. Register tables at the composition root, never at import time (Go: `init()`); a test hook is a field, not a global.
+4. Run `loops arch` (and the pack's native arch check if it has one: `loops lang show <id>`); fix errors, and treat warnings on code you touched as a prompt to split.
 
-Skip this for a task that touches no type, interface, package-level var or layout.
+Skip this for a task that touches no type, interface, module-level state or layout.
 
 ## Architecture review checklist
 
@@ -61,7 +64,7 @@ Reject or request redesign when:
 - an interface has broad CRUD merely for abstraction;
 - mutable stores or entities cross the adapter boundary;
 - a package becomes a dumping ground;
-- a change adds an `init()` or grows a type already over its limit instead of splitting it;
+- a change adds import-time registration (Go `init()`) or grows a type already over its limit instead of splitting it;
 - shared primitives are duplicated;
 - technology dictates domain modelling;
 - a new abstraction adds indirection without boundary value.

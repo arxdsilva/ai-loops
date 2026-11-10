@@ -16,10 +16,10 @@ Read only the acceptance criteria, the diff, the affected package `AGENTS.md`, t
 3. consistency: clock, RNG, ordering, idempotency (`skills/consistency`)
 4. invariants
 5. data complexity and performance
-6. concurrency and `-race`
+6. concurrency and the pack's race policy (WORKFLOW §6)
 7. persistence, API and config compatibility
 8. tests: behaviour named, failure paths, no weakened tests
-9. Go API and readability (`specs/languages/go/RULES.md §51`)
+9. API and readability per the language's idioms (`skills/lang-<id>/idioms.md`; Go: `specs/languages/go/RULES.md §51`)
 10. documentation: package `AGENTS.md` for changed contracts
 11. observability: errors explicit, logs and metrics where operators need them
 
@@ -29,10 +29,10 @@ Read only the acceptance criteria, the diff, the affected package `AGENTS.md`, t
 - a weakened or deleted test;
 - a duplicate canonical type;
 - domain depending on an adapter, transport or storage type;
-- global mutable state, `init()` registration;
-- a goroutine per item without a bound;
-- `time.Now` or global RNG in authoritative code;
-- decisions from map iteration;
+- global mutable state, import-time registration (Go `init()`);
+- a thread, task or goroutine per item without a bound;
+- the wall clock or a global RNG in authoritative code (the pack's `impure_calls`);
+- decisions from hash-map iteration order;
 - a silent persisted-schema or API break;
 - a retried operation without an idempotency key;
 - a new hot global scan or N+1 query;
@@ -48,11 +48,11 @@ Use `templates/PLAN_REVIEW.md`. Check completeness against `specs/PARALLEL_WORK.
 
 ## Verifying claims (qa-verifier)
 
-Independently re-run the evidence, read the code, attack the claim with edge cases and `-race`, and report per claim `VERIFIED` or `FAILED` with a repro (`templates/QA_VERDICT.md`). List unclaimed problems separately. Do not fix code.
+Independently re-run the evidence, read the code, attack the claim with edge cases and the pack's race policy, and report per claim `VERIFIED` or `FAILED` with a repro (`templates/QA_VERDICT.md`). List unclaimed problems separately. Do not fix code.
 
 ## Multi-agent integration
 
-Before accepting a wave: collect claims reports; compare interface changes; find overlapping files; resolve each canonical contract once; merge in dependency order; run `loops gate` and the affected benchmarks (`specs/PARALLEL_WORK.md §6`). Never keep two competing abstractions to "clean up later".
+Before accepting a wave: collect claims reports; compare interface changes; find overlapping files; resolve each canonical contract once; merge in dependency order; run `loops gate` (every detected pack) and the affected benchmarks (`specs/PARALLEL_WORK.md §6`). Never keep two competing abstractions to "clean up later".
 
 ## Report check
 

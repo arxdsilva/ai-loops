@@ -34,6 +34,9 @@ type Options struct {
 	// its generated globs); nil = DefaultExclude. Exclude still adds to it.
 	BaseExclude []string
 	Whole       bool // no diff base: judge whole-package coverage only
+	// PackageTests adds the "package X has no tests" finding (Go only,
+	// TOOLING D7); other packs rely on the per-file finding.
+	PackageTests bool
 }
 
 // FileRow is one judged file.
@@ -82,9 +85,11 @@ func (r Report) Percent() float64 {
 
 // Evaluate judges the changed statements of ch against the profile p.
 // pkgHasTests maps module-relative package dirs to whether they contain a
-// _test.go file (a missing dir counts as untested). Every failure is
-// listed: total below the minimum, a changed package without tests, a
-// changed file whose changed statements are all uncovered.
+// _test.go file (a missing dir counts as untested; read only with
+// o.PackageTests). Every failure is listed: total below the minimum, a
+// changed package without tests, a changed file whose changed statements
+// are all uncovered. A block (or, for line-based formats, an instrumented
+// line) intersecting several changed ranges counts once.
 func Evaluate(p Profile, ch Changes, pkgHasTests map[string]bool, o Options) Report {
 	o.Min = math.Max(o.Min, DefaultMin)
 	blocks := byRelPath(p, o.Module)
@@ -102,7 +107,9 @@ func Evaluate(p Profile, ch Changes, pkgHasTests map[string]bool, o Options) Rep
 		r.Covered += row.Covered
 	}
 	if !o.Whole {
-		r.Findings = append(r.Findings, packageFindings(r.Rows, pkgHasTests)...)
+		if o.PackageTests {
+			r.Findings = append(r.Findings, packageFindings(r.Rows, pkgHasTests)...)
+		}
 		r.Findings = append(r.Findings, fileFindings(r.Rows)...)
 	}
 	pct := floor1(r.Percent())
@@ -202,8 +209,11 @@ func addRange(rs []LineRange, r LineRange) []LineRange {
 }
 
 // byRelPath re-keys the profile by module-relative path; files outside the
-// module are dropped.
+// module are dropped. A Normalized profile is already relative.
 func byRelPath(p Profile, module string) map[string][]Block {
+	if p.Normalized {
+		return p.Files
+	}
 	out := map[string][]Block{}
 	for f, bs := range p.Files {
 		if rel, ok := relPath(f, module); ok {

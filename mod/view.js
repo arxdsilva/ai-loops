@@ -130,7 +130,7 @@ export function gatesLine(st) {
     row.push(seg(n + (g ? (g.ok ? '✓' : '✗') : '-') + ' ', { color: g ? (g.ok ? 'green' : 'red') : undefined, dim: !g }))
   }
   if (by.get('all')) row.push(seg(by.get('all').ok ? 'all✓' : 'all✗', { color: by.get('all').ok ? 'green' : 'red' }))
-  if (st.go_dirty) row.push(seg(' (go dirty)', { color: 'yellow' }))
+  if (st.source_dirty || st.go_dirty) row.push(seg(' (source dirty)', { color: 'yellow' }))
   return row
 }
 

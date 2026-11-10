@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/arxdsilva/ai-loops/internal/application/guard"
 	"github.com/arxdsilva/ai-loops/internal/domain/workspace"
@@ -42,10 +43,14 @@ func goEnvPolicy(platform string, use guard.GoUse) goEnvAction {
 	return goEnvDeny
 }
 
-// goEnv scopes go commands to the active run's GOCACHE/GOTMPDIR. With no
-// active run, a non-go command, an already-scoped command, or a command
-// race-guard denies (race-guard reports that one), it stays silent.
-func (h *Handler) goEnv(ctx context.Context, d dialect, p payload, out, errw io.Writer) int {
+// toolchainEnv (alias go-env) scopes toolchain commands to the active run.
+// Go commands get the run's GOCACHE/GOTMPDIR with the per-platform policy
+// (goEnvPolicy). Other detected packs' commands get their run-scoped env and
+// cache flags (guard.PackScope) where the platform rewrites without an
+// approval (Claude, Gemini, Windsurf); they are never denied. With no
+// active run, an already-scoped command, or a command test-guard denies
+// (test-guard reports that one), it stays silent.
+func (h *Handler) toolchainEnv(ctx context.Context, d dialect, p payload, out, errw io.Writer) int {
 	if p.ToolName != "Bash" {
 		return 0
 	}
@@ -54,7 +59,7 @@ func (h *Handler) goEnv(ctx context.Context, d dialect, p payload, out, errw io.
 		return 0
 	}
 	cmd, _ := in["command"].(string)
-	if cmd == "" || guard.CheckRace(cmd) != "" {
+	if cmd == "" || h.checkTests(p, cmd) != "" {
 		return 0
 	}
 	id, err := h.d.Rec.Current(ctx)
@@ -65,22 +70,70 @@ func (h *Handler) goEnv(ctx context.Context, d dialect, p payload, out, errw io.
 	if err != nil || dir == "" {
 		return 0
 	}
+	if code, handled := h.goEnv(ctx, d, p, in, cmd, dir, out, errw); handled {
+		return code
+	}
+	h.packEnv(d, p, in, cmd, dir, out)
+	return 0
+}
+
+// goEnv scopes go commands to the run's GOCACHE/GOTMPDIR. handled is false
+// when cmd runs no unscoped go command.
+func (h *Handler) goEnv(ctx context.Context, d dialect, p payload, in map[string]any, cmd, dir string, out, errw io.Writer) (code int, handled bool) {
 	cache, tmp := workspace.GoCache(dir), workspace.GoTmp(dir)
 	use := guard.InspectGo(cmd, cache)
 	if !use.Invokes || !use.Unscoped {
-		return 0
+		return 0, false
 	}
 	action := goEnvPolicy(h.platform, use)
 	scoped := guard.ScopeGo(cmd, cache, tmp)
 	if action == goEnvDeny || guard.InspectGo(scoped, cache).Unscoped {
-		return h.deny(ctx, p, "go-env", goEnvMsg, errw)
+		return h.deny(ctx, p, "go-env", goEnvMsg, errw), true
 	}
 	for _, dd := range []string{cache, tmp} {
 		if os.MkdirAll(dd, 0o755) != nil {
-			return 0 // go would fail on a missing GOTMPDIR: leave the call alone
+			return 0, true // go would fail on a missing GOTMPDIR: leave the call alone
 		}
 	}
 	in["command"] = scoped
 	d.rewriteTool(out, in, action == goEnvRewriteAllow)
-	return 0
+	return 0, true
+}
+
+// packEnv rewrites a command of a detected non-Go pack with that pack's
+// run-scoped env and cache flags. It never denies: where the platform cannot
+// rewrite without approving the call, the command runs as is (agents can
+// use `loops exec`).
+func (h *Handler) packEnv(d dialect, p payload, in map[string]any, cmd, dir string, out io.Writer) {
+	switch h.platform {
+	case "claude", "gemini", "windsurf":
+	default:
+		return
+	}
+	ds, ok := h.detect(p)
+	if !ok {
+		return
+	}
+	for _, det := range ds {
+		if det.ID == "go" {
+			continue
+		}
+		s := guard.NewPackScope(det.Pack, dir)
+		if !s.Uses(cmd) {
+			continue
+		}
+		scoped, ok := s.Scope(cmd)
+		if !ok {
+			return // already scoped, or nothing to add
+		}
+		base := workspace.PackDir(dir, det.ID)
+		for _, dd := range []string{filepath.Join(base, "cache"), filepath.Join(base, "tmp")} {
+			if os.MkdirAll(dd, 0o755) != nil {
+				return
+			}
+		}
+		in["command"] = scoped
+		d.rewriteTool(out, in, false)
+		return
+	}
 }

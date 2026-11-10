@@ -71,13 +71,14 @@ var SourceExts = []string{
 	".py", ".pyi",
 	".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs",
 	".java", ".kt", ".kts", ".scala", ".sc", ".clj", ".cljs", ".cljc",
-	".cs", ".csproj", ".php", ".rb", ".rake", ".rs", ".swift",
-	".ex", ".exs", ".erl", ".hrl",
-	".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".ipp", ".ixx", ".cppm",
+	".cs", ".csproj", ".php", ".rb", ".rake", ".ru", ".gemspec", ".rs", ".swift",
+	".ex", ".exs", ".erl", ".hrl", ".app.src",
+	".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".ipp", ".ixx", ".cppm", ".tpp", ".inl",
 }
 
-// LooksLikeSource reports whether the file name has a source extension of
-// some pack.
+// LooksLikeSource reports whether the file name ends in a source extension
+// of some pack (multi-dot extensions such as ".app.src" included).
 func LooksLikeSource(name string) bool {
-	return slices.Contains(SourceExts, strings.ToLower(path.Ext(name)))
+	n := strings.ToLower(path.Base(name))
+	return slices.ContainsFunc(SourceExts, func(e string) bool { return strings.HasSuffix(n, e) && len(n) > len(e) })
 }

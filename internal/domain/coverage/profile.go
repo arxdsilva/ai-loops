@@ -20,11 +20,21 @@ type Block struct {
 	Count               int
 }
 
-// Profile is a parsed coverprofile. Files is keyed by the profile's file
-// name (import path + "/" + base name); blocks are sorted and deduplicated.
+// Profile is a parsed coverage report. Files is keyed by the report's file
+// name (for gocover: import path + "/" + base name) until Normalize re-keys
+// it pack-relative; blocks are sorted and deduplicated.
 type Profile struct {
 	Mode  string
 	Files map[string][]Block
+	// Format is the report format Parse read ("" = gocover, from
+	// ParseProfile).
+	Format string
+	// Sources are Cobertura's <sources> roots, which its class filenames
+	// are relative to; Normalize resolves against them.
+	Sources []string
+	// Normalized marks Files as pack-relative (Normalize's output), so
+	// Evaluate no longer strips Options.Module.
+	Normalized bool
 }
 
 type blockKey struct {
@@ -59,22 +69,32 @@ func ParseProfile(text string) (Profile, error) {
 	return p, nil
 }
 
-// MergeProfiles merges profiles (e.g. one per package run); duplicate
-// blocks keep the highest count.
+// MergeProfiles merges profiles (e.g. one per package run or per report
+// file); duplicate blocks keep the highest count. Mode and Format come from
+// the first profile that has one, Sources are united, and the result is
+// Normalized only when every input is.
 func MergeProfiles(ps ...Profile) Profile {
 	acc := map[blockKey]Block{}
-	mode := ""
+	out := Profile{Normalized: len(ps) > 0}
 	for _, p := range ps {
-		if mode == "" {
-			mode = p.Mode
+		if out.Mode == "" {
+			out.Mode = p.Mode
 		}
+		if out.Format == "" {
+			out.Format = p.Format
+		}
+		for _, s := range p.Sources {
+			out.Sources = appendUnique(out.Sources, s)
+		}
+		out.Normalized = out.Normalized && p.Normalized
 		for f, bs := range p.Files {
 			for _, b := range bs {
 				add(acc, f, b)
 			}
 		}
 	}
-	return Profile{Mode: mode, Files: collect(acc)}
+	out.Files = collect(acc)
+	return out
 }
 
 func add(acc map[blockKey]Block, file string, b Block) {

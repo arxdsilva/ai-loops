@@ -20,13 +20,13 @@ Detail level: enough that a stranger follows the plan and an agent works from it
 
 ## 2. The contract goes first
 
-Wave 0 is a single `architect` agent (opus). Nobody else starts until `go build ./...` and `go vet ./...` pass.
+Wave 0 is the `architect` (opus), joined by an `<id>-engineer` per language whose toolchain needs work (`ROLES.md`). Nobody else starts until the pack's build and lint checks pass (`specs/WORKFLOW.md §2.3`; Go: `go build ./...` and `go vet ./...`).
 
 | Do | Don't |
 | --- | --- |
 | Write ports, typed commands, DTOs, read models; additive changes only | Let implementers invent interfaces other agents depend on |
 | Stub every new hook so every agent compiles from the first minute | Make a consumer wait for a producer to compile |
-| Run `go get` / `go mod tidy`; edit Makefile, CI, `cmd/**`, `internal/compose/**` | Let anyone else touch `go.mod`, `go.sum` or shared config |
+| Add dependencies to the manifest and lockfile (Go: `go get` / `go mod tidy`); edit Makefile, CI, toolchain pins, the composition root (`specs/REPO_PRACTICES.md`) | Let anyone but the architect and the `<id>-engineer` touch manifests, lockfiles or shared config |
 
 A contract change after wave 0 is additive, made by the architect, and relayed to every affected agent by the lead.
 
@@ -43,8 +43,8 @@ A contract change after wave 0 is additive, made by the architect, and relayed t
 
 The shared implementer rules are in `ROLES.md` (TDD, targeted checks, ownership, no git writes, absolute paths, claims report). Also:
 
-- Tests run with `GOFLAGS=-p=2` and `-race`: `go test -race -count=1 -cover ./<owned>/...`.
-- Never run `go test ./...`, `make all` or rebuild shared binaries; the lead and QA run the full gates.
+- Tests run under the pack's race policy, narrowed to your owned scope, with the pack's `env_hints` (Go: `GOFLAGS=-p=2 go test -race -count=1 -cover ./<owned>/...`). The pack's commands are in `skills/lang-<id>`.
+- Never run the whole suite (`go test ./...`, `make all`) or rebuild shared binaries; the lead and QA run the full gates.
 - In zsh, split a variable with `${=files}` or `xargs`.
 - Report failures in other agents' files; never fix them.
 
@@ -52,7 +52,7 @@ The shared implementer rules are in `ROLES.md` (TDD, targeted checks, ownership,
 
 contract (architect) -> producers in parallel (domain, application) -> consumers (inbound and outbound adapters, which may start early against stubs) -> tests/docs agents -> QA, pipelined per implementer -> gates -> product review.
 
-Machine limits: do not launch more agents than the machine can run. Compiling many Go test binaries at once crawls; stagger heavy starts, keep `GOFLAGS=-p=2`, and re-check if an agent reports slow tests or the machine swaps.
+Machine limits: do not launch more agents than the machine can run. Compiling many test binaries at once crawls; stagger heavy starts, keep the pack's `env_hints` (Go: `GOFLAGS=-p=2`), and re-check if an agent reports slow tests or the machine swaps.
 
 ## 6. Coordination and gates
 

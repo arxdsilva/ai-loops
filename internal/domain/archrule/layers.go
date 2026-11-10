@@ -3,6 +3,8 @@ package archrule
 import (
 	"path"
 	"strings"
+
+	"github.com/arxdsilva/ai-loops/internal/domain/glob"
 )
 
 type layer int
@@ -26,7 +28,9 @@ var layerNames = [...]string{"other", "domain", "application", "ports", "inbound
 func (l layer) String() string { return layerNames[l] }
 
 // classifier maps module-relative directories to layers; the longest
-// matching prefix wins.
+// matching prefix wins. An entry holding "*" is a glob (internal/domain/glob)
+// that a leading part of the directory must match ("**/domain" matches
+// a/domain and a/domain/b); its length is that of the matched part.
 type classifier struct {
 	prefixes []string
 	layers   []layer
@@ -79,17 +83,38 @@ func cleanPrefix(p string) string {
 func (c classifier) layerOf(dir string) layer {
 	best, bestLen := layerNone, -1
 	for i, p := range c.prefixes {
-		if isUnder(dir, p) && len(p) > bestLen {
-			best, bestLen = c.layers[i], len(p)
+		if n := matchLen(dir, p); n > bestLen {
+			best, bestLen = c.layers[i], n
 		}
 	}
 	return best
+}
+
+// matchLen is the length of the part of dir that prefix p covers, -1 when
+// dir is not under p.
+func matchLen(dir, p string) int {
+	if !strings.Contains(p, "*") {
+		if isUnder(dir, p) {
+			return len(p)
+		}
+		return -1
+	}
+	segs := strings.Split(dir, "/")
+	for i := len(segs); i > 0; i-- {
+		if head := strings.Join(segs[:i], "/"); glob.Match(p, head) {
+			return len(head)
+		}
+	}
+	return -1
 }
 
 // isCmdDir reports a direct child of a cmd prefix: cmd/<x>.
 func (c classifier) isCmdDir(dir string) bool {
 	for _, p := range c.cmd {
 		if p != "." && path.Dir(dir) == p {
+			return true
+		}
+		if strings.Contains(p, "*") && glob.Match(p, path.Dir(dir)) {
 			return true
 		}
 	}

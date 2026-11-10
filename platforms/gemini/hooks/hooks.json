@@ -16,8 +16,8 @@
       {
         "hooks": [
           {
-            "command": "\"${extensionPath}/bin/loops\" hook go-post-edit --platform gemini",
-            "name": "go-post-edit",
+            "command": "\"${extensionPath}/bin/loops\" hook post-edit --platform gemini",
+            "name": "post-edit",
             "timeout": 60000,
             "type": "command"
           }
@@ -48,8 +48,8 @@
       {
         "hooks": [
           {
-            "command": "\"${extensionPath}/bin/loops\" hook race-guard --platform gemini",
-            "name": "race-guard",
+            "command": "\"${extensionPath}/bin/loops\" hook test-guard --platform gemini",
+            "name": "test-guard",
             "timeout": 10000,
             "type": "command"
           }
@@ -58,8 +58,8 @@
       {
         "hooks": [
           {
-            "command": "\"${extensionPath}/bin/loops\" hook go-env --platform gemini",
-            "name": "go-env",
+            "command": "\"${extensionPath}/bin/loops\" hook toolchain-env --platform gemini",
+            "name": "toolchain-env",
             "timeout": 10000,
             "type": "command"
           }

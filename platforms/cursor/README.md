@@ -13,7 +13,7 @@ Commands: `/work` (also model-invocable), `/init`, `/status`, `/report` (manual 
 
 - `agents/`: the role subagents (`is_background` for roles that run in parallel waves). No role is `readonly`: every role writes its own run-dir file, so read-only roles are told in their instructions not to edit repo code.
 - `skills/`, `specs/`, `templates/`, `ROLES.md`: the canonical workflow.
-- `hooks/hooks.json`: session context, read and model guards, post-edit gofmt, tracing, subagent lanes and the stop gate (`loop_limit: 5`).
+- `hooks/hooks.json`: session context, read and model guards, post-edit formatting, tracing, subagent lanes and the stop gate (`loop_limit: 5`).
 - `rules/loops.mdc`: the always-on plugin context.
 
 ## Binary

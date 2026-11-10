@@ -12,10 +12,26 @@ import (
 
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gotool"
 	"github.com/arxdsilva/ai-loops/internal/application/gate"
+	"github.com/arxdsilva/ai-loops/internal/application/langpack"
+	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 type gateDiff = gate.Diff
+
+// goPacks is the reference Go pack detected at root.
+func goPacks(t *testing.T, root string) []langpack.Detected {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "languages", "go", "pack.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := pack.Parse(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return []langpack.Detected{{Pack: p, ID: p.ID, Name: p.Name, Root: root}}
+}
 
 func needGit(t *testing.T) {
 	t.Helper()
@@ -90,7 +106,7 @@ func gateCoverage(t *testing.T, dir string) gate.CheckResult {
 	t.Setenv("GOFLAGS", "")
 	s := gate.New(gotool.New(), nil, noRec{}, clock{}).WithCoverage(New(), gate.CoverageConfig{})
 	res, err := s.Run(context.Background(), gate.Options{
-		Root: dir, Only: []string{gate.CheckTest, gate.CheckCoverage},
+		Root: dir, Only: []string{gate.CheckTest, gate.CheckCoverage}, Packs: goPacks(t, "."),
 		CoverProfile: filepath.Join(t.TempDir(), "cover.out"), Base: "main",
 	})
 	if err != nil {

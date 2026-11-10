@@ -372,3 +372,16 @@ func TestRemoveRefusesRewrittenInPlace(t *testing.T) {
 		t.Fatal("rewritten file was deleted")
 	}
 }
+
+func TestRunnerRunStdout(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("no sh")
+	}
+	out, err := NewRunner().RunStdout(context.Background(), t.TempDir(), []string{"X_LOOPS=v"}, "sh", "-c", "echo out; echo err >&2; echo $X_LOOPS")
+	if err != nil || out != "out\nv\n" {
+		t.Fatalf("%q %v", out, err)
+	}
+	if _, err := NewRunner().RunStdout(context.Background(), t.TempDir(), nil, "sh", "-c", "exit 3"); err == nil {
+		t.Fatal("exit status lost")
+	}
+}

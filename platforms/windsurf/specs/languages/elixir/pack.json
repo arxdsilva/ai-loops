@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "id": "elixir",
+  "name": "Elixir",
+  "versions": {"stable": "1.20", "as_of": "2026-11"},
+  "detect": [{"file": "mix.exs"}],
+  "source_globs": ["lib/**/*.ex", "apps/*/lib/**/*.ex"],
+  "test_globs": ["test/**/*_test.exs", "apps/*/test/**/*_test.exs", "test/support/**", "apps/*/test/support/**", "test/test_helper.exs", "apps/*/test/test_helper.exs"],
+  "generated": {
+    "globs": ["**/*.pb.ex", "priv/repo/migrations/**", "_build/**", "deps/**"]
+  },
+  "manifest": "mix.exs",
+  "env": {"MIX_ENV": "test"},
+  "checks": [
+    {"name": "deps", "kind": "deps", "argv": ["mix", "deps.get", "--check-locked"], "required": true, "tool": "mix"},
+    {"name": "compile", "kind": "build", "argv": ["mix", "compile", "--warnings-as-errors"], "required": true, "tool": "mix"},
+    {"name": "format", "kind": "format", "argv": ["mix", "format", "--check-formatted"], "required": true, "tool": "mix",
+     "when_file": [".formatter.exs"], "note": "files need mix format"},
+    {"name": "credo", "kind": "lint", "argv": ["mix", "credo", "--strict"], "required": false, "tool": "mix",
+     "when_file": [".credo.exs"],
+     "install": "add {:credo, \"~> 1.7\", only: [:dev, :test], runtime: false} to mix.exs deps, then mix credo gen.config"},
+    {"name": "xref-cycles", "kind": "arch", "argv": ["mix", "xref", "graph", "--format", "cycles", "--fail-above", "0"], "required": false, "tool": "mix",
+     "default": "off"},
+    {"name": "dialyzer", "kind": "typecheck", "argv": ["mix", "dialyzer"], "required": false, "tool": "mix",
+     "when_file": [".dialyzer_ignore.exs", "priv/plts"],
+     "install": "add {:dialyxir, \"~> 1.4\", only: [:dev, :test], runtime: false} to mix.exs deps"},
+    {"name": "test", "kind": "test", "argv": ["mix", "coveralls.lcov", "--warnings-as-errors"], "required": true, "tool": "mix",
+     "install": "add {:excoveralls, \"~> 0.18\", only: :test}, test_coverage: [tool: ExCoveralls] and preferred_envs for coveralls* to mix.exs, and a coveralls.json with minimum_coverage 0",
+     "signal_regex": "^\\s+\\d+\\) test|Randomized with seed|warning:|\\*\\* \\(|Test suite aborted"},
+    {"name": "test-repeat", "kind": "test", "argv": ["mix", "test", "--repeat-until-failure", "5", "--warnings-as-errors"], "required": true, "tool": "mix",
+     "signal_regex": "^\\s+\\d+\\) test|Randomized with seed|warning:|\\*\\* \\(|Test suite aborted"},
+    {"name": "coverage", "kind": "coverage", "internal": "coverage", "required": true, "skippable": false},
+    {"name": "deps-audit", "kind": "vuln", "argv": ["mix", "deps.audit"], "required": false, "tool": "mix", "default": "off",
+     "install": "add {:mix_audit, \"~> 2.1\", only: [:dev, :test], runtime: false} to mix.exs deps"},
+    {"name": "hex-audit", "kind": "vuln", "argv": ["mix", "hex.audit"], "required": false, "tool": "mix", "default": "off"},
+    {"name": "sobelow", "kind": "sast", "argv": ["mix", "sobelow", "--exit", "medium"], "required": false, "tool": "mix", "default": "off",
+     "install": "add {:sobelow, \"~> 0.13\", only: [:dev, :test], runtime: false} to mix.exs deps (Phoenix projects)"}
+  ],
+  "test_commands": [
+    {"argv_prefix": ["mix", "test"]},
+    {"argv_prefix": ["mix", "coveralls"]},
+    {"argv_prefix": ["mix", "coveralls.lcov"]},
+    {"argv_prefix": ["mix", "coveralls.json"]},
+    {"argv_prefix": ["mix", "test.watch"]}
+  ],
+  "race": {
+    "mode": "none",
+    "checks": ["test-repeat"],
+    "reason": "BEAM processes share no memory, so there are no data races to detect; ETS and message-ordering races remain and have no sanitizer",
+    "substitute": "mix test --repeat-until-failure 5 --warnings-as-errors with async: true modules, random order and the printed seed (re-run a failure with --seed N)"
+  },
+  "coverage": {
+    "format": "lcov", "path": "cover/lcov.info", "produced_by": ["test"], "granularity": "line",
+    "exclude": ["test/**", "apps/*/test/**", "priv/repo/migrations/**", "config/**"]
+  },
+  "post_edit": {"format_file": ["mix", "format", "{file}"]},
+  "cache_env": {"MIX_BUILD_ROOT": "cache"},
+  "shared_env": ["MIX_HOME", "HEX_HOME"],
+  "env_hints": {"MIX_ENV": "test"},
+  "artifacts": ["_build/", "cover/", "doc/", "tmp/", "erl_crash.dump", "*.beam", "*.ez", "priv/plts/*.plt", "priv/plts/*.plt.hash"],
+  "arch": {
+    "parser": "none", "resolver": "native", "native_check": "xref-cycles",
+    "forbidden_in_domain": ["Ecto.Repo", "Ecto.Query", "Phoenix", "Plug", "Logger", "File", "System", "Oban"],
+    "impure_calls": ["DateTime.utc_now", "DateTime.now", "NaiveDateTime.utc_now", "Date.utc_today", "System.os_time", "System.system_time", "Enum.random", ":rand.", "spawn", "Task.async", "Task.start", "send(", ":ets."]
+  },
+  "test_jobs": "--max-cases 2",
+  "config_files": [".formatter.exs", ".credo.exs", ".dialyzer_ignore.exs", ".sobelow-conf", "coveralls.json", ".tool-versions", ".editorconfig", "mix.exs", ".github/dependabot.yml"],
+  "sources": {
+    "checks": "https://mix.hexdocs.pm/Mix.Tasks.Test.html",
+    "format": "https://mix.hexdocs.pm/Mix.Tasks.Format.html",
+    "compile": "https://mix.hexdocs.pm/Mix.Tasks.Compile.html",
+    "deps": "https://mix.hexdocs.pm/Mix.Tasks.Deps.Get.html",
+    "xref": "https://mix.hexdocs.pm/Mix.Tasks.Xref.html",
+    "credo": "https://credo.hexdocs.pm/Mix.Tasks.Credo.html",
+    "dialyzer": "https://github.com/jeremyjh/dialyxir",
+    "coverage": "https://github.com/parroty/excoveralls",
+    "audit": "https://github.com/mirego/mix_audit",
+    "hex_audit": "https://hex.hexdocs.pm/Mix.Tasks.Hex.Audit.html",
+    "sobelow": "https://github.com/nccgroup/sobelow",
+    "race": "https://mix.hexdocs.pm/Mix.Tasks.Test.html",
+    "cache_env": "https://mix.hexdocs.pm/Mix.html",
+    "boundary": "https://boundary.hexdocs.pm/Boundary.html"
+  },
+  "notes": [
+    "Project rules win: follow the project's own mix.exs aliases, .formatter.exs, .credo.exs and CI over these defaults, and log every override with loops run override.",
+    "deps/ is shared across runs (never relocated); a per-run MIX_BUILD_ROOT recompiles every dependency each run, which is the main cost.",
+    "excoveralls writes cover/lcov.info under the project (output_dir lives in coveralls.json) with absolute SF: paths; the parser must relativise them.",
+    "Boundary violations surface as compile warnings, so the compile check (--warnings-as-errors) enforces them once compilers: [:boundary] ++ Mix.compilers() is set.",
+    "Umbrella: per-app coveralls.json and coverage paths are unverified; gate per the tool's workspace mode (D19)."
+  ]
+}

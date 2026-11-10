@@ -35,7 +35,7 @@ Let subagents finish; cancel from the Copilot UI if one stalls, then re-spawn wi
 ```
 copilot plugin install arxdsilva/ai-loops
 ```
-or VS Code: *Chat: Install Plugin from Source*. Needs Go. Verify: `loops version`, then run the work skill.
+or VS Code: *Chat: Install Plugin from Source*. Needs `loops` on PATH (prebuilt; `install.sh`). Verify: `loops version`, then run the work skill.
 
 ## Hardware and budgets
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are measured only if the SubagentStop payload carries `agent_transcript_path` *(unverified)*; otherwise they are advisory. Agent, role and concurrency limits always apply.
@@ -46,5 +46,7 @@ The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token 
 ## Model fallback
 Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).
 
-## Go environment
+## Run-scoped toolchain env
 Go commands on this platform are not rewritten (the hook denies), so always run Go through `loops go …`. Either way they use the run's own Go cache, which `loops run end` deletes.
+
+Other language packs: their commands are not rewritten here, so run their build and test commands through `loops exec -- <cmd>` to use the run-scoped env.

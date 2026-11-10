@@ -4,10 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/arxdsilva/ai-loops/internal/application/langpack"
+	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
@@ -29,7 +34,12 @@ func (f *fakeCmd) Run(_ context.Context, dir, name string, args ...string) (stri
 	}
 	return f.out[key], nil
 }
-func (f *fakeCmd) Has(n string) bool { return f.has[n] }
+func (f *fakeCmd) Has(n string) bool {
+	if v, ok := f.has[n]; ok {
+		return v
+	}
+	return n == "go" || n == "gofmt" // the toolchain is always there
+}
 
 type fakeArch struct {
 	text string
@@ -57,12 +67,37 @@ func setup(f *fakeCmd, a fakeArch) (*Service, *fakeRec) {
 	return New(f, a, r, &tick{}).WithCoverage(&fakeCov{module: "example.com/m"}, CoverageConfig{}), r
 }
 
+// goPackOnce is the reference Go pack (specs/languages/go/pack.json).
+var goPackOnce = sync.OnceValues(func() (pack.Pack, error) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "languages", "go", "pack.json"))
+	if err != nil {
+		return pack.Pack{}, err
+	}
+	return pack.Parse(b)
+})
+
+func goPack() pack.Pack {
+	p, err := goPackOnce()
+	if err != nil {
+		panic(err)
+	}
+	return p
+}
+
+// goOpts adds the Go pack at the project root, as the CLI detects it.
+func goOpts(o Options) Options {
+	if o.Packs == nil {
+		o.Packs = []langpack.Detected{{Pack: goPack(), ID: "go", Name: "Go", Root: "."}}
+	}
+	return o
+}
+
 // opts are full-gate options with a coverprofile path, as the CLI passes them.
 func opts(o Options) Options {
 	if o.CoverProfile == "" {
 		o.CoverProfile = "/tmp/cover.out"
 	}
-	return o
+	return goOpts(o)
 }
 
 func names(r Result) string {
@@ -135,7 +170,7 @@ func TestFailuresAndFailFast(t *testing.T) {
 func TestScopedNeverRecordsAll(t *testing.T) {
 	f := &fakeCmd{}
 	s, rec := setup(f, fakeArch{ok: true})
-	res, _ := s.Run(context.Background(), Options{Pkgs: []string{"./internal/domain/..."}, Only: []string{"build", "gofmt", "vet"}})
+	res, _ := s.Run(context.Background(), goOpts(Options{Pkgs: []string{"./internal/domain/..."}, Only: []string{"build", "gofmt", "vet"}}))
 	if !res.OK || names(res) != "build:ok gofmt:ok vet:ok staticcheck:skip arch:skip test:skip coverage:skip govulncheck:skip" {
 		t.Fatal(names(res))
 	}
@@ -149,7 +184,7 @@ func TestScopedNeverRecordsAll(t *testing.T) {
 	}
 	// Pkgs only (no Only) also never records all.
 	s2, rec2 := setup(&fakeCmd{}, fakeArch{ok: true})
-	_, _ = s2.Run(context.Background(), Options{Pkgs: []string{"./x"}})
+	_, _ = s2.Run(context.Background(), goOpts(Options{Pkgs: []string{"./x"}}))
 	for _, e := range rec2.evs {
 		if e.Name == run.GateAll {
 			t.Fatal("all recorded")
@@ -181,12 +216,13 @@ func TestTrimTestOutput(t *testing.T) {
 		fmt.Fprintf(&b, "noise %d\n", i)
 	}
 	b.WriteString("--- FAIL: TestX\n    x_test.go:5: bad\nFAIL\n")
-	got := trim(b.String(), true)
+	sig := signalFunc(`^FAIL|--- FAIL|panic|DATA RACE|_test\.go:`)
+	got := trim(b.String(), sig)
 	lines := strings.Split(got, "\n")
 	if len(lines) != 60 || lines[0] != "--- FAIL: TestX" {
 		t.Fatalf("%d %q", len(lines), lines[0])
 	}
-	if n := len(strings.Split(trim(b.String(), false), "\n")); n != 60 {
+	if n := len(strings.Split(trim(b.String(), nil), "\n")); n != 60 {
 		t.Fatal(n)
 	}
 	long := strings.Repeat("x", 300)
@@ -199,7 +235,7 @@ func TestCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	s, _ := setup(&fakeCmd{}, fakeArch{ok: true})
-	if _, err := s.Run(ctx, Options{}); err == nil {
+	if _, err := s.Run(ctx, goOpts(Options{})); err == nil {
 		t.Fatal("want ctx error")
 	}
 }
@@ -223,7 +259,7 @@ func TestAllRules(t *testing.T) {
 	}
 	// CLI --skip never records all.
 	s, rec := setup(&fakeCmd{}, fakeArch{ok: true})
-	_, _ = s.Run(ctx, Options{Skip: []string{"test"}})
+	_, _ = s.Run(ctx, goOpts(Options{Skip: []string{"test"}}))
 	if allEv(rec) != nil {
 		t.Fatal("all recorded with --skip")
 	}
@@ -265,7 +301,7 @@ func TestStaleStaticcheckIsSkipped(t *testing.T) {
 	}
 	f := &fakeCmd{has: map[string]bool{"staticcheck": true}, fail: map[string]string{"staticcheck": "a.go:1: SA1000"}}
 	s, _ := setup(f, fakeArch{ok: true})
-	if res, _ := s.Run(context.Background(), Options{}); res.OK {
+	if res, _ := s.Run(context.Background(), goOpts(Options{})); res.OK {
 		t.Fatal("real staticcheck failure must fail")
 	}
 }

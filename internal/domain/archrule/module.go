@@ -7,7 +7,14 @@ type Module struct {
 	Path     string    `json:"path"`     // module path from go.mod
 	Packages []Package `json:"packages"` // every directory holding .go files
 	Dirs     []Dir     `json:"dirs"`     // every walked directory, for the cmd rule
+	// Parser is the pack parser that built the model: "" or "go" for goparse,
+	// "regex" for the import scanner. The Go-only rules (init, globals, cmd,
+	// compose, parent imports) run only for Go.
+	Parser string `json:"parser,omitempty"`
 }
+
+// IsGo reports whether the Go parser built the model.
+func (m Module) IsGo() bool { return m.Parser == "" || m.Parser == "go" }
 
 // Pos is a position in a module file.
 type Pos struct {
@@ -36,13 +43,34 @@ type Package struct {
 	GoStmts    []Pos     `json:"goStmts"`    // go statements in Files
 	Calls      []Call    `json:"calls"`      // time.Now and math/rand(/v2) selectors in Files
 	Main       *MainFile `json:"main"`       // <Dir>/main.go facts, nil without one
+	// Impure holds the impure-call text hits of the import scanner (non-Go
+	// packs); Evaluate reports them in domain packages.
+	Impure []Hit `json:"impure,omitempty"`
+}
+
+// Hit is one impure-call entry found on a source line.
+type Hit struct {
+	Call string `json:"call"` // the pack's impure_calls entry
+	Pos  Pos    `json:"pos"`
 }
 
 // Import is one import spec.
 type Import struct {
 	Path string `json:"path"`
 	Pos  Pos    `json:"pos"`
+	// Kind is set by non-Go parsers, whose resolver already classified the
+	// import: ImportInternal (Dir holds the target), ImportStd or
+	// ImportThird. Empty means Go: the module path decides.
+	Kind string `json:"kind,omitempty"`
+	Dir  string `json:"dir,omitempty"` // module-relative target directory of an internal import
 }
+
+// Import kinds a resolver assigns.
+const (
+	ImportInternal = "internal"
+	ImportStd      = "std"
+	ImportThird    = "third"
+)
 
 // Global is a package-level var (declared in a non-test file) that a
 // function body, test files included, assigns to or increments.

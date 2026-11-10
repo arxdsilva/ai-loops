@@ -66,7 +66,7 @@ For review and follow-up changes send `git diff`, the surrounding functions and 
 
 ## 11. Enforcement: hooks
 
-Advisory rules did not hold, so `loops` enforces two guards as `PreToolUse` hooks (`hooks/hooks.json`); `go-post-edit` and `stop-gate` are covered in `specs/WORKFLOW.md §6`. Each denial is recorded as a `guard_deny` event (`specs/WORKFLOW.md §5`).
+Advisory rules did not hold, so `loops` enforces two context guards as `PreToolUse` hooks (`hooks/hooks.json`); `test-guard`, `toolchain-env`, `post-edit` and `stop-gate` are covered in `specs/WORKFLOW.md §6`. Each denial is recorded as a `guard_deny` event (`specs/WORKFLOW.md §5`).
 
 | Hook | Denies | Default limit | Override |
 |---|---|---|---|

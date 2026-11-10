@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "id": "ruby",
+  "name": "Ruby",
+  "versions": {"stable": "4.0", "as_of": "2026-11"},
+  "detect": [{"file": "Gemfile"}, {"file": ".ruby-version"}, {"glob": "*.gemspec"}],
+  "scope": {},
+  "source_globs": ["**/*.rb", "**/*.rake", "**/*.ru", "**/Gemfile", "**/*.gemspec"],
+  "test_globs": ["spec/**/*_spec.rb", "test/**/*_test.rb", "test/**/test_*.rb"],
+  "generated": {
+    "globs": ["db/schema.rb", "db/migrate/**", "sorbet/rbi/**", "vendor/**", "bin/**"],
+    "header_regex": "^# This file is auto-generated"
+  },
+  "manifest": "Gemfile",
+  "variants": [
+    {"name": "minitest", "detect": [{"file": "test"}, {"file": "bin/rails"}],
+     "checks": [{"name": "test", "argv": ["bin/rails", "test", "--seed", "{seed}", "{pkgs}"], "when_file": ["test"], "tool": "rails",
+                 "note": "Rails/Minitest variant (test/ + bin/rails); test/test_helper.rb must start SimpleCov"}]}
+  ],
+  "checks": [
+    {"name": "bundle", "kind": "deps", "argv": ["bundle", "check"], "required": true, "tool": "bundle", "when_file": ["Gemfile"],
+     "note": "verify form only: reports a missing gem, never installs (D11)"},
+    {"name": "rubocop", "kind": "lint", "argv": ["bundle", "exec", "rubocop", "{pkgs}"], "required": true, "tool": "rubocop",
+     "when_file": [".rubocop.yml"], "install": "bundle add rubocop --group development",
+     "note": "also enforces Layout (format); exit 1 on offenses, 2 on config error"},
+    {"name": "standard", "kind": "lint", "argv": ["bundle", "exec", "standardrb", "{pkgs}"], "required": true, "tool": "standard",
+     "when_file": [".standard.yml"], "install": "bundle add standard --group development",
+     "note": "use instead of rubocop when the project committed .standard.yml (RUBY-TOOL-02)"},
+    {"name": "sorbet", "kind": "typecheck", "argv": ["bundle", "exec", "srb", "tc"], "required": true, "tool": "sorbet",
+     "when_file": ["sorbet/config"], "install": "bundle add sorbet --group development"},
+    {"name": "steep", "kind": "typecheck", "argv": ["bundle", "exec", "steep", "check"], "required": true, "tool": "steep",
+     "when_file": ["Steepfile"], "install": "bundle add steep --group development"},
+    {"name": "packwerk", "kind": "arch", "argv": ["bundle", "exec", "packwerk", "check"], "required": true, "tool": "packwerk",
+     "when_file": ["packwerk.yml", "package.yml"], "install": "bundle add packwerk --group development",
+     "note": "dependency direction; privacy needs the packwerk-extensions gem (RUBY-ARCH-05)"},
+    {"name": "test", "kind": "test", "argv": ["bundle", "exec", "rspec", "--order", "random", "--seed", "{seed}", "{pkgs}"],
+     "required": true, "tool": "rspec", "when_file": [".rspec", "spec"], "repeat": 2,
+     "note": "RSpec base; runs twice with different printed seeds (race substitute); spec/spec_helper.rb must start SimpleCov first"},
+    {"name": "coverage", "kind": "coverage", "internal": "coverage", "required": true, "skippable": false},
+    {"name": "brakeman", "kind": "sast", "argv": ["bundle", "exec", "brakeman", "-q", "--no-pager"], "required": false, "tool": "brakeman",
+     "when_file": ["config/application.rb"], "install": "bundle add brakeman --group development"},
+    {"name": "bundler-audit", "kind": "vuln", "argv": ["bundle", "exec", "bundle-audit", "check", "--update"], "required": false,
+     "tool": "bundler-audit", "default": "off", "when_file": ["Gemfile.lock"], "install": "bundle add bundler-audit --group development"}
+  ],
+  "test_commands": [
+    {"argv_prefix": ["bundle", "exec", "rspec"]},
+    {"argv_prefix": ["rspec"]},
+    {"argv_prefix": ["bin/rspec"]},
+    {"argv_prefix": ["bin/rails", "test"]},
+    {"argv_prefix": ["rails", "test"]},
+    {"argv_prefix": ["bundle", "exec", "rails", "test"]},
+    {"argv_prefix": ["bundle", "exec", "rake", "test"]},
+    {"argv_prefix": ["bundle", "exec", "parallel_rspec"]}
+  ],
+  "race": {
+    "mode": "none", "checks": ["test"],
+    "reason": "CRuby has no data-race detector; the GVL serialises Ruby code but does not make compound operations atomic",
+    "substitute": "the test check: random order with a printed seed, run twice with different seeds; parallel test processes and thread stress tests stay review items (RUBY-CONC-05)"
+  },
+  "coverage": {
+    "format": "lcov", "path": "coverage/lcov.info", "produced_by": ["test"], "granularity": "line",
+    "exclude": ["spec/**", "test/**", "config/**", "db/**", "bin/**", "vendor/**", "sorbet/**"]
+  },
+  "post_edit": {"format_file": ["bundle", "exec", "rubocop", "-a", "--only", "Layout", "{file}"], "lint_dir": ["bundle", "exec", "rubocop", "{dir}"]},
+  "cache_env": {"BOOTSNAP_CACHE_DIR": "cache", "TMPDIR": "tmp"},
+  "shared_env": ["BUNDLE_PATH", "BUNDLE_USER_CACHE"],
+  "artifacts": ["coverage/", "tmp/", "log/*.log", ".rspec_status", "*.gem", ".yardoc/"],
+  "arch": {
+    "parser": "none", "resolver": "native", "native_check": "packwerk",
+    "forbidden_in_domain": ["ActiveRecord", "ActionController", "Rails", "Net::HTTP", "Faraday", "ENV", "File", "Sidekiq"],
+    "impure_calls": ["Time.now", "Time.current", "Date.today", "DateTime.now", "rand", "SecureRandom", "Random.new", "Thread.new", "sleep", "puts"]
+  },
+  "config_files": [".rubocop.yml", ".rubocop_todo.yml", ".standard.yml", ".editorconfig", ".rspec", ".ruby-version", "sorbet/config", "Steepfile", "package.yml", "packwerk.yml", ".bundler-audit.yml", "config/brakeman.ignore"],
+  "sources": {
+    "checks": "https://docs.rubocop.org/rubocop/1.81/usage/basic_usage.html",
+    "race": "https://docs.ruby-lang.org/en/master/Thread.html",
+    "rspec_order": "https://rspec.info/features/3-13/rspec-core/command-line/order/",
+    "coverage": "https://github.com/simplecov-ruby/simplecov",
+    "lcov": "https://github.com/fortissimo1997/simplecov-lcov",
+    "bundle_check": "https://bundler.io/man/bundle-check.1.html",
+    "bundle_config": "https://guides.rubygems.org/command-reference/bundle-config/",
+    "bundler_audit": "https://github.com/rubysec/bundler-audit",
+    "brakeman": "https://brakemanscanner.org/docs/options/",
+    "sorbet": "https://sorbet.org/docs/cli",
+    "steep": "https://github.com/soutaro/steep",
+    "packwerk": "https://github.com/Shopify/packwerk/blob/main/USAGE.md",
+    "standard": "https://github.com/standardrb/standard",
+    "rails_test": "https://guides.rubyonrails.org/testing.html"
+  },
+  "notes": [
+    "Project rules win: run the checks the project's own config selects; log overrides with loops run override.",
+    "D13 prerequisite (architect or ruby-engineer, wave 0): the spec/test helper starts SimpleCov first and writes lcov to coverage/lcov.info via simplecov-lcov (report_with_single_file); the snippet is in skills/lang-ruby/testing.md.",
+    "SimpleCov paths in lcov are ./-prefixed; the lcov parser normalises them.",
+    "Minitest variant needs test/ and bin/rails; a project with both spec/ and test/ gets the variant; pin the variant in .loops/config.json languages, or remove the unused tree."
+  ]
+}

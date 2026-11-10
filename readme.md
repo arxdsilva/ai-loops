@@ -1,7 +1,7 @@
 # ai-loops: the `loops` plugin
 
 **Give an AI coding agent a ticket, get back a pull request with proof that it works.**
-`loops` is a plugin for Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI and other coding agents. It turns one request into a team of specialist AI agents that research, plan, build, check each other's work and prove the result, for Go backends.
+`loops` is a plugin for Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI and other coding agents. It turns one request into a team of specialist AI agents that research, plan, build, check each other's work and prove the result, for backends in 15 languages.
 
 <p align="center">
   <img src="docs/media/loops-workflow.svg" alt="How loops works: a ticket goes through Research, Plan, Build, Verify, Prove and Reflect, with review loops, ending in a pull request with proofs" width="100%">
@@ -18,18 +18,42 @@
 5. **Prove.** A product reviewer tries every requirement by hand and opens the pull request with the evidence attached.
 6. **Reflect.** Lessons are saved for next time. Where your project's own rules overrode the plugin's defaults, a note is posted on the pull request.
 
-**Hard gate:** new code must ship with unit tests: ≥70% coverage of new code, always run with `-race` — enforced by `loops gate` and the race-guard hook.
+**Hard gate:** new code must ship with unit tests: ≥70% coverage of new code, and every test run under the language's race detector or its race substitute — enforced by `loops gate` and the test-guard hook.
 
 You can watch all of it live (status line, live pane, `loops watch`), and an HTML report records every step.
+
+### Languages
+
+Each language is a pack (`specs/languages/<id>/pack.json`) with its gate checks, race policy, coverage format, run-scoped caches and architecture rules, plus a `lang-<id>` skill and an `<id>-engineer` role. `loops lang detect` finds the packs that apply to your repo (several can, e.g. a Go service with a TypeScript front end); `"languages"` in `.loops/config.json` pins them.
+
+| id | Race policy | Coverage format |
+|---|---|---|
+| python | substitute: random order, xdist, dev mode | cobertura |
+| typescript | substitute: shuffle, concurrent, repeats | lcov |
+| java | substitute: JUnit parallel + random order, two seeds | jacoco |
+| cpp | race build: TSan preset | lcov |
+| csharp | substitute: parallel collections, repeats, analyzers | cobertura |
+| php | substitute: random order, two seeds, paratest | cobertura |
+| go | flag: `-race` | gocover |
+| ruby | substitute: random order, parallel_tests, repeats | lcov |
+| swift | flag: `--sanitize=thread` | lcov |
+| kotlin | substitute: JUnit parallel + random order | jacoco |
+| rust | substitute (static): `unsafe_code=forbid`, clippy | lcov |
+| scala | substitute: parallel suites, 3 runs | cobertura |
+| elixir | substitute: async, repeat until failure | lcov |
+| erlang | substitute: two scheduler variants, repeats | cobertura |
+| clojure | substitute: 3 seeded runs | lcov |
+
+New-code coverage is computed by loops itself from these four formats ([specs/TESTING.md](specs/TESTING.md) §8). Your project's own tool configs win over the pack defaults.
 
 ### Under the hood
 
 ```
 /loops:work #123
   0 intake    ticket → ticket.md (GitHub · GitLab · Jira · Linear · free text)
-  1 research  web ∥ practices ∥ code ∥ hardware researchers   (ai-memory first)
+  1 research  web ∥ practices ∥ code ∥ hardware researchers   (ai-memory first; loops lang detect)
   2 plan      planner (opus) ⇄ plan-reviewer (opus)   [+ your approval with --approve]
-  3 implement architect (contract, wave 0) → role engineers in parallel waves
+  3 implement architect + <lang>-engineer (contract, toolchain, wave 0) → role engineers in parallel waves
   4 qa        a qa-verifier per engineer checks every claim ⇄ sends failures back with a repro
   5 product   product-reviewer tests every acceptance criterion by hand → proofs → PR/MR
   6 reflect   reflector → reflection.md + ai-memory pages
@@ -41,7 +65,8 @@ Nothing to install up front. On first use the plugin downloads the prebuilt `loo
 
 You'll also want:
 - **`gh`** or **`glab`** for tickets and PRs/MRs.
-- Optional: `staticcheck`, `govulncheck`, [ai-memory](https://github.com/akitaonrails/ai-memory), Jira or Linear MCP connectors.
+- Your project's language toolchain. The optional tools a pack names (for Go `staticcheck`, `govulncheck`) are skipped with an install hint when missing.
+- Optional: [ai-memory](https://github.com/akitaonrails/ai-memory), Jira or Linear MCP connectors.
 
 Platforms marked *installer* take one line in your project:
 
@@ -109,7 +134,7 @@ Full table and notes: [specs/PLATFORMS.md](specs/PLATFORMS.md) §2. Per-platform
 |---|---|---|---|---|---|---|---|---|---|
 | Role subagents | yes | yes | yes | yes | yes | yes | generic | solo | solo |
 | Resume same agent | yes | no | no | yes | no | no | partial | no | no |
-| Tool deny / gofmt hooks | yes | yes | yes | yes | yes | shim | no | yes | no |
+| Tool deny / post-edit hooks | yes | yes | yes | yes | yes | shim | no | yes | no |
 | Subagent lanes | yes | yes | yes | yes | labels | labels | labels | labels | labels |
 | Stop gate | yes | yes | yes | yes | yes | no | no | maybe | no |
 | Status line / pane | yes | no | no | no | no | no | no | no | no |
@@ -117,7 +142,7 @@ Full table and notes: [specs/PLATFORMS.md](specs/PLATFORMS.md) §2. Per-platform
 
 Use `loops watch` in a side terminal for the live view on any platform.
 
-Then, in your Go repo (Claude Code shown; other platforms use their own command syntax):
+Then, in your repo (Claude Code shown; other platforms use their own command syntax):
 
 ```sh
 /loops:init      # .loops/config.json, AGENTS.md rules, .gitignore, dependency check
@@ -154,7 +179,7 @@ When a newer release exists, the session context carries one line: `loops vX is 
   - the matrix from acceptance criteria to proofs;
   - the PR and the reflection.
 
-- **Runs leave no trace.** Agents build with a run-scoped Go cache that is deleted at the end, along with any binaries or test artifacts they left behind; your global Go cache is untouched.
+- **Runs leave no trace.** Agents build with run-scoped build caches and tmp dirs (per language pack) that are deleted at the end, along with any binaries or test artifacts they left behind; download caches stay shared and your global caches are untouched.
 
 Everything is recorded in `.loops/runs/<id>/events.jsonl`, written by the skills (`loops run …`) and by the plugin's hooks.
 
@@ -182,20 +207,20 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
 |---|---|
 | session-start | Tells Claude where the plugin lives and which run is active. |
 | read-guard | Denies a whole-file Read of a file over 500 lines, and shell views over 150 lines of repo files. Read in ranges instead. Tune it with `READ_GUARD_MIN_LINES` and `READ_GUARD_MAX_VIEW_LINES`, or turn it off with `READ_GUARD=off`. |
-| race-guard | Denies any `go test` run without `-race`. No opt-out. |
-| go-env | Scopes agents' `go` commands to the run's Go cache (rewrites them, or denies with a hint to use `loops go …`). |
+| test-guard (was race-guard) | For flag-mode languages, denies a test run without the race flag (`go test` without `-race`, `swift test` without `--sanitize=thread`). No opt-out. Other languages are never denied here; `loops gate` enforces their race build or substitute checks. |
+| toolchain-env (was go-env) | Scopes agents' toolchain commands to the run's caches. Go commands are rewritten, or denied with a hint to use `loops go …` where the platform can't rewrite. Other languages are rewritten on Claude Code, Gemini CLI and Windsurf and never denied; elsewhere use `loops exec -- <cmd>`. |
 | model-guard | Untyped or general-purpose agents must name a model. |
-| go-post-edit | Runs `goimports` (or `gofmt`) and `go vet` on every edited `.go` file. It sends the failure back to Claude when either one fails. |
+| post-edit (was go-post-edit) | Runs the language's single-file formatter and lint on every edited source file (Go: `goimports` or `gofmt`, then `go vet`). It sends the failure back to Claude when either one fails. |
 | trace, trace-agent | Records every tool call, and every agent start and stop, in the right agent's lane. |
-| stop-gate | The lead can't finish while Go files have changed since the last green `loops gate`. This doesn't apply when no run is active, while agents are still running, or with `LOOPS_GATE=off`. |
+| stop-gate | The lead can't finish while a source file of any detected language has changed since the last green `loops gate`. This doesn't apply when no run is active, while agents are still running, or with `LOOPS_GATE=off`. |
 
-`loops arch` enforces the hexagonal dependency direction and the SOLID rules (`specs/`). Size limits are reported as warnings only.
+`loops arch` enforces the hexagonal dependency direction and the SOLID rules (`specs/`), with the pack's native tool where one exists. Size limits are reported as warnings only. The old hook names keep working as aliases.
 
 ## Layout
 
-- `agents/`: the 17 roles, summarised in `ROLES.md`.
-- `skills/`: the `work` orchestrator, `init`, `status`, `report`, and the reference skills.
-- `specs/`: the workflow spec, plus the Go and architecture rules.
+- `agents/`: the 32 roles (17 workflow and layer roles, 15 language roles), summarised in `ROLES.md`.
+- `skills/`: the `work` orchestrator, `init`, `status`, `report`, the reference skills, and one `lang-<id>` skill per language.
+- `specs/`: the workflow spec, the language-neutral rules (architecture, SOLID, testing, repository practices), and `specs/languages/<id>/` (pack and rules) per language.
 - `templates/`: what the agents fill in.
 - `cmd/loops` and `internal/`: the Go tool, stdlib only.
 

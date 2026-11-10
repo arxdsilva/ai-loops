@@ -12,8 +12,12 @@ import (
 	"testing"
 
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/goparse"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/importscan"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/packfs"
 	"github.com/arxdsilva/ai-loops/internal/application/archcheck"
+	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
+	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 )
 
 type archFake struct {
@@ -143,6 +147,100 @@ func archRepoRoot(t *testing.T) string {
 			t.Fatal("go.mod not found above the test directory")
 		}
 		dir = up
+	}
+}
+
+// archPackFake is an Archer that also checks packs.
+type archPackFake struct {
+	archFake
+	res   archcheck.Result
+	ds    []langpack.Detected
+	calls int
+}
+
+func (f *archPackFake) CheckPacks(_ context.Context, root string, l archrule.Layers, ds []langpack.Detected) (archcheck.Result, error) {
+	f.root, f.layers, f.ds = root, l, ds
+	f.calls++
+	return f.res, f.err
+}
+
+// archLangs detects a fixed list.
+type archLangs struct {
+	ds  []langpack.Detected
+	err error
+	got []langpack.Override
+}
+
+func (f *archLangs) All() ([]pack.Pack, error)     { return nil, nil }
+func (f *archLangs) Get(string) (pack.Pack, error) { return pack.Pack{}, nil }
+func (f *archLangs) Detect(_ string, o []langpack.Override) ([]langpack.Detected, error) {
+	f.got = o
+	return f.ds, f.err
+}
+
+var twoPacks = []langpack.Detected{{ID: "go", Root: "."}, {ID: "python", Root: "tools"}}
+
+func TestArchChecksEveryDetectedPack(t *testing.T) {
+	f := &archPackFake{res: archcheck.Result{
+		Report: archrule.Report{Findings: archMixed.Findings[:1]},
+		Notes:  []string{"arch: python delegates to its native check import-linter (run by loops gate)"},
+	}}
+	a, out, _ := archApp(f)
+	langs := &archLangs{ds: twoPacks}
+	a.Langs, a.Languages = langs, []langpack.Override{{ID: "go"}}
+	if code := a.Run(context.Background(), []string{"arch"}); code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	want := "arch: python delegates to its native check import-linter (run by loops gate)\n" +
+		"a/a.go:3 methods warn methods: too many\narch: 0 errors, 1 warnings\n"
+	if out.String() != want {
+		t.Fatalf("output:\n%s\nwant:\n%s", out.String(), want)
+	}
+	if f.calls != 1 || f.root != "/repo" || !reflect.DeepEqual(f.ds, twoPacks) || len(langs.got) != 1 {
+		t.Errorf("CheckPacks(%q, %+v) x%d, overrides %+v", f.root, f.ds, f.calls, langs.got)
+	}
+	out.Reset()
+	if code := a.Run(context.Background(), []string{"arch", "--json"}); code != 0 || !strings.Contains(out.String(), `"notes": [`) || !strings.Contains(out.String(), `"findings": [`) {
+		t.Fatalf("json: exit %d\n%s", code, out.String())
+	}
+	f.err = errors.New("boom")
+	if code := a.Run(context.Background(), []string{"arch"}); code != 1 {
+		t.Errorf("a CheckPacks error exits 1, got %d", code)
+	}
+}
+
+func TestArchFallsBackToGo(t *testing.T) {
+	for name, langs := range map[string]*archLangs{
+		"none detected": {},
+		"detect error":  {err: errors.New("bad pack"), ds: twoPacks},
+	} {
+		f := &archPackFake{archFake: archFake{rep: archrule.Report{Findings: []archrule.Finding{}}}}
+		a, out, errw := archApp(f)
+		a.Langs = langs
+		if code := a.Run(context.Background(), []string{"arch"}); code != 0 || f.calls != 0 || f.root != "/repo" {
+			t.Errorf("%s: exit %d, CheckPacks x%d, Check root %q", name, code, f.calls, f.root)
+		}
+		if langs.err != nil && !strings.Contains(errw.String(), "bad pack") {
+			t.Errorf("%s: the detection error is reported: %q", name, errw.String())
+		}
+		if !strings.HasSuffix(out.String(), "arch: 0 errors, 0 warnings\n") {
+			t.Errorf("%s: output %q", name, out.String())
+		}
+	}
+}
+
+// `loops arch` on this repository, with the embedded packs detected, has
+// no errors.
+func TestArchPacksOnThisRepo(t *testing.T) {
+	root := archRepoRoot(t)
+	a, out, errw := archApp(archcheck.New(goparse.New()).WithScanner(importscan.New()))
+	a.Root, a.Layers = root, archrule.Layers{}
+	a.Langs = langpack.New(packfs.Embedded{FS: os.DirFS(root)}, packfs.OS{})
+	if code := a.Run(context.Background(), []string{"arch"}); code != 0 {
+		t.Fatalf("loops arch on this repo: exit %d\n%s%s", code, out.String(), errw.String())
+	}
+	if !strings.Contains(out.String(), "arch: 0 errors,") {
+		t.Fatalf("output = %q", out.String())
 	}
 }
 

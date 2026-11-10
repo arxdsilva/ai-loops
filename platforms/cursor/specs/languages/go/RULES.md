@@ -1,6 +1,8 @@
-# Go Best Practices
+# Go rules (the Go pack's rule book)
 
-Mandatory Go coding standard for every human and AI contributor to a Go backend: idiomatic, explicit, measurable, consistent. Cite by section (`specs/languages/go/RULES.md §8`). Extracted from rimworld-go and generalised for backend services.
+Mandatory Go coding standard for every human and AI contributor to a Go backend: idiomatic, explicit, measurable, consistent. This is the rule book of the Go language pack (`specs/languages/go/pack.json`). The architecture mapping is `specs/languages/go/ARCHITECTURE.md`; universal rules are `specs/ARCHITECTURE.md`, `specs/SOLID.md` and `specs/TESTING.md`. Cite by section (`specs/languages/go/RULES.md §8`); §1-§54 are stable because other docs cite them. Targets Go 1.26 and 1.27, as of 2026-11. The appendix maps the `GO-*` rule IDs of `research/languages/go.md` to sections.
+
+Project rules win: follow the project's own config (`.golangci.yml`, `go.mod`, framework conventions) over these defaults, and record each override with `loops run override`.
 
 ## 1. Guiding principle
 
@@ -12,15 +14,19 @@ Every change passes:
 
 ```bash
 gofmt -l .          # prints nothing
-go vet ./...
-staticcheck ./...   # when installed
-go test -race ./...
+go vet ./...        # also compiles tests; tag variants (-tags=integration) need their own run
+staticcheck ./...   # or golangci-lint v2, see below
+go test -race -count=1 -shuffle=on ./...
+go mod tidy -diff   # non-zero when go.mod/go.sum need changes
 ```
 
-- Tests always run with the race detector, locally and in CI.
-- CI enforces formatting; reviewers do not.
-- Use `goimports` if the project standardises on it.
-- `loops gate` runs these in order (`specs/WORKFLOW.md §6`).
+- Tests always run with the race detector, locally and in CI. `-race` needs cgo and a C compiler (§37).
+- CI enforces formatting; reviewers do not. Use `goimports` or `gofumpt` only if the project standardises on one, preferably through golangci-lint v2 `formatters:`. Re-run `gofmt` after moving to 1.27 (alignment changes can reflow files).
+- Linters: `staticcheck`, or golangci-lint **v2** (`version: "2"`, `linters.default: standard`, explicit `enable:`, `formatters:`, `exclusions.generated: lax`). Never mix v1 and v2 configs (`golangci-lint migrate`). Useful set: `errcheck govet staticcheck unused ineffassign errorlint revive gosec sloglint depguard`.
+- Pin dev tools in `go.mod` with the `tool` directive (`go get -tool honnef.co/go/tools/cmd/staticcheck@<version>`, run as `go tool staticcheck`) instead of `tools.go` blank imports or `@latest` installs.
+- "When installed" is not a gate: in CI make `govulncheck` (`govulncheck ./...`, and `-mode=binary` on the release artifact; with `-format sarif`/`openvex` it exits 0, so gate on the findings yourself) and a SAST step (`gosec -exclude-generated ./...`, or the `gosec` linter) required (§38).
+- `go fix -diff ./...` runs the modernizers (1.26+); review the diff periodically.
+- `loops gate` runs the pack's checks in order (`specs/WORKFLOW.md §6`); `govulncheck` is off by default (`loops gate --vuln`).
 
 ## 3. Package naming
 
@@ -84,7 +90,7 @@ return fmt.Errorf("load order %q: %w", id, err)
 
 ## 9. Sentinel and typed errors
 
-Use them only when callers must branch programmatically. No large hierarchies. Prefer `errors.Is` and `errors.As`.
+Use them only when callers must branch programmatically; a sentinel is right for a programmer-visible condition (`io.EOF`). No large hierarchies. Prefer `errors.Is` and `errors.As`, or `errors.AsType[*MyErr](err)` (1.26). Combine independent failures with `errors.Join`. Never discard an error with `_` without a comment.
 
 ## 10. Context
 
@@ -92,6 +98,7 @@ Use them only when callers must branch programmatically. No large hierarchies. P
 - Never store a context in a struct.
 - Do not thread it through pure domain functions.
 - Every outbound call has a deadline derived from the incoming context.
+- Use `context.WithCancelCause` to say why, `context.WithoutCancel` for work that must outlive the request, `context.AfterFunc` for cleanup on cancel. In tests start work from `t.Context()` (1.24; cancelled just before `Cleanup`). `context.Value` is for request-scoped data, not optional parameters.
 
 ## 11. Concurrency
 
@@ -103,11 +110,14 @@ Goroutines are not free architecture.
 - Every goroutine has an owner that waits for it or cancels it; no goroutine outlives its context.
 - Use channels where ownership boundaries benefit; do not use them as a replacement for function calls.
 - `go` statements appear only in a small number of places (a pool, a server, a consumer loop) and never in `domain`.
+- Own goroutines with `errgroup.WithContext` plus `SetLimit`, or `sync.WaitGroup` with `wg.Go(func(){...})` (1.25), which removes the `Add`/`Done` misuse that the `waitgroup` vet analyzer reports. Never call `wg.Add` inside the goroutine.
+- Loop variables are per iteration since 1.22; no `v := v` copies. `GOMAXPROCS` follows the cgroup CPU limit since 1.25; drop `automaxprocs`.
+- Detect leaks in tests with `goleak` (`goleak.VerifyTestMain`) and in production with the `goroutineleak` pprof profile (GA in 1.27). Graceful shutdown: `signal.NotifyContext` -> stop accepting -> `Server.Shutdown(ctx)` with a deadline -> drain workers -> close pools.
 
 ## 12. Mutexes and atomics
 
 - Prefer ownership over shared mutation. If a mutex is needed: keep protected state small, document lock order when there are several locks, never hold a lock across I/O, never expose internal slices or maps while a lock protects them.
-- `sync/atomic` belongs at clear concurrency boundaries (snapshot pointer swap, metrics), not sprinkled through domain code.
+- `sync/atomic` belongs at clear concurrency boundaries (snapshot pointer swap, metrics), not sprinkled through domain code. Use the typed values (`atomic.Int64`, `atomic.Pointer[T]`); 1.27's `go fix` has an `atomictypes` modernizer. Never copy a struct that holds a mutex or `WaitGroup` (`copylocks`).
 - Run race tests on every concurrent adapter and worker.
 
 ## 13. Consistent Go (ordering and clocks)
@@ -124,11 +134,13 @@ filesystem or directory order
 ```
 
 - Sort keys when order matters; add an explicit tie-break (`created_at`, then ID).
+- For concurrent time-dependent tests use `testing/synctest` (GA in 1.25: `synctest.Test`, `synctest.Wait`; `synctest.Sleep` in 1.27); an injected `Clock` stays the rule for authoritative code. `testing/cryptotest.SetGlobalRandom` (1.26) fixes crypto randomness in tests.
 - Full procedure: `skills/consistency`.
 
 ## 14. Maps and slices
 
-- Maps suit sparse or random lookup. Do not use them by habit in hot loops. When iteration order matters, sort the keys, or use an ordered structure.
+- Maps suit sparse or random lookup. Do not use them by habit in hot loops. When iteration order matters, sort the keys (`slices.Sorted(maps.Keys(m))`, 1.23), or use an ordered structure. Writing to a nil map panics; maps are not safe for concurrent writes.
+- Use the 1.21+ helpers instead of hand-written ones: `slices`, `maps`, `cmp`, `clear`, `min`/`max`, `sync.OnceValue`. `append` may alias the caller's backing array (use `s[:n:n]` or `slices.Clone`), and re-slicing a huge array retains it.
 - Prefer slices for dense ordered data. Preallocate when the size is known: `items := make([]Item, 0, n)`. Reuse scratch slices in hot loops.
 - When exposing a read-only view, do not leak the mutable backing array: clone, hand over immutable snapshots, or copy on publish.
 
@@ -150,7 +162,8 @@ IDs simplify deletion, persistence, replay, hashing and cross-service messages.
 
 ## 17. Generics, reflection, `any`
 
-- Generics only where they clearly remove duplication (heap, small collection primitives). No generic "architecture frameworks".
+- Generics only where they clearly remove duplication (heap, small collection primitives). No generic "architecture frameworks". Generic type aliases (1.24), self-referential type parameters (1.26) and generic methods (1.27; interface methods still cannot be generic) exist; accept them only where they delete real duplication.
+- Iterators: `iter.Seq`/`iter.Seq2` with `for range seq` is the idiomatic lazy sequence (1.23); pull iterators need `iter.Pull` and `defer stop()`. Keep indexed loops in measured hot paths (§39).
 - No reflection in hot paths; acceptable in serialisation or tooling adapters when justified.
 - Avoid `any` and `map[string]any` in domain and application APIs. Prefer typed commands, events and definitions.
 
@@ -171,9 +184,9 @@ Typed constants for meaningful values. No magic numbers in business logic. Tunab
 
 ## 21. Randomness
 
-- No global RNG in authoritative code. Inject a source (`rand.Rand`, ID generator, token generator).
+- No global RNG in authoritative code. Inject a source (`*rand.Rand` from `math/rand/v2`: `rand.New(rand.NewPCG(s1, s2))`, an ID generator, a token generator). Since 1.26 the `crypto/*` APIs ignore a `rand` parameter and use the system source.
 - Make the identity of a random draw explicit and stable so unrelated code changes do not shift it.
-- Security tokens use `crypto/rand` in an adapter, behind a port.
+- Security tokens use `crypto/rand` (`rand.Text()` since 1.24) in an adapter, behind a port. For identifiers use the standard `uuid` package on 1.27+ (`uuid.New`, `uuid.NewV7`, `uuid.Parse`) rather than a third-party UUID library.
 
 ## 22. Allocation, pools, defer
 
@@ -187,11 +200,14 @@ Do not use human-readable string IDs in hot loops when compact indexes exist. Lo
 
 ## 24. Logging
 
-- Structured logging (`log/slog`):
+- Structured logging with `log/slog` (JSON handler in production). Prefer typed attributes and the `*Context` methods so handlers can add trace IDs; lint with `sloglint` (`attr-only`):
 
 ```go
-logger.Warn("charge declined", "order", orderID, "user", userID, "reason", reason, "request_id", reqID)
+logger.LogAttrs(ctx, slog.LevelWarn, "charge declined",
+    slog.String("order", orderID), slog.String("reason", reason))
 ```
+
+- `slog.NewMultiHandler` (1.26) fans out to several handlers; `slog.DiscardHandler` silences logs in tests. A handler wrapper (or the `otelslog` bridge) injects `trace_id` and `span_id` from `ctx`.
 
 - Every request-scoped log line carries a correlation ID. Never log secrets, tokens or personal data.
 - No per-item logging in hot paths in production; trace and debug are selectively enabled.
@@ -207,7 +223,7 @@ logger.Warn("charge declined", "order", orderID, "user", userID, "reason", reaso
 
 - Comments explain why, invariants, complexity, ordering and subtle edge cases. Not `// increment i`.
 - Good: `// Tie-break by ID so worker scheduling cannot change the order of refunds.`
-- Exported identifiers start their comment with the name. Keep comments short. Architecture belongs in docs, not 100-line function comments.
+- Exported identifiers start their comment with the name (`go.dev/doc/comment`); mark retired API with a `// Deprecated:` paragraph; keep a runnable `Example` function for each public use case. Keep comments short. Architecture belongs in docs, not 100-line function comments.
 
 ## 27. Functions, parameters, options
 
@@ -219,7 +235,7 @@ logger.Warn("charge declined", "order", orderID, "user", userID, "reason", reaso
 
 Config and content (feature flags, price tables, rule sets, templates, fixtures) are loaded at the edge and become validated, typed, immutable values before business code sees them.
 
-- Load config in `cmd`/`platform`; never read environment variables, flags or files inside `domain` or `application`.
+- Load config in `cmd`/`platform`; never read environment variables, flags or files inside `domain` or `application`. Parse env into a typed struct once (`caarlos0/env`, `go-envconfig` or `koanf`).
 - Config structs are explicit and validated at startup: fail fast with all errors listed, not the first.
 - Pipeline for file-based definitions:
 
@@ -239,37 +255,34 @@ discover -> deterministic order -> parse -> validate schema -> validate referenc
 ## 29. File I/O, paths, serialisation
 
 - `domain` never touches the filesystem; adapters own files and directories.
-- Use `filepath`, normalise and validate user-supplied paths, reject traversal.
+- Open files whose names come from users or content through `os.Root` (`os.OpenRoot(dir)` then `root.Open(name)`, or `os.OpenInRoot`; 1.24): it cannot escape the directory, symlinks included. Since 1.25 `Root` also has `Symlink`, `Rename`, `Link`, `Readlink`, `Chmod`, `MkdirAll`, `RemoveAll`, `ReadFile` and `WriteFile`. Use `filepath.IsLocal` for pure validation. `filepath.Join` plus prefix checks is the old, bypassable way.
 - Persisted formats are versioned; DTOs are separate from domain types so a renamed field does not silently drop data. Write files atomically: temp file, fsync where policy requires, rename. Schema evolution: §45.
 
 ## 30. Testing
 
 Detail in `skills/testing`.
 
-- Tests are deterministic, name behaviour, avoid sleeps and real time (inject the clock), use table tests when cases share structure, use fixtures for multi-component behaviour.
+- Tests are deterministic, name behaviour, avoid sleeps and real time (inject the clock or use `synctest`, §13), use table tests when cases share structure, use fixtures for multi-component behaviour.
+- Use `t.Helper()`, `t.Cleanup`, `t.TempDir()`, `t.Setenv` and `t.Context()`; per-iteration loop variables make `tc := tc` unnecessary. `T.ArtifactDir` (1.26, with `-artifacts`) stores test outputs. Prefer hand-written fakes for consumer-owned ports; generate mocks only when the call sequence is the point.
+- Run with `-count=1 -shuffle=on` (print the seed); tests never depend on order. `t.Parallel()` only without shared mutable state.
+- Integration tests use real dependencies (`httptest`, `testcontainers-go`), isolated per test, behind `//go:build integration` or `-short`, and run in CI with `-tags=integration` (give `go vet` the same tag).
 - Names describe behaviour: `TestRefund_RejectsAlreadyRefundedOrder`, `TestRetry_StopsAfterMaxAttempts`.
 - Table tests are for same behaviour over many inputs, not for rows that need unrelated setup.
 - Subtests group cases and sharpen failures; parallel subtests never share mutable state.
 - Fuzz where it pays: parsers, decoders, migrations, validators, quantity and money arithmetic, DTO round trips.
 - A bug fix starts with a failing test.
 - Hard rule: new code ships with unit tests, new-code coverage is at least 70% (`loops gate` coverage, WORKFLOW §6), and every `go test` runs with `-race`. Reading the coverage table: `skills/testing`.
+- The coverage recipe passes no `-coverpkg`, so a package is credited only by its own tests. Add `-coverpkg=./...` (consistently between runs) to credit cross-package tests, at the cost of noisier per-package numbers. Binaries: `go build -cover`, run with `GOCOVERDIR`, convert with `go tool covdata textfmt` (unrecovered panics lose the data).
 
-Other languages (conventions the agents follow; `loops gate` automates Go only):
-
-| Language | Tests and coverage (min 70% of new code) | Race / concurrency |
-|---|---|---|
-| Rust | `cargo test`; `cargo-llvm-cov` | `loom`, or `RUSTFLAGS=-Zsanitizer=thread` on nightly |
-| Python | `pytest` with `pytest-cov --cov-fail-under=70` | `pytest-xdist`, `pytest-repeat` to shake out races |
-| TypeScript/JS | `vitest` or `jest --coverage` with thresholds of 70 | repeat runs, async leak detection |
-| Java/Kotlin | JaCoCo minimum 0.70 | `jcstress` |
-| C/C++ | `gcov` or `llvm-cov` | `-fsanitize=thread` |
+Other languages: the universal test and coverage policy is `specs/TESTING.md`; each language's commands and race policy live in its pack (`specs/languages/<id>/pack.json`, `loops lang show <id>`).
 
 ## 31. Benchmarks and profiling
 
 - Hot paths have benchmarks with `b.ReportAllocs()`; do not optimise without a baseline.
-- Keep setup out of timed work (`b.ResetTimer()`); keep results alive so the compiler cannot eliminate the work.
+- Write benchmarks as `for b.Loop() { ... }` (1.24): it keeps results alive, excludes setup before and cleanup after the loop, and since 1.26 no longer blocks inlining. No manual `ResetTimer`. Compare with `benchstat` after `-count=10`.
 - Use `pprof`, execution traces, heap profiles and `benchstat`. Fix algorithmic cost before instruction-level tweaks.
 - For unclear allocations: `go build -gcflags='-m=2'`, then confirm with a benchmark.
+- Hot services: commit a representative CPU profile as `default.pgo` in the main package directory (PGO; `-pgo=auto` is the default). Set `GOMEMLIMIT` below the container limit, with `GOGC` as the knob. The Green Tea GC is the default in 1.26; 1.27 makes allocations under 80 bytes up to 30% cheaper, about 1% overall. The 1.25 flight recorder keeps a rolling trace window for incident analysis.
 
 ## 32. Complexity documentation
 
@@ -301,7 +314,8 @@ Getter-named functions must not scan globally, allocate heavily, mutate or do I/
 
 ## 37. Build tags, unsafe, cgo, generated code
 
-- Build tags sparingly: dev diagnostics, platform adapters. Never fork business logic by tag.
+- Build tags sparingly: dev diagnostics, platform adapters, `integration`. Never fork business logic by tag.
+- `-race` requires cgo and a C compiler: never set `CGO_ENABLED=0` for tests. Keep cgo out of the production image (`CGO_ENABLED=0`, static binary) but present in the test image (`golang:<ver>` has gcc; alpine needs `gcc musl-dev`).
 - `unsafe` is forbidden by default. Introducing it needs an ADR, benchmark proof, correctness tests and a portability analysis.
 - Avoid cgo in `domain` and `application`.
 - Never hand-edit generated files; do not feed generated code to agents unless debugging the generator. Read the schema source (`.proto`, OpenAPI, SQL) instead.
@@ -312,18 +326,21 @@ Treat external input as untrusted: requests, webhooks, messages, uploaded files,
 
 - Check lengths, counts, nesting, path safety, decompression limits, schema version and reference cycles.
 - Authenticate and authorise at the inbound adapter; pass an authenticated principal inward as data.
-- Parameterised queries only. No string-built SQL.
+- Parameterised queries only. No string-built SQL. Commands via `exec.CommandContext` with no shell; HTML via `html/template`.
 - Never execute arbitrary code from input. Never log secrets.
-- Run `govulncheck` in CI.
+- Cap request bodies (`http.MaxBytesReader`, `io.LimitReader`). Servers set `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, `IdleTimeout`; never a bare `http.ListenAndServe` (gosec G112). Outbound calls: allow-list URLs and block private ranges in a `net.Dialer.Control` hook (SSRF).
+- Paths: `os.Root` (§29). Crypto: `crypto/rand`, argon2id or bcrypt, `subtle.ConstantTimeCompare`, no MD5, SHA-1, DES or RC4; the FIPS 140-3 module where compliance asks. OWASP Go-SCP is the checklist.
+- Supply chain: `go mod verify`, the checksum database (`GOPRIVATE` only for private modules), GitHub Actions pinned by SHA.
+- Run `govulncheck` and `gosec` in CI as required steps, not "when installed" (§2).
 
 ## 39. Performance-friendly API design
 
 - `func (s *Store) Get(id ID) (Record, bool)` style, not APIs that build large temporary slices on every call. Caller-provided scratch buffers only where a benchmark justifies it.
-- Be cautious with closure-based iterators in hot loops (escape and allocation); benchmark against a plain indexed loop.
+- Range-over-func iterators (`iter.Seq`) are the idiomatic iterator and the compiler often inlines them; use them freely outside hot loops. In a hot loop keep the benchmark requirement: compare against a plain indexed loop.
 
 ## 40. Memory retention
 
-Beware of slicing huge backing arrays, caches with no eviction, maps retaining deleted keys and pooled objects keeping references. Long-running services need a heap-stability check (a soak test or a profile over time). Pre-size maps (`make(map[K]V, n)`) in initialisation-heavy code.
+Beware of slicing huge backing arrays, caches with no eviction, maps retaining deleted keys and pooled objects keeping references. Long-running services need a heap-stability check (a soak test or a profile over time). Pre-size maps (`make(map[K]V, n)`) in initialisation-heavy code. Set `GOMEMLIMIT` in containers (§31).
 
 ## 41. API ownership and service naming
 
@@ -362,32 +379,33 @@ Errors are explicit; logs, metrics and traces exist where operators need them; n
 
 Take the first that fits:
 
-1. The standard library has it ready to call.
+1. The standard library has it ready to call. Check the newest release: `log/slog`, `ServeMux` method and wildcard routing (1.22), `slices`/`maps`/`iter`, `os.Root`, `errors.AsType`, `encoding/json/v2` (on by default in 1.27, with `encoding/json` backed by it; opt out with `GOEXPERIMENT=nojsonv2`) and `uuid` (1.27, import path `"uuid"`) all exist.
 2. A well-known, maintained library has it.
 3. We write it, with the reason in the package `AGENTS.md`: a hot path a library cannot serve without allocating, output that must stay reproducible, or a library that costs more than the code it replaces.
 
-Assembling a standard format from standard-library parts does not count as step 1 (a UUID from `crypto/rand`, semver from a regexp). Do not add a dependency for a few obvious lines either.
+Assembling a standard format from standard-library parts does not count as step 1 (semver from a regexp; a UUID from `crypto/rand` before 1.27, when `uuid` joined the standard library). Do not add a dependency for a few obvious lines either.
 
 Where libraries may go:
 
 - `cmd`, `internal/adapters`, `internal/platform`: allowed.
-- `internal/domain`, `internal/application`, `pkg`: standard library only.
+- `internal/domain`, `internal/application`: standard library only. Avoid `pkg/` by default (`internal/` is compiler-enforced and the official layout has no `pkg/`); where a project has one, it stays standard-library only.
 - A library's types stay inside its adapter and never cross a port.
 
 Every new dependency states in the task result: capability; maintenance (not archived, recent releases); license; what it pulls in (`go mod graph`); security implications.
 
 ## 49. Dependency updates
 
-Update deliberately: run tests (with `-race`), benchmarks for hot dependencies and `govulncheck`. Never auto-merge a major upgrade blindly. Only the architect role touches `go.mod` and `go.sum` (`ROLES.md`).
+Update deliberately: run tests (with `-race`), benchmarks for hot dependencies, `go mod tidy -diff`, `go mod verify` and `govulncheck`. Use Dependabot (`gomod`) or Renovate, grouped by minor and patch; never auto-merge a major upgrade. Multi-module repos upgrade per module. Only the architect role (and `go-engineer`, in wave 0 and language lanes) touches `go.mod`, `go.sum`, the `go`, `toolchain` and `tool` lines, and `go.work` (`ROLES.md`).
 
 ## 50. Custom lint rules
 
-Project-specific checks should catch: `time.Now` in `domain`; global `math/rand` in authoritative packages; forbidden imports; `utils` packages; edits to generated code; `init()` registration; runtime-assigned package vars. `loops arch` implements as errors the import edges, third-party imports in core, `time.Now`, global `math/rand` and `go` statements in domain (`clock`, `rand`, `go`), `init()`, package-level mutable state and `cmd` wiring, and the size limits as warnings (`specs/SOLID.md §8`). Unchecked: `utils` packages and edits to generated code (review items).
+Project-specific checks should catch: `time.Now` in `domain`; global `math/rand` in authoritative packages; forbidden imports; `utils` packages; edits to generated code; `init()` registration; runtime-assigned package vars. `loops arch` implements as errors the import edges, third-party imports in core, `time.Now`, global `math/rand` and `go` statements in domain (`clock`, `rand`, `go`), `init()`, package-level mutable state and `cmd` wiring, and the size limits as warnings (`specs/SOLID.md §8`). Unchecked: `utils` packages, edits to generated code and `database/sql` in domain (review items). In golangci-lint v2 add `depguard` (deny lists per package glob), `forbidigo` and `sloglint`; `go/analysis` analyzers and `go fix` modernizers cover other project-specific rules.
 
 ## 51. Review checklist
 
 ```text
 Architecture boundary
+Module hygiene (tidy -diff, tool and toolchain pins)
 Consistency (ordering, clock, RNG, idempotency)
 State ownership
 Allocation impact
@@ -396,7 +414,9 @@ Error semantics
 Concurrency / race risk
 Persisted-schema and API compatibility
 Config / content impact
-Test quality
+Test quality (shuffle, race)
+Security (SAST, vuln scan, timeouts)
+Observability (trace propagation)
 Benchmark evidence
 Naming and API clarity
 ```
@@ -407,7 +427,7 @@ The ordered review procedure is in `skills/review-integration`.
 
 Before coding: search for an existing type or primitive; read the package `AGENTS.md`; read the tests; identify whether the path is hot; identify the consistency constraints.
 
-Before finishing: `gofmt`; targeted tests with `-race`; a benchmark if a hot path changed; the claims report with evidence for every claim (`templates/CLAIMS_REPORT.md`).
+Before finishing: `gofmt`; `go mod tidy -diff`; targeted tests with `-race`; a benchmark if a hot path changed; the claims report with evidence for every claim (`templates/CLAIMS_REPORT.md`).
 
 ## 53. Performance escalation path
 
@@ -432,3 +452,29 @@ Procedure: `skills/performance`.
 ## 54. Final directive
 
 Prefer boring, explicit, measurable Go. The code should make obvious who owns state, when state changes, why ordering is deterministic, what an operation costs, how it is tested and where an external technology plugs in. If a clever abstraction makes those answers harder, remove it.
+
+## Appendix: rule ID index
+
+`research/languages/go.md` rule IDs, mapped to the sections above. Behaviour not covered by a section (repo, data, API, ops) is in the `lang-go` skill references (`skills/lang-go/`).
+
+| Research IDs | Section |
+|---|---|
+| `GO-REPO-01..03`, `GO-REPO-05` | §41, §48 (layout, `pkg/`); `skills/lang-go/repo.md` |
+| `GO-REPO-04` | `skills/lang-go/repo.md` (per-module checks) |
+| `GO-REPO-06..08`, `GO-REPO-11`, `GO-REPO-12` | §2, §49 |
+| `GO-REPO-09`, `GO-REPO-10`, `GO-REPO-13..15` | §49; `skills/lang-go/repo.md` |
+| `GO-TOOL-01..09` | §2, §49, §50 |
+| `GO-ARCH-01..12` | §5, §6, §16, §41, §50; `specs/languages/go/ARCHITECTURE.md` |
+| `GO-IDIOM-01..03`, `GO-IDIOM-19` | §8, §9, §10, §25 |
+| `GO-IDIOM-04..08`, `GO-IDIOM-16..17` | §7, §14, §15, §17, §18 |
+| `GO-IDIOM-09..15`, `GO-IDIOM-18` | §12, §22, §26, §37, §41 |
+| `GO-CONC-01..10` | §10-§13 |
+| `GO-TEST-01..15` | §30 |
+| `GO-PERF-01..07` | §22, §31, §39, §40 |
+| `GO-SEC-01..11` | §29, §38 |
+| `GO-DATA-01..09` | §36, §45; `skills/lang-go/data-api.md` |
+| `GO-API-01..10` | §44; `skills/lang-go/data-api.md` |
+| `GO-OBS-01..07` | §24, §47; `skills/lang-go/data-api.md` |
+| `GO-OPS-01..11` | §28, §37; `skills/lang-go/data-api.md` |
+| `GO-DOC-01..05` | §26, §51, §52 |
+| `GO-FW-01..06` | §48; `skills/lang-go/frameworks.md` |

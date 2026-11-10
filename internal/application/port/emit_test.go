@@ -3,10 +3,15 @@ package port
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io/fs"
+	"path"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
+	ailoops "github.com/arxdsilva/ai-loops"
 	"github.com/arxdsilva/ai-loops/internal/domain/plugin"
 )
 
@@ -183,22 +188,77 @@ func TestCursorAgents(t *testing.T) {
 	}
 }
 
+// cursorBlocking are the roles that block the lead (ROLES.md phases);
+// every other role runs in a parallel wave, in background.
+var cursorBlocking = map[string]bool{
+	"planner": true, "plan-reviewer": true, "architect": true, "product-reviewer": true, "reflector": true,
+}
+
 func TestCursorBackgroundTable(t *testing.T) {
-	// Lead decision: parallel-wave roles run in background.
-	for role, want := range map[string]bool{
-		"web-researcher": true, "practices-researcher": true, "code-researcher": true, "hardware-researcher": true,
-		"domain-engineer": true, "application-engineer": true, "api-engineer": true,
-		"persistence-engineer": true, "integration-engineer": true, "test-engineer": true,
-		"docs-writer": true, "qa-verifier": true,
-		"planner": false, "plan-reviewer": false, "architect": false, "product-reviewer": false, "reflector": false,
-	} {
-		if got, ok := cursorBackground[role]; !ok || got != want {
-			t.Errorf("%s background = %v (known %v), want %v", role, got, ok, want)
+	// The expectations come from the canonical agents directory, so a new
+	// role file without a table entry fails here instead of only warning
+	// "cursor: no phase for" at port build time.
+	names, err := fs.Glob(ailoops.Source, "agents/*.md")
+	if err != nil || len(names) == 0 {
+		t.Fatalf("agents/*.md: %v (%d files)", err, len(names))
+	}
+	checkCursorBackground(t, names, cursorBackground)
+}
+
+func TestCursorBackgroundTableFlagsMissingRole(t *testing.T) {
+	ft := &fakeT{}
+	checkCursorBackground(ft, []string{"agents/planner.md", "agents/new-role.md", "agents/web-researcher.md"},
+		map[string]bool{"planner": false, "web-researcher": false, "stale-role": true, "lisp-engineer": true})
+	want := []string{
+		"new-role: no cursorBackground entry (port build would warn: cursor: no phase for new-role)",
+		"web-researcher background = false, want true",
+		"stale-role: cursorBackground entry without agents/stale-role.md",
+	}
+	if !reflect.DeepEqual(ft.errs, want) {
+		t.Errorf("errors = %q, want %q", ft.errs, want)
+	}
+}
+
+// checkCursorBackground requires an entry for every agent file, with
+// background = !cursorBlocking[role]. Table entries without a file fail,
+// except language roles (<id>-engineer, background), whose files may land
+// after the table.
+func checkCursorBackground(t errorer, names []string, table map[string]bool) {
+	seen := map[string]bool{}
+	for _, n := range names {
+		role := strings.TrimSuffix(path.Base(n), ".md")
+		seen[role] = true
+		got, ok := table[role]
+		if !ok {
+			t.Errorf("%s: no cursorBackground entry (port build would warn: cursor: no phase for %s)", role, role)
+			continue
+		}
+		if want := !cursorBlocking[role]; got != want {
+			t.Errorf("%s background = %v, want %v", role, got, want)
 		}
 	}
-	if len(cursorBackground) != 17 {
-		t.Errorf("table has %d roles, want 17", len(cursorBackground))
+	extra := make([]string, 0, len(table))
+	for role := range table {
+		if !seen[role] {
+			extra = append(extra, role)
+		}
 	}
+	sort.Strings(extra)
+	for _, role := range extra {
+		if !strings.HasSuffix(role, "-engineer") || !table[role] {
+			t.Errorf("%s: cursorBackground entry without agents/%s.md", role, role)
+		}
+	}
+}
+
+type errorer interface {
+	Errorf(format string, args ...any)
+}
+
+type fakeT struct{ errs []string }
+
+func (f *fakeT) Errorf(format string, args ...any) {
+	f.errs = append(f.errs, fmt.Sprintf(format, args...))
 }
 
 func TestCursorSkills(t *testing.T) {

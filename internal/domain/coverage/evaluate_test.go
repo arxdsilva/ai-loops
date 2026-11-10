@@ -82,6 +82,7 @@ func TestEvaluate(t *testing.T) {
 		{
 			name:    "untested file and package without tests",
 			changes: Changes{"internal/y/b.go": {Ranges: []LineRange{{2, 2}}}},
+			opts:    Options{PackageTests: true},
 			ok:      false, stmts: 4, covered: 0,
 			findings: []string{
 				"internal/y/b.go:2: package internal/y has no tests",
@@ -135,7 +136,7 @@ func TestEvaluate(t *testing.T) {
 		{
 			name:    "scoped by exact dir and import path",
 			changes: Changes{"internal/y/b.go": {Ranges: []LineRange{{1, 4}}}, "internal/x/a.go": {Ranges: []LineRange{{3, 3}}}},
-			opts:    Options{Pkgs: []string{"example.com/m/internal/y"}},
+			opts:    Options{Pkgs: []string{"example.com/m/internal/y"}, PackageTests: true},
 			ok:      false, stmts: 4, covered: 0,
 			findings: []string{
 				"internal/y/b.go:1: package internal/y has no tests",

@@ -1,15 +1,18 @@
 // Package workspace is the pure model of a run's scratch space: the
-// run-scoped Go cache (GOCACHE/GOTMPDIR under the run directory) and the
-// end-of-run cleanup that deletes the build artifacts agents left in the
-// project tree.
+// run-scoped caches (GOCACHE/GOTMPDIR under <run>/go, and each language
+// pack's cache_env under <run>/<id>, TOOLING §5) and the end-of-run cleanup
+// that deletes the build artifacts agents left in the project tree.
 //
 // The cleanup is deliberately conservative. A path is a deletion candidate
 // only when it is new since the run started (absent from the baseline
 // snapshot), lies inside the project root, is not under .loops/ or .git/, is
 // a regular file (never a symlink or a directory) and is an artifact: its
 // name matches a Go build/test/profile output pattern, or its first bytes are
-// an executable binary header (ELF, Mach-O, PE). Scripts (#!) are never
-// artifacts. Everything else new is reported "left for review".
+// an executable binary header (ELF, Mach-O, PE), or it matches a detected
+// pack's artifact glob. Scripts (#!) are never artifacts. A pack glob ending
+// in "/" names a directory, removed whole only when the directory itself is
+// new since the baseline (D25, ArtifactDirs). Everything else new is
+// reported "left for review".
 //
 // Paths are slash-separated and relative to the project root; the adapter
 // owns every filesystem and git call.
@@ -61,14 +64,9 @@ func PackDir(runDir, id string) string { return filepath.Join(runDir, id) }
 // {cache} and {tmp}. Keys are sorted. For the Go pack it equals Env.
 func PackEnv(runDir, id string, cacheEnv map[string]string) []string {
 	base := PackDir(runDir, id)
-	r := strings.NewReplacer("{run}", runDir, "{cache}", filepath.Join(base, "cache"), "{tmp}", filepath.Join(base, "tmp"))
-	keys := make([]string, 0, len(cacheEnv))
-	for k := range cacheEnv {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	out := make([]string, 0, len(keys))
-	for _, k := range keys {
+	r := expander(runDir, id)
+	out := make([]string, 0, len(cacheEnv))
+	for _, k := range sortedKeys(cacheEnv) {
 		v := cacheEnv[k]
 		switch v {
 		case "cache", "tmp":
@@ -87,21 +85,10 @@ func ShellQuote(s string) string {
 }
 
 // Exports renders the statements that set GOCACHE and GOTMPDIR in shell
-// ("sh"/"bash"/"zsh"/"" = POSIX, "fish", "powershell"/"pwsh").
+// ("sh"/"bash"/"zsh"/"" = POSIX, "fish", "powershell"/"pwsh"); it is
+// ExportsEnv for those two entries.
 func Exports(shell, cache, tmp string) (string, error) {
-	switch shell {
-	case "", "sh", "bash", "zsh", "dash", "ksh":
-		return "export GOCACHE=" + ShellQuote(cache) + " GOTMPDIR=" + ShellQuote(tmp), nil
-	case "fish":
-		q := func(s string) string {
-			return "'" + strings.NewReplacer(`\`, `\\`, `'`, `\'`).Replace(s) + "'"
-		}
-		return "set -gx GOCACHE " + q(cache) + "; set -gx GOTMPDIR " + q(tmp), nil
-	case "powershell", "pwsh":
-		q := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
-		return "$env:GOCACHE=" + q(cache) + "; $env:GOTMPDIR=" + q(tmp), nil
-	}
-	return "", fmt.Errorf("unknown shell %q (want sh, fish or powershell)", shell)
+	return ExportsEnv(shell, []string{"GOCACHE=" + cache, "GOTMPDIR=" + tmp})
 }
 
 // loopsPath reports whether rel is .loops or under it.
@@ -249,11 +236,19 @@ func Decide(e Entry) Action {
 	return Keep
 }
 
-// skipNames are directory names whose trees are never snapshotted or pruned.
-var skipNames = map[string]bool{".git": true, "vendor": true, "node_modules": true}
+// skipNames are directory names whose trees are never snapshotted or pruned:
+// VCS data and dependency or build trees that can hold millions of files
+// (vendor, node_modules, Elixir deps and _build/deps, Python virtualenvs,
+// Cargo/Maven target, the Gradle project cache).
+var skipNames = map[string]bool{
+	".git": true, "vendor": true, "node_modules": true,
+	"deps": true, ".venv": true, "venv": true, "target": true, ".gradle": true,
+}
 
-// SkipDir reports whether the directory rel is outside the snapshot:
-// .git, vendor and node_modules anywhere, and the root .loops.
+// SkipDir reports whether the directory rel is outside the snapshot: .git,
+// vendor, node_modules, deps (so _build/deps), .venv, venv, target and
+// .gradle anywhere, and the root .loops. The snapshot still lists the
+// skipped directory itself, just not its contents.
 func SkipDir(rel string) bool {
 	return rel == ".loops" || skipNames[path.Base(rel)]
 }
@@ -301,6 +296,13 @@ type Item struct {
 	Bytes int64  `json:"bytes"`
 }
 
+// DirItem is one removed artifact directory (D25) or pack cache.
+type DirItem struct {
+	Path  string `json:"path"`
+	Files int    `json:"files"`
+	Bytes int64  `json:"bytes"`
+}
+
 // Report is the outcome of a cleanup.
 type Report struct {
 	DryRun      bool     `json:"dry_run,omitempty"`
@@ -310,19 +312,33 @@ type Report struct {
 	DirsRemoved []string `json:"dirs_removed,omitempty"`
 	Kept        []string `json:"kept"`
 	Refused     []string `json:"refused,omitempty"`
+	// PackCaches are the removed <run>/<id> dirs of packs other than Go
+	// (Path is the pack id); ArtifactDirs are the removed new artifact
+	// directories of the project (D25).
+	PackCaches   []DirItem `json:"pack_caches,omitempty"`
+	ArtifactDirs []DirItem `json:"artifact_dirs,omitempty"`
 	// NoBaseline is set when the run has no start snapshot (a run started
 	// by an older loops): only the Go cache is cleaned.
 	NoBaseline bool `json:"no_baseline,omitempty"`
 }
 
-// Files is the number of files removed (Go cache plus project artifacts).
-func (r Report) Files() int { return r.CacheFiles + len(r.Removed) }
+// Files is the number of files removed (run caches plus project artifacts).
+func (r Report) Files() int {
+	n := r.CacheFiles + len(r.Removed)
+	for _, d := range append(append([]DirItem(nil), r.PackCaches...), r.ArtifactDirs...) {
+		n += d.Files
+	}
+	return n
+}
 
 // Bytes is the number of bytes freed.
 func (r Report) Bytes() int64 {
 	n := r.CacheBytes
 	for _, it := range r.Removed {
 		n += it.Bytes
+	}
+	for _, d := range append(append([]DirItem(nil), r.PackCaches...), r.ArtifactDirs...) {
+		n += d.Bytes
 	}
 	return n
 }
@@ -345,6 +361,12 @@ func (r Report) Text() string {
 		fmt.Fprintf(&b, "cleanup: %s\n", r.Note())
 	}
 	fmt.Fprintf(&b, "  go cache: %d files, %s\n", r.CacheFiles, mb(r.CacheBytes))
+	for _, c := range r.PackCaches {
+		fmt.Fprintf(&b, "  %s cache: %d files, %s\n", c.Path, c.Files, mb(c.Bytes))
+	}
+	for _, d := range r.ArtifactDirs {
+		fmt.Fprintf(&b, "  %s %s/ (%d files, %s)\n", verb, d.Path, d.Files, mb(d.Bytes))
+	}
 	for _, it := range r.Removed {
 		fmt.Fprintf(&b, "  %s %s (%s)\n", verb, it.Path, mb(it.Bytes))
 	}

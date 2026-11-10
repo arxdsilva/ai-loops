@@ -43,6 +43,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 1. Check ACs: from the ticket, observable, none missing or silently dropped.
 2. Check ownership: globs pairwise disjoint; shared config only with the architect; each path exists or will be created by its owner.
 3. Check the contract: enough for every agent to compile against stubs; additive; deps listed.
+3b. Check languages against `research/code.md` `## Languages`: every lane has a `language` that is a detected pack, every pack a lane uses has an `<id>-engineer` in wave 0 (toolchain and test prerequisites), and manifests and lockfiles have one owner. Missing any of these is blocking. A language with no pack: add a non-blocking note (no gate covers it) unless the plan already lists it as a risk.
 3a. Check tests: the plan assigns tests (named test files) for every new package and file, targeting at least 70% new-code coverage; a missing assignment is a blocking item.
 4. Check claims: each is specific and testable, has named evidence, maps to an AC; every AC has a claim and a proof plan with edge cases.
 5. Check layering (`specs/ARCHITECTURE.md`), consistency (ordering, idempotency, clocks, migrations), compatibility, performance measurement on hot paths.

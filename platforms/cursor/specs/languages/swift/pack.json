@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "id": "swift",
+  "name": "Swift (server-side)",
+  "versions": {"stable": "6.4.2", "as_of": "2026-11"},
+  "detect": [{"file": "Package.swift"}],
+  "scope": {"pkgs": [], "pkg_dirs": ["Sources", "Tests"]},
+  "source_globs": ["Sources/**/*.swift"],
+  "test_globs": ["Tests/**/*.swift", "**/*Tests.swift"],
+  "generated": {
+    "globs": ["**/*.pb.swift", "**/*.grpc.swift", "**/GeneratedSources/**", ".build/**"],
+    "header_regex": "^// DO NOT EDIT\\.$"
+  },
+  "manifest": "Package.swift",
+  "checks": [
+    {"name": "build", "kind": "build", "required": true, "tool": "swift",
+     "argv": ["swift", "build", "--force-resolved-versions", "--explicit-target-dependency-import-check", "error"]},
+    {"name": "swift-format", "kind": "format", "required": true, "tool": "swift",
+     "argv": ["swift", "format", "lint", "--strict", "--recursive", "{pkg_dirs}"],
+     "when_file": [".swift-format"], "fails_on": "exit",
+     "note": "required once .swift-format is committed (D13); the stock `swift package init` template fails the default 2-space style"},
+    {"name": "swiftlint", "kind": "lint", "required": false, "tool": "swiftlint",
+     "argv": ["swiftlint", "lint", "--strict"],
+     "when_file": [".swiftlint.yml", ".swiftlint.yaml"],
+     "install": "brew install swiftlint (Linux: docker run ghcr.io/realm/swiftlint or build from source)"},
+    {"name": "arch", "kind": "arch", "internal": "arch", "required": false},
+    {"name": "test", "kind": "test", "required": true, "tool": "swift",
+     "argv": ["swift", "test", "--sanitize=thread", "{coverage_args}"],
+     "coverage_args": ["--enable-code-coverage"],
+     "signal_regex": "error:|Fatal error|ThreadSanitizer|Issue recorded|✘"},
+    {"name": "coverage", "kind": "coverage", "internal": "coverage", "required": true, "skippable": false},
+    {"name": "sbom", "kind": "sbom", "required": false, "tool": "swift", "default": "off",
+     "argv": ["swift", "package", "generate-sbom"],
+     "note": "emits an SPDX or CycloneDX document and never fails on a vulnerability; there is no first-party vuln check (SWIFT-TOOL-05)"}
+  ],
+  "test_commands": [{"argv_prefix": ["swift", "test"]}],
+  "race": {
+    "mode": "flag", "flags": ["--sanitize=thread"], "checks": ["test"],
+    "reason": "Swift 6 language mode makes data races compile errors (tools-version >= 6.0 or swiftLanguageModes [.v6]); ThreadSanitizer via swift test catches the rest. TSan cannot be combined with --sanitize=address"
+  },
+  "placeholders": {
+    "codecov_dir": {"argv": ["swift", "test", "--scratch-path", "{run}/swift/build", "--show-codecov-path"], "dirname": true},
+    "bin_path": {"argv": ["swift", "build", "--scratch-path", "{run}/swift/build", "--show-bin-path"]},
+    "test_objects": {"glob": ["{bin_path}/*-test-runner", "{bin_path}/*.xctest/Contents/MacOS/*"]}
+  },
+  "coverage": {
+    "format": "lcov", "path": "{coverage}", "produced_by": ["test"], "granularity": "line",
+    "produce": [
+      {"argv": ["sh", "-c",
+                "d=\"$1\"; shift; n=$#; i=0; for f; do set -- \"$@\" -object \"$f\"; i=$((i+1)); [ \"$i\" -eq \"$n\" ] && break; done; shift \"$n\"; if command -v xcrun >/dev/null 2>&1; then exec xcrun llvm-cov export -format=lcov -instr-profile=\"$d/default.profdata\" -ignore-filename-regex=\"(/checkouts/|\\.build/|/Tests/|/DerivedSources/|\\.swiftpm/)\" \"$@\"; fi; exec llvm-cov export -format=lcov -instr-profile=\"$d/default.profdata\" -ignore-filename-regex=\"(/checkouts/|\\.build/|/Tests/|/DerivedSources/|\\.swiftpm/)\" \"$@\"",
+                "sh", "{codecov_dir}", "{test_objects}"],
+       "stdout_to": "{coverage}"}
+    ],
+    "exclude": ["**/main.swift", "Package.swift", "**/*.pb.swift", "**/*.grpc.swift", "**/GeneratedSources/**"]
+  },
+  "notes": ["coverage.produce passes one -object per test binary: llvm-cov export reads extra positionals as source filters. xcrun on macOS, the toolchain llvm-cov on Linux."],
+  "post_edit": {"format_file": ["swift", "format", "format", "--in-place", "{file}"],
+                "lint_dir": ["swift", "format", "lint", "--strict", "--recursive", "{dir}"]},
+  "cache_argv": {"swift": ["--scratch-path", "{run}/swift/build"]},
+  "artifacts": [".build/", ".swiftpm/", "*.profraw", "*.profdata", "*.lcov"],
+  "arch": {
+    "parser": "regex",
+    "import_regex": "^\\s*(?:@\\w+\\s+)*(?:(?:public|package|internal|fileprivate|private)\\s+)?import\\s+(?:(?:typealias|struct|class|enum|protocol|let|var|func)\\s+)?([A-Za-z_][A-Za-z0-9_]*)",
+    "resolver": "target-name",
+    "forbidden_in_domain": ["NIO", "NIOCore", "NIOHTTP1", "Vapor", "Fluent", "Hummingbird", "PostgresNIO", "SQLKit", "AsyncHTTPClient", "FoundationNetworking"],
+    "impure_calls": ["Date()", "Date.now", "UUID()", ".random(", "Task {", "Task.detached", "URLSession", "FileManager", "ProcessInfo"]
+  },
+  "config_files": [".swift-format", ".swiftlint.yml", ".swiftlint.yaml", ".editorconfig", ".swift-version", "Package.swift", "Package.resolved"],
+  "sources": {
+    "checks": "https://docs.swift.org/latest/documentation/packagemanagerdocs/",
+    "race": "https://clang.llvm.org/docs/ThreadSanitizer.html",
+    "format": "https://github.com/swiftlang/swift-format",
+    "lint": "https://github.com/realm/SwiftLint",
+    "coverage": "https://llvm.org/docs/CommandGuide/llvm-cov.html",
+    "sbom": "https://www.swift.org/blog/swift-6.4-released/",
+    "cache": "swift test --help (6.4.2)"
+  }
+}

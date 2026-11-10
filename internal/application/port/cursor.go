@@ -26,9 +26,10 @@ var cursorEvents = map[plugin.Event]string{
 const cursorStopLoopLimit = 5
 
 // cursorBackground says which roles run in background (parallel waves)
-// and which block the lead (ROLES.md phases): researchers, implementers,
-// docs and QA run as waves; planning, contract, product and reflection
-// are single blocking agents.
+// and which block the lead (ROLES.md phases): researchers, implementers
+// (layer and language roles), docs and QA run as waves; planning,
+// contract, product and reflection are single blocking agents. Every
+// agents/*.md needs an entry (TestCursorBackgroundTable).
 var cursorBackground = map[string]bool{
 	"web-researcher":       true,
 	"practices-researcher": true,
@@ -47,6 +48,23 @@ var cursorBackground = map[string]bool{
 	"qa-verifier":          true,
 	"product-reviewer":     false,
 	"reflector":            false,
+	// Language roles (agents/<id>-engineer.md): wave 0 toolchain lanes
+	// and language-level implementation lanes.
+	"python-engineer":     true,
+	"typescript-engineer": true,
+	"java-engineer":       true,
+	"cpp-engineer":        true,
+	"csharp-engineer":     true,
+	"php-engineer":        true,
+	"go-engineer":         true,
+	"ruby-engineer":       true,
+	"swift-engineer":      true,
+	"kotlin-engineer":     true,
+	"rust-engineer":       true,
+	"scala-engineer":      true,
+	"elixir-engineer":     true,
+	"erlang-engineer":     true,
+	"clojure-engineer":    true,
 }
 
 // cursorManualSkills are the commands the model must not invoke on its own.
@@ -218,7 +236,7 @@ Commands: `+"`/work`"+` (also model-invocable), `+"`/init`, `/status`, `/report`
 
 - `+"`agents/`"+`: the role subagents (`+"`is_background`"+` for roles that run in parallel waves). No role is `+"`readonly`"+`: every role writes its own run-dir file, so read-only roles are told in their instructions not to edit repo code.
 - `+"`skills/`"+`, `+"`specs/`"+`, `+"`templates/`"+`, `+"`ROLES.md`"+`: the canonical workflow.
-- `+"`hooks/hooks.json`"+`: session context, read and model guards, post-edit gofmt, tracing, subagent lanes and the stop gate (`+"`loop_limit: %[5]d`"+`).
+- `+"`hooks/hooks.json`"+`: session context, read and model guards, post-edit formatting, tracing, subagent lanes and the stop gate (`+"`loop_limit: %[5]d`"+`).
 - `+"`rules/loops.mdc`"+`: the always-on plugin context.
 
 ## Binary

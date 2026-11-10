@@ -9,7 +9,7 @@ files are laid out as they land in a project:
 - .agents/skills/: the loops skills. OpenCode reads AGENTS.md natively.
 
 Only tool.execute.before/after hooks are shimmed: read-guard and model-guard can
-deny, go-post-edit and trace run after tools. There is no stop gate, session
+deny, post-edit and trace run after tools. There is no stop gate, session
 context or subagent lane tracking.
 
 Roles inherit the session model unless built with `loops port build --models`.

@@ -11,7 +11,7 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 - **Send back with context.** A reviewer that rejects work says exactly what is wrong, how to reproduce it, and where to fix it. The lead sends the work back to the **same** author (resumed where the platform supports it, otherwise a new agent of the same role seeded with its previous report and the review file; see `specs/PLATFORMS.md` §4) so context carries over.
 - **Project rules win.** The target repository's own rules always take precedence over loops' specs, skills and templates. That means its AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs and established architecture. Any agent that follows a project rule instead of a loops rule records it immediately: `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what was done>"`. The reflector posts the list as a PR comment (§2.6).
 - **Everything is visible.** Every phase change, agent lane, tool call, verdict, loop-back, gate, proof and memory access lands in `events.jsonl` (§5).
-- **Runs leave no trace.** Each run builds with its own Go cache and tmp dir under the run directory, and `loops run end` deletes them along with the build leftovers agents created (§2.6, §5). The user's global Go cache is never touched.
+- **Runs leave no trace.** Each run builds with its own build caches and tmp dirs under the run directory, one set per detected language pack (the pack's `cache_env` and `cache_argv`; Go: `GOCACHE`, `GOTMPDIR`). `loops run end` deletes them along with the build leftovers agents created (the pack's `artifacts`; §2.6, §5). Download and package caches stay shared (the pack's `shared_env`), and the user's global caches are never touched.
 - **Smallest sufficient context.** Search before reading, read ranges, cite by path and section, and never paste whole specs (`specs/CONTEXT_DISCIPLINE.md`).
 
 ## 2. Phases
@@ -30,7 +30,7 @@ QA starts pipelined: a verifier launches as soon as its implementer reports, eve
 
 ### 2.0 Intake
 
-1. `loops run start --title "<short title>" [--ticket <ref>] [--source <s>]` prints the run ID and the run directory. It also prepares the run-scoped Go cache and tmp dir (`.loops/runs/<id>/go/{cache,tmp}`) and records a baseline of the untracked files already present, so cleanup (§2.6) can tell what the run created.
+1. `loops run start --title "<short title>" [--ticket <ref>] [--source <s>]` prints the run ID and the run directory. It also prepares the run-scoped caches and tmp dirs (Go: `.loops/runs/<id>/go/{cache,tmp}`) and records a baseline of the untracked files already present, so cleanup (§2.6) can tell what the run created.
 2. Fetch the ticket:
    - GitHub (`#123`, `owner/repo#123`, a github.com URL) or GitLab (a gitlab URL): `loops ticket fetch <ref>`. This writes `ticket.md`.
    - Jira (`ABC-123`) or Linear (a linear.app URL or key): fetch through the connected MCP tool, then pipe the text into `loops ticket fetch <ref> --source jira|linear --body-file -`. If the connector is not authenticated, tell the user and ask them to paste the ticket.
@@ -47,6 +47,7 @@ Flags on `/loops:work`:
 - Launch the four researchers together, in parallel where the platform allows (`skills/work/platforms/<p>.md`).
 - **`hardware-researcher`** runs exactly one command, `loops hw --write`, which writes `research/hardware.json` and `research/hardware.md`, then replies with the one-line recommendation. It is the cheapest agent in the run. On platforms without subagents (tier D), the lead runs `loops hw --write` itself.
 - **`practices-researcher`** first scans the project's own rules and lists every conflict with loops' rules under `## Project rules that supersede loops` (§1).
+- **`code-researcher`** first records the detected languages: `loops lang detect --write` writes `research/language.json` (each pack's `id`, root and build-tool variant). A pin in `.loops/config.json` `languages` overrides detection. The planner, the gate and the hooks use that list; each language's pack is `specs/languages/<id>/` and its skill `loops:lang-<id>`.
 - Each gets the same inputs: `ticket.md`, `research/memory.md`, the project root, and the plugin `specs/` path (`loops path specs`).
 - Each brief is at most 600 words. It contains facts with sources (`path:line`, a URL, or `spec §`) and has a `## Open questions` section.
 - A researcher may run narrower `memory_query` calls. It must verify any memory hit against the current source before citing it, because memory is historical evidence, not truth.
@@ -56,7 +57,7 @@ Flags on `/loops:work`:
 - **Parallelism.** The planner sizes the waves to the effective cap = min(`parallel.max_agents` in `.loops/config.json` (default **100**), `research/hardware.json` `max_parallel_agents`, opt-in `limits.max_agents`).
   - The same role may run as several agents in one wave (`W1-domain-orders`, `W1-domain-payments`) when their owned globs are disjoint. Each gets its own qa-verifier.
   - A wave larger than the cap is split into sub-waves (`W1a`, `W1b`).
-  - At most `max_concurrent_test_runs` agents run `go test` at once, each with `GOFLAGS=-p=2`. That is the `loops hw` recommendation, set in config by `parallel.max_test_runs`.
+  - At most `max_concurrent_test_runs` agents run tests at once, each with the pack's `env_hints` (Go: `GOFLAGS=-p=2`) so one test run doesn't take every core. That is the `loops hw` recommendation, set in config by `parallel.max_test_runs`.
   - The plan's **Concurrency** block states the cap and the peak per wave. The planner and the plan-reviewer both run `loops plan check plan.v<N>.md`, and any finding blocks.
 - The `planner` writes `plan.v1.md` from `templates/PLAN.md`. The plan contains:
   - acceptance criteria (`AC-1`…, taken from the ticket, or marked *derived*);
@@ -77,14 +78,11 @@ Flags on `/loops:work`:
 
 ### 2.3 Implement
 
-- **Wave 0 (`architect`):** writes the plan's contract:
-  - ports and consumer-owned interfaces;
-  - typed commands and DTOs;
-  - stubs so every package compiles;
-  - `go get` / `go mod tidy`;
-  - shared config (Makefile, CI, `cmd/**`, `internal/compose/**`).
+- **Wave 0 (`architect`, plus one `<id>-engineer` per detected language that needs toolchain work):**
+  - the architect writes the plan's contract: ports and consumer-owned interfaces, typed commands and DTOs, stubs so every module compiles, the composition root;
+  - the `<id>-engineer` sets up the toolchain and repo files: manifest and lockfile (adding dependencies in frozen-compatible form), toolchain pin, format, lint and typecheck configs, CI, and the test and coverage prerequisites the pack needs (`specs/REPO_PRACTICES.md`, `skills/lang-<id>`). Without one, the architect does it.
 
-  Wave 0 is done when `go build ./...` and `go vet ./...` pass.
+  Wave 0 is done when the pack's build and lint checks pass: `loops gate --only <the pack's build, lint and typecheck checks>` (Go: `loops gate --only build,vet`).
 - **Waves 1…n:** launch every agent of a wave together, in parallel where the platform allows.
   - The order is producers (domain, application) before consumers (inbound and outbound adapters). Consumers may start early against the stubs.
   - Each agent gets its own block from the plan: Goal, Starts at, Behaviour, Owns, Must not touch, Claims to prove, Done when, and Out.
@@ -100,8 +98,8 @@ Flags on `/loops:work`:
 - The verifier checks every claim **independently**:
   - it re-runs the cited tests;
   - it reads the code;
-  - it writes or runs counterexamples (edge cases, error paths, concurrency, `-race`);
-  - it runs `loops gate --pkgs <owned> --only build,vet,test` and `loops arch`.
+  - it writes or runs counterexamples (edge cases, error paths, concurrency, under the pack's race policy);
+  - it runs `loops gate --pkgs <owned> --only <the pack's build, lint and test checks>` (Go: `build,vet,test`) and `loops arch`.
 - The verifier writes `qa/<agent-id>.r<N>.md` (`templates/QA_VERDICT.md`). Per claim it records `VERIFIED` or `FAILED`. A `FAILED` claim carries a repro:
   - the command;
   - an excerpt of at most 20 lines of output;
@@ -124,7 +122,7 @@ Flags on `/loops:work`:
 The `product-reviewer` does the following, in order:
 
 1. Maps each AC to the claims that serve it.
-2. **Tests manually.** It builds and runs the service (the repo's `make run`, docker compose, or `go run ./cmd/<svc>`), then exercises every AC through the real interface (curl, grpcurl, the CLI). It also probes edge cases:
+2. **Tests manually.** It builds and runs the service (the repo's `make run`, docker compose, or the language's run command, e.g. `go run ./cmd/<svc>`), then exercises every AC through the real interface (curl, grpcurl, the CLI). It also probes edge cases:
    - invalid, empty and oversized input;
    - missing and incorrect auth;
    - not-found;
@@ -168,13 +166,19 @@ The `reflector`:
 
    The user's PR confirmation (§2.5) covers this comment. With no PR, or under `--no-pr`, only the file is written.
 
-5. **Cleanup** (last step). Record what the end-of-run cleanup will free: `loops run clean --dry-run` shows the Go cache/tmp and the build leftovers (`*.test`, binaries, coverprofiles, pprof files, compared against the intake baseline). Add a line to `reflection.md`: `Cleanup: N files, X MB freed; kept for review: <paths>`. Unknown new files are listed for review, never deleted; tracked and pre-existing files are never touched. The actual deletion happens in `loops run end` (below) and is recorded as a `cleanup` note event.
+5. **Cleanup** (last step). Record what the end-of-run cleanup will free: `loops run clean --dry-run` shows the run's caches and tmp dirs and the build leftovers (each pack's `artifacts`, e.g. Go's `*.test`, binaries, coverprofiles, pprof files, compared against the intake baseline). Add a line to `reflection.md`: `Cleanup: N files, X MB freed; kept for review: <paths>`. Unknown new files are listed for review, never deleted; tracked and pre-existing files are never touched. The actual deletion happens in `loops run end` (below) and is recorded as a `cleanup` note event.
 
 Finally, the lead runs `loops run end --outcome done` and gives the user a ≤10-line summary with the PR link and `report.html`.
 
 ## 3. Roles
 
-`ROLES.md` is the matrix and `agents/<role>.md` the definitions. Every spawn names its role (the platform's syntax is in `skills/work/platforms/<p>.md`), and a `model` only when it overrides the role default (escalation, `--models=cheap`).
+`ROLES.md` is the matrix and `agents/<role>.md` the definitions. There are two kinds of implementer:
+- **layer roles** (`architect`, `domain-engineer`, `application-engineer`, `api-engineer`, `persistence-engineer`, `integration-engineer`, `test-engineer`, `docs-writer`), which own a hexagonal layer in any language;
+- **language roles**, one `<id>-engineer` for each pack in `specs/languages/` (`python-engineer`, `typescript-engineer`, `go-engineer`, …: 15 in all), which own the toolchain and repo files in wave 0 and take language-level lanes (version upgrades, dependency bumps, build migrations).
+
+A lane is a layer role plus a language: the lead passes the `Language:` line, and the agent loads that pack's skill (`loops:lang-<id>`) for the toolchain, the race policy, coverage and idioms. In a repo with several packs, each lane has one language.
+
+Every spawn names its role (the platform's syntax is in `skills/work/platforms/<p>.md`), and a `model` only when it overrides the role default (escalation, `--models=cheap`).
 
 The prompt is the agent's block from the plan plus these lines:
 - `Run dir: <abs path>`
@@ -184,6 +188,7 @@ The prompt is the agent's block from the plan plus these lines:
 - `Role: <role>`
 - `Agent id: <W1-domain>`
 - `Wave: <n>`
+- `Language: <id>` (implementers and QA; from `research/language.json`)
 
 ### 3a. Model fallback
 
@@ -228,11 +233,11 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 |---|---|
 | Skills (lead), through `loops run …` | `phase`, `loop_back`, `verdict`, `proof`, `memory`, `note`, `pr`, `end` |
 | Hook `trace` (PostToolUse, PostToolUseFailure) | `step`, with `agent_id`/`agent_type`, so steps land in their lane |
-| Hook `go-post-edit` (PostToolUse on Edit/Write/MultiEdit) | `step` named `go-post-edit` (gofmt/goimports + go vet result) |
+| Hook `post-edit` (PostToolUse on Edit/Write/MultiEdit; alias `go-post-edit`) | `step` with the pack's single-file format and lint result (Go: gofmt/goimports + go vet) |
 | Hook `trace-agent` (SubagentStart, SubagentStop) | `agent_start`, `agent_stop` |
-| Hooks `read-guard`, `model-guard` | `guard_deny` |
+| Hooks `read-guard`, `model-guard`, `test-guard` (alias `race-guard`), `toolchain-env` (alias `go-env`) | `guard_deny` |
 | `loops run end` / `loops run clean` | `note` named `cleanup` (what was freed) |
-| `loops gate` | `gate`, one per check plus `all` |
+| `loops gate` | `gate`, one per check (with `pack` when several packs are detected) plus `all` |
 
 The CLI commands that write these events:
 - `loops run phase <phase> [--note]`
@@ -244,36 +249,61 @@ The CLI commands that write these events:
 - `loops budget check --phase P [--spawn N] [--role R]` (writes a `budget` event when it blocks)
 - `loops budget parse [--max-agents N] [--budget p=200k,…] [--agents p=N,…] [--roles p=a,b]` prints the limits JSON for `loops run event --kind limits`. `loops budget show` prints usage against the limits.
 - `loops hw [--json] [--write]` and `loops plan check <plan> [--cap N]`
-- `loops run end [--outcome done|abandoned|failed] [--no-clean]`: ends the run and, unless `--no-clean`, deletes the run's Go cache/tmp and the build leftovers created during the run, then records a `cleanup` note event with what was freed. Abandoned and failed runs are cleaned too. `--no-clean` keeps everything for debugging.
+- `loops run end [--outcome done|abandoned|failed] [--no-clean]`: ends the run and, unless `--no-clean`, deletes the run's caches and tmp dirs and the build leftovers created during the run, then records a `cleanup` note event with what was freed. Abandoned and failed runs are cleaned too. `--no-clean` keeps everything for debugging.
 - `loops run clean [--dry-run] [--json]`: the same cleanup on demand; `--dry-run` only lists what would be deleted and what is kept for review.
-- `loops run env [--shell sh|fish|powershell]`: prints the run's Go environment (`GOCACHE`, `GOTMPDIR`) to eval, e.g. `eval "$(loops run env)"`.
-- `loops go <args>`: runs `go <args>` with the run's Go environment. Works on every platform.
+- `loops run env [--shell sh|fish|powershell]`: prints the run-scoped environment of the detected packs (Go: `GOCACHE`, `GOTMPDIR`) to eval, e.g. `eval "$(loops run env)"`.
+- `loops exec [--pack id] -- <cmd…>`: runs any command with the run-scoped environment of a pack (its `cache_env` and `env`, with its `cache_argv` inserted after the tool name; default: the detected pack that uses the tool, else the only detected pack). Without an active run it runs the command plain. Works on every platform; use it wherever `toolchain-env` can't rewrite a command.
+- `loops go <args>`: runs `go <args>` with the run's Go environment (the Go form of `loops exec`).
 - `loops run dir`
+
+Language packs (`specs/languages/<id>/pack.json`):
+- `loops lang list [--json]`: the packs loops ships.
+- `loops lang show <id> [--variant v]`: one pack, with a build-tool variant applied.
+- `loops lang validate [pack.json…]`: checks pack files against the schema.
+- `loops lang detect [--json] [--write] [--root dir]`: the packs that apply to the project (id, root, variant). `--write` saves `research/language.json` in the run dir (§2.1). `languages` in `.loops/config.json` pins them instead.
+
+Gates:
+- `loops gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--fail-fast]`: runs every detected pack's checks (§6). `--only`/`--skip`/`--enable` take check names; `--enable` turns on `default: off` checks; `--vuln` enables the vuln checks.
+- `loops arch [--json] [--root dir]`: the architecture lint (`specs/ARCHITECTURE.md §25`).
 
 `run.Fold(events)` gives `run.State`, which `loops status --json` prints. The status line, the mod pane and the HTML report all read that one source.
 
 ## 6. Gates
 
-`loops gate` runs these checks in order, each recorded as an event:
+`loops gate` runs the checks of every detected language pack (§2.1), pack by pack, in the order each pack lists them (its `checks`). Each check is recorded as a `gate` event. The pipeline per pack is:
 
-1. `build`: `go build ./...`
-2. `gofmt`: `gofmt -l` must print nothing
-3. `vet`: `go vet ./...`
-4. `staticcheck`: runs only if it is on PATH
-5. `arch`: `loops arch`; only error findings fail
-6. `test`: `go test -race -count=1 ./...`
-7. `coverage` (required, after `test`): new-code coverage against the base branch (`--base <ref>`) must be at least 70%. `gate.coverage_min` in config may only raise that floor; `gate.coverage_exclude` adds exclusions to the defaults (`cmd/**`, `internal/compose/**`, `testdata`, generated files). It also fails when a changed package has no tests, or when a changed file's new statements are all untested. The output lists uncovered `file:line` ranges.
-8. `govulncheck`: only with `--vuln` or `gate.vuln` set in config
+1. `deps`: a frozen install or lock verify, only in that form, first.
+2. `build`, `format`, `lint`, `typecheck`: a format check is required only when the formatter's config is committed; optional tools that aren't installed are skipped with their install hint.
+3. `arch`: `loops arch`, and the pack's native architecture check if it has one; only error findings fail (`specs/ARCHITECTURE.md §25`).
+4. `test`: the pack's test checks, which also produce coverage and carry the race policy.
+5. `coverage` (required, never skippable): at least 70% of new code is covered (`specs/TESTING.md §8.1`). `gate.coverage_min` in config may only raise the floor; `gate.coverage_exclude` adds exclusions to the pack's `coverage.exclude` (Go: `cmd/**`, `internal/compose/**`, `testdata`, generated files). It also fails when a changed file's new lines are all untested, and, for Go, when a changed package has no tests. The output lists uncovered `file:line` ranges.
+6. `vuln`, `sast`, `sbom`: off by default (`default: off`); on with `--enable <check>`, `--vuln` or `gate.vuln` in config, and required in CI (`specs/REPO_PRACTICES.md §11`).
 
-QA scopes the same checks to one agent with `loops gate --only test,coverage --pkgs <owned>`.
+The Go pack reproduces the original gate exactly: `build` (`go build ./...`), `gofmt`, `vet`, `staticcheck` (if on PATH), `arch`, `test` (`go test -race -count=1 ./...`), `coverage`, `govulncheck` (with `--vuln`). `loops lang show <id>` prints any pack's checks.
 
-The **race-guard** PreToolUse hook denies any `go test` invocation that lacks `-race`. There is no opt-out; the fix is a cheaper test, never dropping the flag.
+QA scopes the same checks to one agent with `loops gate --only <checks> --pkgs <owned>` (Go: `--only test,coverage`).
 
-The **go-env** PreToolUse hook scopes every agent's `go …` command to the run's Go cache and tmp dir (`GOCACHE`, `GOTMPDIR`). Where the platform's hooks can modify a command, it rewrites the command; where they cannot, it denies with a hint to use `loops go <args>` or to prefix `eval "$(loops run env)";`. The command is rewritten on Claude Code, Gemini CLI and Windsurf/Devin. On Codex and Cursor only a lone `go build|test|vet|list` is rewritten, and anything else is denied. On Copilot and OpenCode it is always denied (`specs/PLATFORMS.md` §5). `loops gate` uses the run environment automatically. Agents never set `GOCACHE` themselves.
+**Race policy.** Every test run follows the pack's race policy (TAXONOMY CONC-04):
+- `flag`: every test command carries the race flag, and the race-guard denies a test command without it.
+- `build`: the full gate runs the pack's race build (its `race: true` test check), and it must pass.
+- `none`: the full gate runs the pack's substitute checks (its `race: true` checks), and they must pass. The pack states, and the gate records:
+  - the seed of every randomised run;
+  - the parallelism used;
+  - the repeat count applied to the changed tests.
 
-A full pass records `gate all ok`, which clears `GoDirty`. A scoped run (`--pkgs` or `--only`) never records `all`.
+  A pack whose substitute is static (Rust) names the lint checks that carry it.
 
-The **Stop gate** stops the lead from ending its turn while the run is active, `.go` files have changed since the last full pass, and no agent lane is running. The escape hatches are `LOOPS_GATE=off` and `loops run end --outcome abandoned`.
+A required race or substitute check that is skipped fails the full gate, as a skipped required check does today. There is no opt-out: the fix is a cheaper test, never a weaker policy. If the policy can't run on the host, the gate fails with "race policy unavailable: …". The modes per pack are in `specs/TESTING.md §8.2`.
+
+**Hooks.** The new names are canonical; the old names stay as aliases, so existing hook configs keep working.
+
+- **`test-guard`** (PreToolUse on Bash; alias `race-guard`) is the race-guard above. It matches commands against each pack's `test_commands`. It denies only in `flag` mode (Go `-race`, Swift `--sanitize=thread`): a test command without the pack's race flag (or race env, e.g. `GOFLAGS=-race`). In `build` and `none` mode it never denies; the policy is enforced by the full gate's `race.checks`, not per command.
+- **`toolchain-env`** (PreToolUse on Bash; alias `go-env`) scopes every agent's toolchain command to the run's caches and tmp dirs (the pack's `cache_env`, `cache_argv`). For Go it rewrites the command where the platform's hooks can, and otherwise denies with a hint to use `loops go <args>` (or `loops exec -- <cmd>`) or to prefix `eval "$(loops run env)";`: the command is rewritten on Claude Code, Gemini CLI and Windsurf/Devin; on Codex and Cursor only a lone `go build|test|vet|list` is rewritten, and anything else is denied; on Copilot and OpenCode it is always denied (`specs/PLATFORMS.md` §5). For every other pack it only rewrites, on Claude Code, Gemini CLI and Windsurf/Devin, and otherwise fails open; it never denies. Agents there run toolchain commands through `loops exec -- <cmd>`. `loops gate` uses the run environment automatically. Agents never set cache variables themselves.
+- **`post-edit`** (PostToolUse on Edit/Write/MultiEdit; alias `go-post-edit`) runs the pack's `post_edit` on the edited file: its single-file formatter, then its lint on the file's directory (Go: gofmt/goimports, then `go vet`). A failure is sent back to the agent. A pack with no single-file formatter has no post-edit step.
+
+A full pass records `gate all ok`, which clears the dirty flags (`run.State.SourceDirty` for any pack's sources; `GoDirty` for `.go` files, kept for compatibility). A scoped run (`--pkgs`, `--only` or `--enable`) never records `all`.
+
+The **Stop gate** (`stop-gate`) stops the lead from ending its turn while the run is active, a source file of any pack has changed since the last full pass (`run.State.SourceDirty`, JSON `source_dirty`; not only `.go` files), and no agent lane is running. The escape hatches are `LOOPS_GATE=off` and `loops run end --outcome abandoned`.
 
 ## 7. ai-memory
 
@@ -291,12 +321,12 @@ The **Stop gate** stops the lead from ending its turn while the run is active, `
 A run is done when every item below holds. (Adapted from the rimworld-go MASTER_SPEC §70.)
 
 1. Every AC is `VERIFIED` with a proof.
-2. Behaviour is implemented in its owning layer (`specs/ARCHITECTURE.md`).
-3. Every new or changed package has unit tests, including failure paths; new-code coverage is at least 70% (`loops gate` coverage, §6); all tests run with `-race` (enforced by the race-guard hook).
-4. Every claim is verified by QA, and `loops gate` is green.
+2. Behaviour is implemented in its owning layer (`specs/ARCHITECTURE.md`), and `loops arch` reports no errors.
+3. Every new or changed module has unit tests, including failure paths; new-code coverage is at least 70% (`loops gate` coverage, `specs/TESTING.md §8.1`); all tests run under the pack's race policy (§6).
+4. Every claim is verified by QA, and `loops gate` is green for every detected pack.
 5. Consistency impact is stated (ordering, idempotency, clock and RNG, migrations), with `skills/consistency` followed where it applies.
 6. Performance is measured (a benchmark before and after) if a hot path changed.
-7. Compatibility is analysed: API, persisted schema, config, migrations.
+7. Compatibility is analysed: API, persisted schema, config, migrations, and the manifest and lockfile when dependencies changed (`specs/REPO_PRACTICES.md §3`).
 8. Docs are updated: the package `AGENTS.md` where the contract changed, and an ADR only for a cross-cutting decision.
 9. The behaviour is observable: errors are explicit, logs and metrics exist where operators need them.
 10. There are no untracked TODOs. Each one is either done or listed under Open in `pr.md`.

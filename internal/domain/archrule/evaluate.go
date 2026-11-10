@@ -25,22 +25,33 @@ const (
 )
 
 // Evaluate runs every rule over m with the layer layout l (zero fields fall
-// back to DefaultLayers) and returns the findings sorted by file, line and
-// rule. It is pure: no I/O, no clock.
-func Evaluate(m Module, l Layers) Report {
+// back to DefaultLayers) and the Go rule data (GoRules), and returns the
+// findings sorted by file, line and rule. It is pure: no I/O, no clock.
+func Evaluate(m Module, l Layers) Report { return EvaluateWith(m, l, GoRules()) }
+
+// EvaluateWith is Evaluate with the language data r (a pack's arch block).
+// The Go-only rules (init, package globals, cmd, compose, parent imports)
+// run only when m.IsGo(); size warnings stay warnings.
+func EvaluateWith(m Module, l Layers, r Rules) Report {
 	c := newClassifier(l)
+	goMod := m.IsGo()
 	fs := []Finding{}
 	for _, p := range m.Packages {
 		lay := c.layerOf(p.Dir)
-		fs = append(fs, importFindings(m.Path, p, lay, c)...)
-		fs = append(fs, initFindings(p)...)
-		fs = append(fs, globalFindings(p)...)
-		if lay == layerDomain {
-			fs = append(fs, purityFindings(p)...)
+		fs = append(fs, importFindings(m.Path, p, lay, c, r, goMod)...)
+		if goMod {
+			fs = append(fs, initFindings(p)...)
+			fs = append(fs, globalFindings(p)...)
 		}
-		fs = append(fs, limitFindings(p)...)
+		if lay == layerDomain {
+			fs = append(fs, purityFindings(p, r)...)
+			fs = append(fs, impureHitFindings(p)...)
+		}
+		fs = append(fs, limitFindings(p, r)...)
 	}
-	fs = append(fs, cmdFindings(m, c)...)
+	if goMod {
+		fs = append(fs, cmdFindings(m, c)...)
+	}
 	sort.SliceStable(fs, func(i, j int) bool {
 		a, b := fs[i], fs[j]
 		if a.File != b.File {
@@ -84,23 +95,37 @@ var randCtors = map[string]bool{
 
 // purityFindings: the domain is deterministic, so it reads no clock, draws
 // from no global generator and starts no goroutine.
-func purityFindings(p Package) []Finding {
+func purityFindings(p Package, r Rules) []Finding {
 	var out []Finding
 	for _, c := range p.Calls {
 		switch {
-		case c.Pkg == "time" && c.Name == "Now":
+		case c.Pkg == "time" && c.Name == "Now" && r.has("time.Now"):
 			out = append(out, errorAt(c.Pos, "clock", "the domain reads the wall clock (time.Now); take the time as a parameter or through a Clock port the application injects (%s: dependency direction)", hexSpec))
-		case (c.Pkg == "math/rand" || c.Pkg == "math/rand/v2") && !randCtors[c.Name]:
+		case (c.Pkg == "math/rand" || c.Pkg == "math/rand/v2") && !randCtors[c.Name] && r.has(c.Pkg):
 			out = append(out, errorAt(c.Pos, "rand", "the domain draws from the global generator (%s.%s); pass a seeded *rand.Rand or a random port in (%s: dependency direction)", c.Pkg, c.Name, hexSpec))
 		}
 	}
 	for _, at := range p.GoStmts {
+		if !r.has("go") {
+			break
+		}
 		out = append(out, errorAt(at, "go", "the domain starts a goroutine; keep the domain synchronous and let the application or an adapter own concurrency (%s: dependency direction)", hexSpec))
 	}
 	return out
 }
 
-func limitFindings(p Package) []Finding {
+// impureHitFindings reports the impure-call text hits of a non-Go parser.
+func impureHitFindings(p Package) []Finding {
+	var out []Finding
+	for _, h := range p.Impure {
+		out = append(out, errorAt(h.Pos, "impure", "the domain calls %s (clock, randomness, environment, I/O or concurrency); take the value as a parameter or through a port the application injects (%s: dependency direction)", h.Call, hexSpec))
+	}
+	return out
+}
+
+func limitFindings(p Package, r Rules) []Finding {
+	maxMethods, maxFields := r.limit("methods", MaxMethods), r.limit("fields", MaxFields)
+	maxIface, maxLines, maxFiles := r.limit("iface", MaxIfaceMethods), r.limit("lines", MaxLines), r.limit("files", MaxFiles)
 	var out []Finding
 	warn := func(at Pos, rule, format string, args ...any) {
 		f := errorAt(at, rule, format, args...)
@@ -108,22 +133,22 @@ func limitFindings(p Package) []Finding {
 		out = append(out, f)
 	}
 	for _, t := range p.Types {
-		if t.Methods > MaxMethods {
-			warn(t.Pos, "methods", "type %s has %d methods (limit %d); split it by responsibility into smaller types (%s: measurable limits, how to split a god type)", t.Name, t.Methods, MaxMethods, solidSpec)
+		if t.Methods > maxMethods {
+			warn(t.Pos, "methods", "type %s has %d methods (limit %d); split it by responsibility into smaller types (%s: measurable limits, how to split a god type)", t.Name, t.Methods, maxMethods, solidSpec)
 		}
-		if t.Kind == KindStruct && t.Methods >= MinMethodsFields && t.Fields > MaxFields {
-			warn(t.Pos, "fields", "struct %s has %d fields and %d methods (limit %d fields); group fields into owned sub-types (%s: measurable limits)", t.Name, t.Fields, t.Methods, MaxFields, solidSpec)
+		if t.Kind == KindStruct && t.Methods >= MinMethodsFields && t.Fields > maxFields {
+			warn(t.Pos, "fields", "struct %s has %d fields and %d methods (limit %d fields); group fields into owned sub-types (%s: measurable limits)", t.Name, t.Fields, t.Methods, maxFields, solidSpec)
 		}
-		if t.Kind == KindInterface && t.IfaceMethods > MaxIfaceMethods {
-			warn(t.Pos, "iface", "interface %s has %d methods (limit %d); split it into consumer-owned interfaces (%s: measurable limits)", t.Name, t.IfaceMethods, MaxIfaceMethods, solidSpec)
+		if t.Kind == KindInterface && t.IfaceMethods > maxIface {
+			warn(t.Pos, "iface", "interface %s has %d methods (limit %d); split it into consumer-owned interfaces (%s: measurable limits)", t.Name, t.IfaceMethods, maxIface, solidSpec)
 		}
 	}
 	dir := Pos{File: p.Dir}
-	if p.Lines > MaxLines {
-		warn(dir, "lines", "package %s has %d non-test lines (limit %d); split it into sub-packages (%s: measurable limits)", p.Dir, p.Lines, MaxLines, solidSpec)
+	if p.Lines > maxLines {
+		warn(dir, "lines", "package %s has %d non-test lines (limit %d); split it into sub-packages (%s: measurable limits)", p.Dir, p.Lines, maxLines, solidSpec)
 	}
-	if n := len(p.Files); n > MaxFiles {
-		warn(dir, "files", "package %s has %d non-test files (limit %d); split it into sub-packages (%s: measurable limits)", p.Dir, n, MaxFiles, solidSpec)
+	if n := len(p.Files); n > maxFiles {
+		warn(dir, "files", "package %s has %d non-test files (limit %d); split it into sub-packages (%s: measurable limits)", p.Dir, n, maxFiles, solidSpec)
 	}
 	return out
 }

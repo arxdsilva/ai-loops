@@ -5,8 +5,9 @@ Establish it before coding (internally, or in the plan's "Task packet" section).
 ```text
 Task ID:
 Objective:
-Owner package:
-Allowed / forbidden packages:
+Owner package (module):
+Language pack (id):
+Allowed / forbidden packages (modules):
 Skills (skills/<name>):
 Read (root AGENTS.md, nearest package AGENTS.md, spec sections):
 Input / output interfaces (ports, commands, DTOs):

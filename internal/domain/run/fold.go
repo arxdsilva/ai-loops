@@ -3,6 +3,8 @@ package run
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 )
 
 // Fold replays events in order into a State. Events for other runs are
@@ -173,6 +175,10 @@ func foldStep(s *State, e Event) {
 			s.GoDirty = true
 			s.LastGoChange = e.Time
 		}
+		if pack.LooksLikeSource(e.Target) {
+			s.SourceDirty = true
+			s.LastSourceChange = e.Time
+		}
 	}
 }
 
@@ -194,6 +200,9 @@ func foldGate(s *State, e Event) {
 	if e.Name == GateAll && g.OK {
 		if !s.LastGoChange.After(e.Time) {
 			s.GoDirty = false
+		}
+		if !s.LastSourceChange.After(e.Time) {
+			s.SourceDirty = false
 		}
 		s.LastGreen = e.Time
 	}
@@ -230,11 +239,12 @@ func laneQA(s *State) {
 }
 
 // StopReason returns a non-empty reason when the lead must not stop yet:
-// the run is active (not Ended), GoDirty is set, and no lane is Running.
-// Running lanes mean the lead is legitimately waiting for background agents,
-// so it may end its turn. The reason tells the lead to run `loops gate`.
+// the run is active (not Ended), SourceDirty (or GoDirty, for states built
+// before SourceDirty existed) is set, and no lane is Running. Running lanes
+// mean the lead is legitimately waiting for background agents, so it may end
+// its turn. The reason tells the lead to run `loops gate`.
 func StopReason(s State) string {
-	if s.Ended || !s.GoDirty {
+	if s.Ended || !s.GoDirty && !s.SourceDirty {
 		return ""
 	}
 	for _, l := range s.Lanes {
@@ -242,7 +252,7 @@ func StopReason(s State) string {
 			return ""
 		}
 	}
-	return "loops: Go files changed since the last full gate. Run `loops gate` (build, gofmt, vet, arch, test -race) and fix failures before finishing, or `loops run end --outcome abandoned` to stop the run."
+	return "loops: source files changed since the last green `loops gate` (build, lint, tests with the race policy, coverage). Run `loops gate` and fix failures before finishing, or `loops run end --outcome abandoned` to stop the run."
 }
 
 func vphase(s *State, e Event) Phase {

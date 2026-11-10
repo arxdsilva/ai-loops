@@ -9,7 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
+	"sync"
 	"time"
 
 	ailoops "github.com/arxdsilva/ai-loops"
@@ -23,6 +23,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/gotool"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/htmlreport"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/hwprobe"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/importscan"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/packfs"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/portfs"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runspace"
@@ -45,35 +46,40 @@ type systemClock struct{}
 
 func (systemClock) Now() time.Time { return time.Now() }
 
-// archGate adapts the arch checker to gate.Arch.
+// detector memoises language-pack detection for one process: the gate,
+// arch, hooks and workspace all ask, and the walk should happen once.
+type detector struct {
+	svc       *langpack.Service
+	root      string
+	overrides []langpack.Override
+	once      sync.Once
+	ds        []langpack.Detected
+	err       error
+}
+
+func (d *detector) detect() ([]langpack.Detected, error) {
+	d.once.Do(func() { d.ds, d.err = d.svc.Detect(d.root, d.overrides) })
+	return d.ds, d.err
+}
+
+// all returns the detected packs, or none when detection fails.
+func (d *detector) all() []langpack.Detected {
+	ds, _ := d.detect()
+	return ds
+}
+
+// Detect implements hook.Langs (the root is the project root it was built for).
+func (d *detector) Detect(string) ([]langpack.Detected, error) { return d.detect() }
+
+// archGate adapts the arch checker to gate.Arch over the detected packs.
 type archGate struct {
 	svc    *archcheck.Service
 	layers archrule.Layers
+	langs  *detector
 }
 
 func (g archGate) Check(ctx context.Context, root string) (string, bool, error) {
-	rep, err := g.svc.Check(ctx, root, g.layers)
-	if err != nil {
-		return "", false, err
-	}
-	var b strings.Builder
-	for _, f := range rep.Findings {
-		if f.Severity == archrule.SeverityError {
-			b.WriteString(f.File + ":" + itoa(f.Line) + " " + f.Rule + " " + f.Msg + "\n")
-		}
-	}
-	return b.String(), rep.OK(), nil
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var d []byte
-	for ; n > 0; n /= 10 {
-		d = append([]byte{byte('0' + n%10)}, d...)
-	}
-	return string(d)
+	return archcheck.Gate{Service: g.svc, Layers: g.layers, Packs: g.langs.all()}.Check(ctx, root)
 }
 
 // Main builds the app for the current process and runs args.
@@ -90,9 +96,11 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 	clock := systemClock{}
 	store := runstore.New(root)
 	trk := tracker.New(store, store, clock)
-	arch := archcheck.New(goparse.New())
+	langs := langpack.New(packfs.Embedded{FS: ailoops.Source}, packfs.OS{})
+	detected := &detector{svc: langs, root: root, overrides: cfg.Languages}
+	arch := archcheck.New(goparse.New()).WithScanner(importscan.New())
 	// runspace.Runner adds the active run's GOCACHE/GOTMPDIR to gate commands.
-	gates := gate.New(runspace.NewRunner(), archGate{svc: arch, layers: cfg.Layers}, trk, clock).
+	gates := gate.New(runspace.NewRunner(), archGate{svc: arch, layers: cfg.Layers, langs: detected}, trk, clock).
 		WithCoverage(gocover.New(), gate.CoverageConfig{
 			Min: cfg.Gate.CoverageMin, Exclude: cfg.Gate.CoverageExclude, Base: cfg.Gate.Base,
 		})
@@ -112,19 +120,19 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Version:   version,
 		Release:   releases,
 		Tracker:   trk,
-		Workspace: runspace.New(root),
+		Workspace: runspace.New(root).WithPacks(detected.all),
 		Gate:      gates,
 		Arch:      arch,
 		Tickets:   tickets,
 		Report:    htmlreport.New(),
 		Hooks: hook.New(hook.Deps{
 			Rec: trk, Files: fsys.New(), Cmd: gotool.New(), Env: os.Getenv, Getwd: os.Getwd,
-			Update: updates, Version: version, UpdateOff: updateOff,
+			Update: updates, Version: version, UpdateOff: updateOff, Langs: detected,
 		}),
 		Update:      updates,
 		UpdateState: upState,
 		UpdateOff:   updateOff,
-		Langs:       langpack.New(packfs.Embedded{FS: ailoops.Source}, packfs.OS{}),
+		Langs:       langs,
 		Languages:   cfg.Languages,
 		HW:          hwprobe.New(),
 		Parallel:    cfg.Parallel,

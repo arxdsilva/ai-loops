@@ -33,7 +33,7 @@ None in v1 (no deny, trace, gofmt, stop gate, session context). Run `loops gate`
 ```
 loops install --target cline
 ```
-Writes `.agents/skills/` and `.cline/skills/`. Needs Go. Verify: `loops version`.
+Writes `.agents/skills/` and `.cline/skills/`. Needs `loops` on PATH (prebuilt; `install.sh`). Verify: `loops version`.
 
 ## Hardware and budgets
 Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
@@ -44,5 +44,7 @@ Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets 
 ## Model fallback
 Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).
 
-## Go environment
+## Run-scoped toolchain env
 Go commands on this platform are not enforced (no hooks), so always run Go through `loops go …`. Either way they use the run's own Go cache, which `loops run end` deletes.
+
+Other language packs: their commands are not rewritten here, so run their build and test commands through `loops exec -- <cmd>` to use the run-scoped env.

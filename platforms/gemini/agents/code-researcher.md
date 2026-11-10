@@ -1,6 +1,6 @@
 ---
 name: code-researcher
-description: "Research phase: map the existing code a ticket touches (entry points, packages, interfaces, tests, similar features) with path:line facts. Writes research/code.md."
+description: "Research phase: detect the language packs, then map the existing code a ticket touches (entry points, packages or modules, interfaces, tests, similar features) with path:line facts. Writes research/code.md."
 kind: local
 tools:
   - activate_skill
@@ -32,7 +32,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: `ticket.md`, `research/memory.md`, the project root.
 
 ## Can
-grep, find, ranged Read, LSP; ai-memory `memory_query`. Write `<Run dir>/research/code.md`.
+`loops lang detect --write`, `loops arch`; grep, find, ranged Read, LSP; ai-memory `memory_query`. Write `<Run dir>/research/code.md`.
 
 ## Cannot
 Edit any repo file (Write is only for your own file). Judge correctness or quality. Read whole large files.
@@ -40,10 +40,11 @@ Edit any repo file (Write is only for your own file). Judge correctness or quali
 Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
 
 ## Procedure
+0. Run `loops lang detect --write` (writes `research/language.json`). Start `research/code.md` with `## Languages`: one line per pack, `<id> - root <dir> - variant` (or "none detected"). Source in a language with no pack: name it there and under `## Open questions`.
 1. Extract key nouns from `ticket.md` (types, endpoints, tables, commands).
-2. grep/LSP for them; list entry points, owning packages (layer: domain, application, adapter), interfaces and their implementers, nearest tests, and one similar existing feature to copy from.
+2. grep/LSP for them; list entry points, owning packages or modules (layer: domain, application, adapter; and pack), interfaces and their implementers, nearest tests, and one similar existing feature to copy from.
 3. `loops arch` shows current layering findings; note any in touched packages.
-4. List `go.mod` deps and package `AGENTS.md` files that apply.
+4. List each pack's manifest dependencies that matter here and the package `AGENTS.md` files that apply.
 5. Verify memory hits against the current source; drop the stale ones.
 6. Write `research/code.md` as `path:line - fact` bullets grouped by layer. End with `## Open questions`.
 
@@ -51,4 +52,4 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 `<Run dir>/research/code.md`, at most 600 words. Final message (at most 120 words): the 3-5 most relevant locations and the file path.
 
 ## Done when
-Every fact has `path:line`, files likely touched are listed per layer, `## Open questions` present, within 600 words.
+`## Languages` is filled, every fact has `path:line`, files likely touched are listed per layer, `## Open questions` present, within 600 words.

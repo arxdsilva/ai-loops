@@ -28,7 +28,7 @@ Right after each spawn, in the same turn as the spawn result:
 `TaskStop` on the agent id once its lane is VERIFIED and it will not be resumed, and at run end.
 
 ## Hooks and guards (all native)
-- read-guard and model-guard (PreToolUse deny), go-post-edit (gofmt/vet), trace and trace-agent (SubagentStart/Stop lanes), stop-gate (blocks finishing with dirty `.go` files; `LOOPS_GATE=off` is the user's escape hatch), session-start context.
+- read-guard and model-guard (PreToolUse deny), post-edit (the pack's formatter and linter, e.g. gofmt + go vet), trace and trace-agent (SubagentStart/Stop lanes), stop-gate (blocks finishing with changed source files of any pack; `LOOPS_GATE=off` is the user's escape hatch), session-start context.
 - Role tool restrictions come from agent frontmatter.
 
 ## Live view
@@ -48,5 +48,7 @@ The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token 
 ## Update
 `claude plugin marketplace update ai-loops && claude plugin update loops@ai-loops` (or run `loops update claude`).
 
-## Go environment
+## Run-scoped toolchain env
 Go commands on this platform are rewritten automatically (the hook rewrites the command; a lone `go build|test|vet|list` is auto-approved). Either way they use the run's own Go cache, which `loops run end` deletes.
+
+Other language packs: the toolchain-env hook prefixes their build and test commands with the run-scoped env (`loops lang show <id>` → `cache_env`).

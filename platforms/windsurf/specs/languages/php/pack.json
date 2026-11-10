@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "id": "php",
+  "name": "PHP",
+  "versions": {"stable": "8.5", "as_of": "2026-11"},
+  "detect": [{"file": "composer.json"}],
+  "source_globs": ["**/*.php"],
+  "test_globs": ["tests/**/*Test.php", "**/*Test.php", "tests/**/*.php"],
+  "generated": {
+    "globs": ["vendor/**", "var/cache/**", "bootstrap/cache/**", "storage/framework/**", "**/_ide_helper*.php", "**/.phpstorm.meta.php"],
+    "header_regex": "@generated|This file is auto-generated|DO NOT EDIT"
+  },
+  "manifest": "composer.json",
+  "checks": [
+    {"name": "composer-install", "kind": "deps", "argv": ["composer", "install", "--no-interaction", "--prefer-dist", "--no-progress"],
+     "required": true, "tool": "composer", "when_file": ["composer.lock"],
+     "note": "frozen install from composer.lock (PHP-REPO-04); never composer update in the gate"},
+    {"name": "composer-validate", "kind": "build", "argv": ["composer", "validate", "--strict", "--no-interaction"], "required": true, "tool": "composer"},
+    {"name": "php-cs-fixer", "kind": "format", "argv": ["vendor/bin/php-cs-fixer", "check", "--diff", "--using-cache=no", "--no-interaction"],
+     "required": true, "when_file": [".php-cs-fixer.dist.php", ".php-cs-fixer.php"],
+     "exit_codes": {"0": "pass", "8": "fail", "1": "fail"}, "install": "composer require --dev friendsofphp/php-cs-fixer",
+     "note": "exit 8 = files need fixing; a PER-CS or PSR-12 ruleset is the project's choice (D17)"},
+    {"name": "pint", "kind": "format", "argv": ["vendor/bin/pint", "--test"],
+     "required": true, "when_file": ["pint.json"], "install": "composer require --dev laravel/pint",
+     "note": "Laravel projects that commit pint.json use Pint instead of php-cs-fixer"},
+    {"name": "phpstan", "kind": "lint", "argv": ["vendor/bin/phpstan", "analyse", "--no-progress", "--no-interaction", "--memory-limit=1G"],
+     "required": false, "when_file": ["phpstan.neon", "phpstan.neon.dist"],
+     "exit_codes": {"0": "pass", "1": "fail"}, "install": "composer require --dev phpstan/phpstan",
+     "note": "without a config that sets paths it exits 1, so the check runs only when the config is committed"},
+    {"name": "arch", "kind": "arch", "internal": "arch", "required": false},
+    {"name": "deptrac", "kind": "arch", "argv": ["vendor/bin/deptrac", "analyse"], "required": false,
+     "when_file": ["deptrac.php", "deptrac.yaml"], "install": "composer require --dev deptrac/deptrac",
+     "note": "deptrac.php is the current default config name; deptrac.yaml is the older format"},
+    {"name": "test", "kind": "test", "required": true, "tool": "php",
+     "argv": ["vendor/bin/phpunit", "--order-by=random", "--random-order-seed={seed}", "--fail-on-warning", "--fail-on-risky", "{coverage_args}"],
+     "coverage_args": ["--coverage-cobertura", "{coverage}"],
+     "env": {"XDEBUG_MODE": "coverage"}, "repeat": 2, "install": "composer require --dev phpunit/phpunit",
+     "signal_regex": "^There w(as|ere) \\d+|^FAILURES!|^ERRORS!|^WARNINGS!|^RISKY|Random Seed:",
+     "note": "serial run under two random seeds; needs a coverage driver (pcov, or xdebug with XDEBUG_MODE=coverage) and <source><include> in phpunit.xml"},
+    {"name": "test-parallel", "kind": "test", "required": true, "tool": "php",
+     "argv": ["vendor/bin/paratest", "--processes=2", "--order-by=random", "--fail-on-warning", "--fail-on-risky"],
+     "when_file": ["vendor/bin/paratest"],
+     "fallback_argv": ["vendor/bin/phpunit", "--order-by=random", "--fail-on-warning", "--fail-on-risky"],
+     "install": "composer require --dev brianium/paratest",
+     "note": "parallel random-order run; without paratest the fallback is one more random-order serial run (logged)"},
+    {"name": "coverage", "kind": "coverage", "internal": "coverage", "required": true, "skippable": false},
+    {"name": "composer-audit", "kind": "vuln", "argv": ["composer", "audit", "--locked", "--format=plain"], "required": false, "tool": "composer", "default": "off"}
+  ],
+  "test_commands": [
+    {"argv_prefix": ["vendor/bin/phpunit"]},
+    {"argv_prefix": ["vendor/bin/pest"]},
+    {"argv_prefix": ["vendor/bin/paratest"]},
+    {"argv_prefix": ["php", "artisan", "test"]},
+    {"argv_prefix": ["composer", "test"]}
+  ],
+  "race": {
+    "mode": "none",
+    "checks": ["test", "test-parallel"],
+    "reason": "PHP has no data-race detector: the classic runtime is shared-nothing (one request, one process) and the long-running servers (Swoole, RoadRunner, FrankenPHP worker) leak state across requests rather than across threads.",
+    "substitute": "The full test suite runs serially under two random seeds (--order-by=random, repeat 2) and once in parallel with paratest --processes=2, all with --fail-on-warning --fail-on-risky; worker-mode apps also run the smoke suite twice in one worker process to expose state leaks (PHP-CONC-02)."
+  },
+  "coverage": {
+    "format": "cobertura", "path": "{coverage}", "produced_by": ["test"], "granularity": "line",
+    "exclude": ["vendor/**", "tests/**", "var/**", "storage/**", "bootstrap/**", "config/**", "public/**", "bin/**", "database/**", "migrations/**"]
+  },
+  "post_edit": {"format_file": ["vendor/bin/php-cs-fixer", "fix", "--using-cache=no", "--no-interaction", "{file}"]},
+  "cache_env": {"TMPDIR": "tmp", "APP_CACHE_DIR": "{cache}/symfony"},
+  "shared_env": ["COMPOSER_CACHE_DIR", "COMPOSER_HOME"],
+  "artifacts": [".phpunit.cache/", ".phpunit.result.cache", ".php-cs-fixer.cache", ".phpstan.cache/", "coverage/", "build/logs/", "clover.xml", "cobertura.xml", "var/cache/", "bootstrap/cache/*.php"],
+  "arch": {
+    "parser": "regex",
+    "import_regex": "^\\s*use\\s+(?:function\\s+|const\\s+)?([A-Za-z_\\\\][A-Za-z0-9_\\\\]*)",
+    "resolver": "namespace-psr4",
+    "native_check": "deptrac",
+    "forbidden_in_domain": ["Illuminate\\", "Symfony\\Component\\HttpFoundation\\", "Symfony\\Component\\HttpKernel\\", "Doctrine\\ORM\\", "Doctrine\\DBAL\\", "PDO", "Psr\\Http\\Message\\", "GuzzleHttp\\"],
+    "impure_calls": ["new DateTime(", "new DateTimeImmutable(", "date(", "time(", "microtime(", "rand(", "mt_rand(", "random_int(", "uniqid(", "getenv(", "$_ENV", "$_SERVER", "file_get_contents(", "curl_init("]
+  },
+  "test_jobs": "--processes=2",
+  "config_files": ["phpstan.neon", "phpstan.neon.dist", "psalm.xml", ".php-cs-fixer.php", ".php-cs-fixer.dist.php", "pint.json", "phpcs.xml", "phpcs.xml.dist", "rector.php", "deptrac.php", "deptrac.yaml", "phpunit.xml", "phpunit.xml.dist", "composer.json", ".editorconfig"],
+  "sources": {
+    "checks": "https://getcomposer.org/doc/03-cli.md",
+    "phpunit": "https://docs.phpunit.de/en/12.5/cli-options.html",
+    "phpstan": "https://phpstan.org/user-guide/command-line-usage",
+    "php-cs-fixer": "https://cs.symfony.com/",
+    "race": "https://docs.phpunit.de/en/12.5/textui.html",
+    "paratest": "https://github.com/paratestphp/paratest",
+    "coverage": "https://docs.phpunit.de/en/12.5/code-coverage.html",
+    "deptrac": "https://deptrac.github.io/deptrac/",
+    "composer_cache": "https://getcomposer.org/doc/03-cli.md"
+  }
+}

@@ -1,7 +1,9 @@
 // Package runspace manages a run's scratch space on disk: it snapshots the
 // project's untracked files at run start, scopes go commands to a run-owned
-// GOCACHE/GOTMPDIR, and at run end removes that cache and the build
-// artifacts agents left behind. The decisions (what is an artifact, which
+// GOCACHE/GOTMPDIR and every detected language pack's tools to its
+// <run>/<id> cache_env (TOOLING §5), and at run end removes those caches and
+// the build artifacts agents left behind (files, and new artifact
+// directories, D25). The decisions (what is an artifact, which
 // paths are safe) live in domain/workspace; this adapter only does I/O, and
 // re-checks every path before deleting it:
 //
@@ -27,6 +29,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/domain/workspace"
 )
 
@@ -37,17 +40,41 @@ const (
 	headerWalk = "# loops baseline v1 walk"
 )
 
+// headerDirs records the directory snapshot; v2 also lists the skipped
+// directories themselves (vendor, target, …), which the artifact-directory
+// rule (D25) needs to tell a pre-existing target/ from a new one.
+const (
+	headerDirsV1 = "# loops baseline-dirs v1"
+	headerDirsV2 = "# loops baseline-dirs v2"
+)
+
 // Space is the scratch-space adapter for the project at root.
-type Space struct{ root string }
+type Space struct {
+	root  string
+	packs func() []langpack.Detected
+}
 
 // New returns a Space for the project at root.
 func New(root string) *Space { return &Space{root: root} }
 
-// Prepare creates the run's go cache directories and writes the baseline
-// snapshots (untracked files incl. ignored ones, and the directory list).
+// WithPacks sets the source of the detected language packs whose caches the
+// run scopes and whose artifacts cleanup removes (nil = Go only, as before).
+func (s *Space) WithPacks(detect func() []langpack.Detected) *Space {
+	s.packs = detect
+	return s
+}
+
+// Prepare creates the run's go cache directories and each detected pack's
+// <run>/<id>/{cache,tmp}, and writes the baseline snapshots (untracked files
+// incl. ignored ones, and the directory list).
 func (s *Space) Prepare(ctx context.Context, runDir string) error {
 	if _, err := s.Env(runDir); err != nil {
 		return err
+	}
+	for _, p := range s.uniquePacks() {
+		if _, err := s.PackEnv(runDir, p); err != nil {
+			return err
+		}
 	}
 	paths, header, err := s.untracked(ctx)
 	if err != nil {
@@ -60,7 +87,7 @@ func (s *Space) Prepare(ctx context.Context, runDir string) error {
 	if err != nil {
 		return err
 	}
-	return writeLines(workspace.BaselineDirs(runDir), "# loops baseline-dirs v1", dirs)
+	return writeLines(workspace.BaselineDirs(runDir), headerDirsV2, dirs)
 }
 
 // Env creates the run's GOCACHE and GOTMPDIR (go refuses a missing
@@ -188,6 +215,9 @@ func (s *Space) walk(fn func(rel string, d fs.DirEntry)) error {
 		}
 		rel = filepath.ToSlash(rel)
 		if d.IsDir() && workspace.SkipDir(rel) {
+			if rel != ".loops" && d.Name() != ".git" {
+				fn(rel, d) // listed, never descended
+			}
 			return filepath.SkipDir
 		}
 		fn(rel, d)
@@ -215,12 +245,14 @@ func (s *Space) dirs() ([]string, error) {
 	return out, err
 }
 
-// Clean removes the run's go directory and the new artifacts in the
-// project (dryRun only reports). Problems with single paths are reported in
-// Report.Refused; the error is for failures that stop the cleanup.
+// Clean removes the run's go directory, each detected pack's <run>/<id>
+// directory and the new artifacts in the project (dryRun only reports).
+// Problems with single paths are reported in Report.Refused; the error is
+// for failures that stop the cleanup.
 func (s *Space) Clean(ctx context.Context, runDir string, dryRun bool) (workspace.Report, error) {
 	r := workspace.Report{DryRun: dryRun, Removed: []workspace.Item{}, Kept: []string{}}
 	s.cleanGo(runDir, dryRun, &r)
+	s.cleanPacks(runDir, dryRun, &r)
 	header, base, err := readLines(workspace.Baseline(runDir))
 	if errors.Is(err, fs.ErrNotExist) {
 		r.NoBaseline = true
@@ -248,15 +280,17 @@ func (s *Space) Clean(ctx context.Context, runDir string, dryRun bool) (workspac
 	if err != nil {
 		return r, err
 	}
+	arts := s.artifacts()
+	gone := s.cleanArtifactDirs(realRoot, runDir, tracked, arts, dryRun, &r)
 	fresh, unsafe := workspace.NewPaths(base, cur)
 	r.Kept = append(r.Kept, unsafe...)
-	var removed []string
+	removed := append([]string(nil), gone...)
 	for _, rel := range fresh {
-		if tracked[rel] {
+		if tracked[rel] || underAny(strings.TrimSuffix(rel, "/"), gone) {
 			continue
 		}
 		e, fi := s.inspect(realRoot, rel)
-		if workspace.Decide(e) != workspace.Remove {
+		if workspace.DecideFor(e, arts) != workspace.Remove {
 			r.Kept = append(r.Kept, rel)
 			continue
 		}
@@ -274,6 +308,15 @@ func (s *Space) Clean(ctx context.Context, runDir string, dryRun bool) (workspac
 		r.DirsRemoved = s.prune(realRoot, runDir, removed)
 	}
 	return r, nil
+}
+
+func underAny(rel string, dirs []string) bool {
+	for _, d := range dirs {
+		if workspace.Under(rel, d) {
+			return true
+		}
+	}
+	return false
 }
 
 // prune removes the emptied directories that did not exist at run start.
@@ -387,48 +430,68 @@ func unchanged(a, b os.FileInfo) bool {
 // cache entries can be read-only). It never follows symlinks and refuses a
 // go dir that is a symlink or resolves outside the run dir.
 func (s *Space) cleanGo(runDir string, dryRun bool, r *workspace.Report) {
-	goDir := workspace.GoDir(runDir)
-	fi, err := os.Lstat(goDir)
+	files, size, _ := cleanRunSub(runDir, workspace.GoDir(runDir), dryRun, r)
+	r.CacheFiles += files
+	r.CacheBytes += size
+}
+
+// cleanRunSub removes dir, a direct subdirectory of runDir, as cleanGo
+// describes; ok is false when dir did not exist or was refused.
+func cleanRunSub(runDir, dir string, dryRun bool, r *workspace.Report) (files int, size int64, ok bool) {
+	fi, err := os.Lstat(dir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return
+		return 0, 0, false
 	}
 	if err != nil || !fi.IsDir() || fi.Mode()&fs.ModeSymlink != 0 {
-		r.Refused = append(r.Refused, goDir+": not a plain directory")
-		return
+		r.Refused = append(r.Refused, dir+": not a plain directory")
+		return 0, 0, false
 	}
 	realRun, err1 := filepath.EvalSymlinks(runDir)
-	realGo, err2 := filepath.EvalSymlinks(goDir)
-	if err1 != nil || err2 != nil || filepath.Dir(realGo) != realRun {
-		r.Refused = append(r.Refused, goDir+": outside the run directory")
-		return
+	realDir, err2 := filepath.EvalSymlinks(dir)
+	if err1 != nil || err2 != nil || filepath.Dir(realDir) != realRun {
+		r.Refused = append(r.Refused, dir+": outside the run directory")
+		return 0, 0, false
 	}
-	_ = filepath.WalkDir(realGo, func(p string, d fs.DirEntry, err error) error {
+	files, size, _ = measure(realDir, !dryRun)
+	if dryRun {
+		return files, size, true
+	}
+	if err := os.RemoveAll(realDir); err != nil {
+		r.Refused = append(r.Refused, dir+": "+err.Error())
+	}
+	return files, size, true
+}
+
+// measure walks dir without following symlinks, counting its non-directory
+// entries and the bytes of its regular files, and reports whether a .git
+// entry lies inside. With writable it makes directories u+rwx and files u+w
+// so that read-only entries do not block removal.
+func measure(dir string, writable bool) (files int, size int64, nestedRepo bool) {
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
+		if p != dir && d.Name() == ".git" {
+			nestedRepo = true
+		}
 		if d.IsDir() {
-			if !dryRun {
+			if writable {
 				if info, err := d.Info(); err == nil && info.Mode().Perm()&0o700 != 0o700 {
 					_ = os.Chmod(p, info.Mode().Perm()|0o700)
 				}
 			}
 			return nil
 		}
-		r.CacheFiles++
+		files++
 		if info, err := d.Info(); err == nil && info.Mode().IsRegular() {
-			r.CacheBytes += info.Size()
-			if !dryRun && info.Mode().Perm()&0o200 == 0 {
+			size += info.Size()
+			if writable && info.Mode().Perm()&0o200 == 0 {
 				_ = os.Chmod(p, info.Mode().Perm()|0o200) // read-only files block removal on Windows
 			}
 		}
 		return nil
 	})
-	if dryRun {
-		return
-	}
-	if err := os.RemoveAll(realGo); err != nil {
-		r.Refused = append(r.Refused, goDir+": "+err.Error())
-	}
+	return files, size, nestedRepo
 }
 
 // Go runs the go tool for the CLI (see the package-level Go).
@@ -440,7 +503,20 @@ func (s *Space) Go(ctx context.Context, dir string, env, args []string, in io.Re
 // environment, wiring stdio through, and returns its exit code (127 when go
 // cannot be started).
 func Go(ctx context.Context, dir string, env, args []string, in io.Reader, out, errw io.Writer) int {
-	cmd := exec.CommandContext(ctx, "go", args...)
+	return runTool(ctx, "loops go", dir, env, "go", args, in, out, errw)
+}
+
+// Exec runs argv in dir as Go runs the go tool (`loops exec`).
+func (s *Space) Exec(ctx context.Context, dir string, env, argv []string, in io.Reader, out, errw io.Writer) int {
+	if len(argv) == 0 {
+		fmt.Fprintln(errw, "loops exec: no command")
+		return 127
+	}
+	return runTool(ctx, "loops exec", dir, env, argv[0], argv[1:], in, out, errw)
+}
+
+func runTool(ctx context.Context, who, dir string, env []string, name string, args []string, in io.Reader, out, errw io.Writer) int {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), env...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = in, out, errw
@@ -452,7 +528,7 @@ func Go(ctx context.Context, dir string, env, args []string, in io.Reader, out, 
 	case errors.As(err, &ee):
 		return ee.ExitCode()
 	}
-	fmt.Fprintf(errw, "loops go: %v\n", err)
+	fmt.Fprintf(errw, "%s: %v\n", who, err)
 	return 127
 }
 
@@ -476,6 +552,18 @@ func (r *Runner) RunEnv(ctx context.Context, dir string, env []string, name stri
 		cmd.Env = append(os.Environ(), env...)
 	}
 	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+// RunStdout is RunEnv returning stdout alone (stderr is discarded); the gate
+// uses it for pack placeholders and coverage export steps.
+func (r *Runner) RunStdout(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
+	out, err := cmd.Output()
 	return string(out), err
 }
 

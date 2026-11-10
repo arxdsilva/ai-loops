@@ -21,7 +21,7 @@ Agent: <agent-id> | Role: <role> | Wave: <n>
 - `<command>` -> <pass/fail>, coverage <n>% for <pkg> (before <m>%)
 
 ## Coverage
-- New-code coverage: <n>% (min 70%), from `loops gate --only test,coverage --pkgs <owned>`; tests run with `-race`
+- New-code coverage: <n>% (min 70%), from `loops gate --only <test checks>,coverage --pkgs <owned>`; tests run under the pack's race policy (<flag/build/substitute>)
 
 ## Still stubbed
 - <what and why, or "nothing">

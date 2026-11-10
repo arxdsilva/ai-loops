@@ -3,7 +3,7 @@
     {
       "hooks": [
         {
-          "command": "loops hook go-post-edit --platform windsurf",
+          "command": "loops hook post-edit --platform windsurf",
           "timeout": 60,
           "type": "command"
         }
@@ -32,7 +32,7 @@
     {
       "hooks": [
         {
-          "command": "loops hook race-guard --platform windsurf",
+          "command": "loops hook test-guard --platform windsurf",
           "timeout": 10,
           "type": "command"
         }
@@ -41,7 +41,7 @@
     {
       "hooks": [
         {
-          "command": "loops hook go-env --platform windsurf",
+          "command": "loops hook toolchain-env --platform windsurf",
           "timeout": 10,
           "type": "command"
         }

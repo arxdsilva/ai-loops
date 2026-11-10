@@ -34,7 +34,7 @@ Nothing to stop.
 ```
 loops install --target windsurf
 ```
-Writes `.agents/skills/`, `.devin/hooks.v1.json`. Needs Go. Verify: `loops version`; AGENTS.md is read natively.
+Writes `.agents/skills/`, `.devin/hooks.v1.json`. Needs `loops` on PATH (prebuilt; `install.sh`). Verify: `loops version`; AGENTS.md is read natively.
 
 ## Hardware and budgets
 Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
@@ -45,5 +45,7 @@ Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets 
 ## Model fallback
 Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).
 
-## Go environment
+## Run-scoped toolchain env
 Go commands on this platform are rewritten automatically by the PreToolUse hook. Either way they use the run's own Go cache, which `loops run end` deletes.
+
+Other language packs: the toolchain-env hook prefixes their build and test commands with the run-scoped env (`loops lang show <id>` → `cache_env`).

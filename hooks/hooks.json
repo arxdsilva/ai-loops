@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/loops\" hook race-guard",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/loops\" hook test-guard",
             "timeout": 10
           }
         ]
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/loops\" hook go-env",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/loops\" hook toolchain-env",
             "timeout": 10
           }
         ]
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/loops\" hook go-post-edit",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/loops\" hook post-edit",
             "timeout": 60
           }
         ]

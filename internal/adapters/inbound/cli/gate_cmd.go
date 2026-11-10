@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/arxdsilva/ai-loops/internal/application/gate"
+	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 )
 
 func splitList(s string) []string {
@@ -20,27 +23,39 @@ func splitList(s string) []string {
 	return out
 }
 
-func validCheck(n string) bool {
-	for _, v := range gate.CheckNames {
-		if v == n {
-			return true
+// gateChecks lists the check names of the detected packs, in pipeline
+// order, and those --skip may not drop (skippable: false); without packs,
+// the Go pack's names.
+func gateChecks(ds []langpack.Detected) (names, required []string) {
+	if len(ds) == 0 {
+		return gate.CheckNames, []string{gate.CheckCoverage}
+	}
+	for _, d := range ds {
+		for _, c := range d.Pack.Checks {
+			if !slices.Contains(names, c.Name) {
+				names = append(names, c.Name)
+			}
+			if !c.IsSkippable() && !slices.Contains(required, c.Name) {
+				required = append(required, c.Name)
+			}
 		}
 	}
-	return false
+	return names, required
 }
 
-const gateUsage = "usage: loops gate [--pkgs p,…] [--only c,…] [--skip c,…] [--base ref] [--vuln] [--fail-fast]"
+const gateUsage = "usage: loops gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--fail-fast]"
 
-// cmdGate implements `loops gate`: build, gofmt, vet, staticcheck, arch,
-// test (-race, with a coverprofile), coverage of the new code against
-// --base (default: merge-base with origin/main), govulncheck.
+// cmdGate implements `loops gate`: every detected language pack's checks
+// (for Go: build, gofmt, vet, staticcheck, arch, test -race with a
+// coverprofile, coverage of the new code against --base, govulncheck).
 func (a *App) cmdGate(ctx context.Context, args []string) int {
 	fs := a.newFlagSet("gate")
-	pkgs := fs.String("pkgs", "", "comma-separated package patterns (default ./...)")
+	pkgs := fs.String("pkgs", "", "comma-separated package patterns (default: each pack's scope, ./... for Go)")
 	only := fs.String("only", "", "run only these checks")
 	skip := fs.String("skip", "", "skip these checks (coverage is required and cannot be skipped)")
+	enable := fs.String("enable", "", "enable these default-off checks")
 	base := fs.String("base", "", "git ref new code is diffed against for coverage (default: gate.base, else merge-base with origin/main)")
-	vuln := fs.Bool("vuln", false, "include govulncheck")
+	vuln := fs.Bool("vuln", false, "enable the vuln checks (govulncheck)")
 	failFast := fs.Bool("fail-fast", false, "stop at the first failing check")
 	pos, err := parseFlagsAnywhere(fs, args)
 	if err != nil {
@@ -49,52 +64,81 @@ func (a *App) cmdGate(ctx context.Context, args []string) int {
 	if len(pos) > 0 {
 		return a.usageErr(gateUsage)
 	}
-	onlyL, skipL := splitList(*only), splitList(*skip)
-	for _, n := range append(append([]string{}, onlyL...), skipL...) {
-		if !validCheck(n) {
-			return a.usageErr(fmt.Sprintf("gate: unknown check %q (valid: %s)", n, strings.Join(gate.CheckNames, ", ")))
+	var packs []langpack.Detected
+	if a.Langs != nil {
+		if packs, err = a.Langs.Detect(a.Root, a.Languages); err != nil {
+			fmt.Fprintf(a.Err, "loops gate: language packs: %v\n", err)
+			return 1
+		}
+		if len(packs) == 0 {
+			fmt.Fprintf(a.Err, "loops gate: %v\n", gate.ErrNoPack)
+			return 1
+		}
+	}
+	valid, required := gateChecks(packs)
+	onlyL, skipL, enableL := splitList(*only), splitList(*skip), splitList(*enable)
+	for _, n := range slices.Concat(onlyL, skipL, enableL) {
+		if !slices.Contains(valid, n) {
+			return a.usageErr(fmt.Sprintf("gate: unknown check %q (valid: %s)", n, strings.Join(valid, ", ")))
 		}
 	}
 	for _, n := range skipL {
-		if n == gate.CheckCoverage {
-			return a.usageErr("gate: coverage is required and cannot be skipped (scope a QA run with --only instead)")
+		if slices.Contains(required, n) {
+			return a.usageErr("gate: " + n + " is required and cannot be skipped (scope a QA run with --only instead)")
 		}
 	}
-	prof, err := os.CreateTemp("", "loops-cover-*.out")
+	dir, err := os.MkdirTemp("", "loops-gate-*")
 	if err != nil {
 		fmt.Fprintf(a.Err, "loops gate: coverprofile: %v\n", err)
 		return 1
 	}
-	prof.Close()
-	defer os.Remove(prof.Name())
+	defer os.RemoveAll(dir)
+	prof := filepath.Join(dir, "cover.out")
+	if err := os.WriteFile(prof, nil, 0o600); err != nil {
+		fmt.Fprintf(a.Err, "loops gate: coverprofile: %v\n", err)
+		return 1
+	}
+	env := wsCmd{a}.gateEnv(ctx)
+	runDir := ""
+	if env != nil {
+		runDir, _, _, _ = wsCmd{a}.runEnv(ctx) // the run dir scopes each pack's caches
+	}
 	res, err := a.Gate.Run(ctx, gate.Options{
 		Root:         a.Root,
 		Pkgs:         splitList(*pkgs),
 		Only:         onlyL,
 		Skip:         skipL,
+		Enable:       enableL,
 		ConfigSkip:   a.GateSkip,
 		Vuln:         *vuln || a.GateVuln,
 		FailFast:     *failFast,
-		CoverProfile: prof.Name(),
+		CoverProfile: prof,
+		CoverDir:     filepath.Join(dir, "packs"),
+		RunDir:       runDir,
 		Base:         *base,
-		Env:          wsCmd{a}.gateEnv(ctx),
+		Env:          env,
+		Packs:        packs,
 	})
 	if err != nil {
 		fmt.Fprintf(a.Err, "loops gate: %v\n", err)
 		return 1
 	}
 	for _, c := range res.Checks {
+		name := c.Name
+		if c.Pack != "" {
+			name += " [" + c.Pack + "]"
+		}
 		switch {
 		case c.Skipped:
-			fmt.Fprintf(a.Out, "- %s (skipped)\n", c.Name)
+			fmt.Fprintf(a.Out, "- %s (skipped)\n", name)
 			if c.Output != "" {
 				fmt.Fprintf(a.Out, "    %s\n", c.Output)
 			}
 		case c.OK:
-			fmt.Fprintf(a.Out, "✓ %s %.1fs\n", c.Name, c.Duration.Seconds())
+			fmt.Fprintf(a.Out, "✓ %s %.1fs\n", name, c.Duration.Seconds())
 			indent(a.Out, c.Output) // the coverage table
 		default:
-			fmt.Fprintf(a.Out, "✗ %s %.1fs\n", c.Name, c.Duration.Seconds())
+			fmt.Fprintf(a.Out, "✗ %s %.1fs\n", name, c.Duration.Seconds())
 			indent(a.Out, c.Output)
 		}
 	}

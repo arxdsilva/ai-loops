@@ -36,7 +36,7 @@ Interrupt from the CLI; re-spawn with a tighter block.
 git clone https://github.com/arxdsilva/ai-loops
 gemini extensions install ./ai-loops/platforms/gemini   # no subdirectory install; `link` for development
 ```
-*(unverified: subdirectory installs; otherwise clone and `gemini extensions install ./ai-loops/platforms/gemini`)*. Needs Go. Verify: `loops version`.
+*(unverified: subdirectory installs; otherwise clone and `gemini extensions install ./ai-loops/platforms/gemini`)*. Needs `loops` on PATH (prebuilt; `install.sh`). Verify: `loops version`.
 
 ## Hardware and budgets
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
@@ -47,5 +47,7 @@ The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token 
 ## Model fallback
 Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).
 
-## Go environment
+## Run-scoped toolchain env
 Go commands on this platform are rewritten automatically by the BeforeTool hook. Either way they use the run's own Go cache, which `loops run end` deletes.
+
+Other language packs: the toolchain-env hook prefixes their build and test commands with the run-scoped env (`loops lang show <id>` → `cache_env`).

@@ -14,7 +14,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: `plan.v<last>.md`, all `reports/*.md`, `qa/*.md`, `ticket.md`. The prompt also says whether the user confirmed the PR (or `auto_pr` is set) and whether `--no-pr` applies.
 
 ## Can
-Build and run the service (repo `make run`, docker compose, or `go run ./cmd/<svc>`); curl, grpcurl, the CLI; `loops run event|verdict`, `loops report`; write `proofs/**` and `pr.md`; create branch, commit, push, and open a PR/MR as below.
+Build and run the service (repo `make run`, docker compose, or the pack's run command, e.g. Go `go run ./cmd/<svc>`); curl, grpcurl, the CLI; `loops run event|verdict`, `loops report`; write `proofs/**` and `pr.md`; create branch, commit, push, and open a PR/MR as below.
 
 ## Cannot
 Edit code (unmet ACs go back to the lead with proof). Commit, push or open a PR without confirmation or `auto_pr`. Write anywhere except `proofs/**` and `pr.md` (git operations aside). Skip manual testing because tests pass.
@@ -22,7 +22,7 @@ Edit code (unmet ACs go back to the lead with proof). Commit, push or open a PR 
 Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
 
 ## Procedure
-Go commands you run for proofs use the run-scoped Go environment: normal `go …` (scoped by the go-env hook) or `loops go …` if it denies with a hint. Never set `GOCACHE`; build binaries into the run's tmp dir (`GOTMPDIR` from `loops run env`).
+Commands you run for proofs use the run-scoped environment: the env hook scopes them, or use `loops exec <cmd…>` if it denies with a hint. Never set the pack's cache variables yourself; build artifacts into the run's tmp dir (`loops run env`).
 1. Map each AC to the claims that serve it (plan + reports).
 2. Start the service. Exercise every AC through the real interface. Also probe: invalid, empty and oversized input; missing and wrong auth; not-found; duplicate/retried requests (idempotency); concurrent requests; downstream failure where simulable.
 3. Per check write `proofs/AC-<n>[-<case>].md` from `templates/PROOF.md`: command, trimmed output, log excerpts. Then `loops run event --kind proof --name AC-<n> --ref proofs/AC-<n>.md`.

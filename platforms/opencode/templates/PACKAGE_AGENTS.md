@@ -1,6 +1,6 @@
 # Package AGENTS.md template
 
-A package `AGENTS.md` says only what is local to its package, in 300-800 words. Shared rules (inward dependencies, headless domain, injected clock/RNG, `-race`) live in the root `AGENTS.md` and the specs; never repeat them here. Leave out a section with nothing package-specific; never write "None". Written by `docs-writer` from facts the lead supplies, or by the implementer when a contract changes.
+A package (module) `AGENTS.md` says only what is local to its module, in 300-800 words. Shared rules (inward dependencies, headless domain, injected clock/RNG, the race policy) live in the root `AGENTS.md` and the specs; never repeat them here. Leave out a section with nothing package-specific; never write "None". Written by `docs-writer` from facts the lead supplies, or by the implementer when a contract changes.
 
 ```markdown
 # <path relative to the repo root>
@@ -12,10 +12,10 @@ What the package owns and why it exists.
 Its types and their roles; method or field counts only when near a limit (specs/SOLID.md §8).
 
 ## Depends on
-Imports beyond the layer default (third-party packages, sibling leaves).
+Imports beyond the layer default (third-party libraries, sibling leaves).
 
 ## Must not depend on
-Package-specific bans: the parent package, siblings above it, packages that import it.
+Module-specific bans: the parent module, siblings above it, modules that import it.
 
 ## Contracts
 What callers rely on, each with the test that pins it.

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${PLUGIN_ROOT}/bin/loops\" hook go-post-edit --platform codex",
+            "command": "\"${PLUGIN_ROOT}/bin/loops\" hook post-edit --platform codex",
             "timeout": 60
           }
         ]
@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${PLUGIN_ROOT}/bin/loops\" hook race-guard --platform codex",
+            "command": "\"${PLUGIN_ROOT}/bin/loops\" hook test-guard --platform codex",
             "timeout": 10
           }
         ]
@@ -48,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${PLUGIN_ROOT}/bin/loops\" hook go-env --platform codex",
+            "command": "\"${PLUGIN_ROOT}/bin/loops\" hook toolchain-env --platform codex",
             "timeout": 10
           }
         ]

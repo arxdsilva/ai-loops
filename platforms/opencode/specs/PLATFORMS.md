@@ -28,7 +28,7 @@ N = native, A = adapted (lossy or emulated), X = unavailable (falls back per §4
 | Resume or message the same agent | N | X | X | N (by agent id) | X | X | A | X | X |
 | Slash commands | N (skills) | N (skills) | A (`$skill`) | N | N (TOML) | N (md) | A (skills) | A (skills) | A (workflows) |
 | PreToolUse deny | N | N | N | N | N (`BeforeTool`) | A (TS shim) | X | N | X |
-| PostToolUse trace and gofmt | N | N | N | N | N (`AfterTool`) | A (TS shim) | X | N | X |
+| PostToolUse trace and post-edit | N | N | N | N | N (`AfterTool`) | A (TS shim) | X | N | X |
 | SubagentStart/Stop lanes | N | N | N | N | X | X | X | X | X |
 | Stop gate | N | N | N | N (`followup_message`) | N (`AfterAgent`) | X | X | N | X |
 | SessionStart context | N | N | N | A *(unverified field)* | N | A | X | N | X |
@@ -215,7 +215,7 @@ The repository must be public for release downloads and for the update check. A 
 
 Tiers (`haiku`, `sonnet`, `opus`) are Claude names. Other platforms inherit the session model unless `loops port build --models <file.json>` maps them, e.g. `{"codex":{"opus":"<model id>"}}`. Model ids change too often to hard-code, so the generated packages in the repo leave the model unset, and each platform's notes tell users how to map tiers.
 
-### 5.0 go-env rewrite support (verified 2026-11-09; details in `dialect.go`)
+### 5.0 toolchain-env (alias go-env) rewrite support (verified 2026-11-09; details in `dialect.go`)
 
 | Platform | Unscoped `go …` command |
 |---|---|

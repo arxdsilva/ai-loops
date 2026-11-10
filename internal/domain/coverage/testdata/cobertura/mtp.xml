@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<coverage line-rate="0.5555555555555556" branch-rate="0.5" complexity="2" version="1.9" timestamp="1794330826" lines-covered="5" lines-valid="9" branches-covered="1" branches-valid="2">
+  <packages>
+    <package line-rate="0.5555555555555556" branch-rate="0.5" complexity="2" name="Hello">
+      <classes>
+        <class line-rate="0.5555555555555556" branch-rate="0.5" complexity="2" name="Hello.Greeter" filename="/repo/src/Hello/Greeter.cs">
+          <methods>
+            <method line-rate="0.8333333333333334" branch-rate="0.5" complexity="2" name="Greet" signature="(string)">
+              <lines>
+                <line number="6" hits="1" branch="False" />
+                <line number="7" hits="1" branch="True" condition-coverage="50% (1/2)">
+                  <conditions>
+                    <condition number="0" type="jump" coverage="50%" />
+                  </conditions>
+                </line>
+                <line number="8" hits="1" branch="False" />
+                <line number="9" hits="1" branch="False" />
+                <line number="11" hits="0" branch="False" />
+                <line number="12" hits="1" branch="False" />
+              </lines>
+            </method>
+            <method line-rate="0" branch-rate="1" complexity="1" name="Unused" signature="()">
+              <lines>
+                <line number="15" hits="0" branch="False" />
+                <line number="16" hits="0" branch="False" />
+                <line number="17" hits="0" branch="False" />
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="6" hits="1" branch="False" />
+            <line number="7" hits="1" branch="True" condition-coverage="50% (1/2)">
+              <conditions>
+                <condition number="0" type="jump" coverage="50%" />
+              </conditions>
+            </line>
+            <line number="8" hits="1" branch="False" />
+            <line number="9" hits="1" branch="False" />
+            <line number="11" hits="0" branch="False" />
+            <line number="12" hits="1" branch="False" />
+            <line number="15" hits="0" branch="False" />
+            <line number="16" hits="0" branch="False" />
+            <line number="17" hits="0" branch="False" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>

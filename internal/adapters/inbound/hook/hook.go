@@ -2,8 +2,9 @@
 // guard decisions and run events. Every handler fails open: bad input,
 // no active run, or an internal error exits 0 with no output.
 //
-// Names (hooks/hooks.json): session-start, read-guard, race-guard, go-env,
-// model-guard, go-post-edit, trace, trace-agent, stop-gate.
+// Names (hooks/hooks.json): session-start, read-guard, test-guard,
+// toolchain-env, model-guard, post-edit, trace, trace-agent, stop-gate. The
+// pre-language-pack names race-guard, go-env and go-post-edit stay aliases.
 package hook
 
 import (
@@ -13,10 +14,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/arxdsilva/ai-loops/internal/application/guard"
 	"github.com/arxdsilva/ai-loops/internal/application/updatecheck"
@@ -27,6 +26,7 @@ import (
 type Handler struct {
 	d        Deps
 	platform string
+	langs    *detection // per Handle call; nil until first needed
 }
 
 // New returns a Handler.
@@ -103,6 +103,7 @@ func (h *Handler) Handle(ctx context.Context, name, platform string, in io.Reade
 	platform = detect(platform, h.d.Env)
 	d, failed := normalize(&p, platform)
 	h.platform = platform
+	h.langs = nil
 	h.absolutize(&p)
 	switch name {
 	case "session-start":
@@ -111,12 +112,12 @@ func (h *Handler) Handle(ctx context.Context, name, platform string, in io.Reade
 		return h.readGuard(ctx, p, errw)
 	case "model-guard":
 		return h.modelGuard(ctx, p, errw)
-	case "race-guard":
-		return h.raceGuard(ctx, p, errw)
-	case "go-env":
-		return h.goEnv(ctx, d, p, out, errw)
-	case "go-post-edit":
-		h.goPostEdit(ctx, d, p, out)
+	case "test-guard", "race-guard":
+		return h.testGuard(ctx, p, errw)
+	case "toolchain-env", "go-env":
+		return h.toolchainEnv(ctx, d, p, out, errw)
+	case "post-edit", "go-post-edit":
+		h.postEdit(ctx, d, p, out)
 	case "trace":
 		h.trace(ctx, p, failed)
 	case "trace-agent":
@@ -315,74 +316,6 @@ func (h *Handler) modelGuard(ctx context.Context, p payload, errw io.Writer) int
 		return h.deny(ctx, p, "model-guard", reason, errw)
 	}
 	return 0
-}
-
-func (h *Handler) goPostEdit(ctx context.Context, d dialect, p payload, out io.Writer) {
-	var in toolInput
-	_ = json.Unmarshal(p.ToolInput, &in)
-	repo := h.repo(p)
-	var files []string
-	for _, f := range append([]string{in.path()}, p.extraFiles...) {
-		if !strings.HasSuffix(f, ".go") {
-			continue
-		}
-		if !filepath.IsAbs(f) {
-			f = filepath.Join(repo, f)
-		}
-		if h.d.Files.Exists(f) && !slices.Contains(files, f) {
-			files = append(files, f)
-		}
-	}
-	if len(files) == 0 {
-		return
-	}
-	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
-	defer cancel()
-	fmtTool := "gofmt"
-	if h.d.Cmd.Has("goimports") {
-		fmtTool = "goimports"
-	}
-	failed := map[string]bool{}
-	var failTool, failFile, failOut string
-	fail := func(tool, file, output string) {
-		if failTool == "" {
-			failTool, failFile, failOut = tool, file, output
-		}
-	}
-	for _, f := range files {
-		if output, err := h.d.Cmd.Run(ctx, repo, fmtTool, "-w", f); err != nil {
-			failed[f] = true
-			fail(fmtTool, f, output)
-		}
-	}
-	if failTool == "" {
-		vetted := map[string]bool{}
-		for _, f := range files {
-			rel, err := filepath.Rel(repo, filepath.Dir(f))
-			if err != nil || strings.HasPrefix(rel, "..") || vetted[rel] {
-				continue
-			}
-			vetted[rel] = true
-			if output, err := h.d.Cmd.Run(ctx, repo, "go", "vet", "./"+filepath.ToSlash(rel)); err != nil {
-				for _, g := range files {
-					if r, _ := filepath.Rel(repo, filepath.Dir(g)); r == rel {
-						failed[g] = true
-					}
-				}
-				fail("go vet", f, output)
-			}
-		}
-	}
-	for _, f := range files {
-		_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindStep, Name: "go-post-edit", Agent: p.AgentID, Role: roleName(p.AgentType), Target: f, OK: run.Bool(!failed[f])})
-	}
-	if failTool != "" {
-		lines := strings.Split(strings.TrimRight(failOut, "\n"), "\n")
-		if len(lines) > 30 {
-			lines = lines[:30]
-		}
-		d.postEditFailure(out, fmt.Sprintf("go-post-edit: %s failed for %s:\n%s", failTool, failFile, strings.Join(lines, "\n")))
-	}
 }
 
 func firstLine(s string, max int) string {

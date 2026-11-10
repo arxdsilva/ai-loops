@@ -2,7 +2,7 @@
   "hooks": {
     "postToolUse": [
       {
-        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook go-post-edit --platform cursor",
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook post-edit --platform cursor",
         "timeout": 60
       },
       {
@@ -22,11 +22,11 @@
         "timeout": 10
       },
       {
-        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook race-guard --platform cursor",
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook test-guard --platform cursor",
         "timeout": 10
       },
       {
-        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook go-env --platform cursor",
+        "command": "\"${CURSOR_PLUGIN_ROOT}/bin/loops\" hook toolchain-env --platform cursor",
         "timeout": 10
       },
       {

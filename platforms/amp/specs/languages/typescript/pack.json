@@ -1,0 +1,744 @@
+{
+ "schema": 1,
+ "id": "typescript",
+ "name": "TypeScript / JavaScript (server-side)",
+ "versions": {
+  "stable": "26",
+  "lts": "26",
+  "as_of": "2026-11"
+ },
+ "detect": [
+  {
+   "file": "package.json"
+  },
+  {
+   "file": "tsconfig.json"
+  }
+ ],
+ "variants": [
+  {
+   "name": "pnpm",
+   "detect": [
+    {
+     "file": "pnpm-lock.yaml"
+    }
+   ],
+   "checks": [
+    {
+     "name": "deps",
+     "argv": [
+      "pnpm",
+      "install",
+      "--frozen-lockfile",
+      "--ignore-scripts"
+     ],
+     "tool": "pnpm",
+     "when_file": [
+      "pnpm-lock.yaml"
+     ]
+    },
+    {
+     "name": "build",
+     "argv": [
+      "pnpm",
+      "run",
+      "--if-present",
+      "build"
+     ],
+     "tool": "pnpm"
+    },
+    {
+     "name": "npm-audit",
+     "argv": [
+      "pnpm",
+      "audit",
+      "--prod",
+      "--audit-level=high"
+     ],
+     "tool": "pnpm"
+    }
+   ]
+  },
+  {
+   "name": "yarn",
+   "detect": [
+    {
+     "file": "yarn.lock"
+    }
+   ],
+   "checks": [
+    {
+     "name": "deps",
+     "argv": [
+      "yarn",
+      "install",
+      "--immutable"
+     ],
+     "tool": "yarn",
+     "when_file": [
+      "yarn.lock"
+     ],
+     "env": {
+      "YARN_ENABLE_SCRIPTS": "false"
+     }
+    },
+    {
+     "name": "build",
+     "argv": [
+      "yarn",
+      "run",
+      "build"
+     ],
+     "tool": "yarn",
+     "required": false,
+     "note": "yarn has no --if-present; optional so a repo without a build script passes"
+    },
+    {
+     "name": "npm-audit",
+     "argv": [
+      "yarn",
+      "npm",
+      "audit",
+      "--severity",
+      "high",
+      "--environment",
+      "production"
+     ],
+     "tool": "yarn"
+    }
+   ]
+  },
+  {
+   "name": "bun",
+   "detect": [
+    {
+     "file": "bun.lock"
+    }
+   ],
+   "checks": [
+    {
+     "name": "deps",
+     "argv": [
+      "bun",
+      "install",
+      "--frozen-lockfile",
+      "--ignore-scripts"
+     ],
+     "tool": "bun",
+     "when_file": [
+      "bun.lock"
+     ]
+    },
+    {
+     "name": "build",
+     "argv": [
+      "bun",
+      "run",
+      "--if-present",
+      "build"
+     ],
+     "tool": "bun"
+    },
+    {
+     "name": "test",
+     "fallback_argv": [
+      "bun",
+      "test",
+      "--randomize",
+      "--coverage",
+      "--coverage-reporter=lcov",
+      "--coverage-dir={coverage_dir}"
+     ],
+     "when_file": [
+      "vitest.config.ts",
+      "vitest.config.mts",
+      "vitest.config.cts",
+      "vitest.config.js",
+      "vitest.config.mjs",
+      "vitest.config.cjs",
+      "vite.config.ts",
+      "vite.config.mts",
+      "vite.config.cts",
+      "vite.config.js",
+      "vite.config.mjs",
+      "vite.config.cjs",
+      "vitest.workspace.ts",
+      "vitest.workspace.js"
+     ]
+    },
+    {
+     "name": "test-repeat",
+     "fallback_argv": [
+      "bun",
+      "test",
+      "--randomize",
+      "--rerun-each=3"
+     ],
+     "when_file": [
+      "vitest.config.ts",
+      "vitest.config.mts",
+      "vitest.config.cts",
+      "vitest.config.js",
+      "vitest.config.mjs",
+      "vitest.config.cjs",
+      "vite.config.ts",
+      "vite.config.mts",
+      "vite.config.cts",
+      "vite.config.js",
+      "vite.config.mjs",
+      "vite.config.cjs",
+      "vitest.workspace.ts",
+      "vitest.workspace.js"
+     ]
+    },
+    {
+     "name": "npm-audit",
+     "argv": [
+      "bun",
+      "audit",
+      "--audit-level=high",
+      "--prod"
+     ],
+     "tool": "bun"
+    }
+   ]
+  }
+ ],
+ "source_globs": [
+  "**/*.ts",
+  "**/*.tsx",
+  "**/*.mts",
+  "**/*.cts",
+  "**/*.js",
+  "**/*.jsx",
+  "**/*.mjs",
+  "**/*.cjs"
+ ],
+ "test_globs": [
+  "**/*.test.ts",
+  "**/*.test.tsx",
+  "**/*.test.mts",
+  "**/*.test.cts",
+  "**/*.test.js",
+  "**/*.test.jsx",
+  "**/*.test.mjs",
+  "**/*.test.cjs",
+  "**/*.spec.ts",
+  "**/*.spec.tsx",
+  "**/*.spec.mts",
+  "**/*.spec.cts",
+  "**/*.spec.js",
+  "**/*.spec.jsx",
+  "**/*.spec.mjs",
+  "**/*.spec.cjs",
+  "**/*.e2e-spec.ts",
+  "**/__tests__/**",
+  "test/**",
+  "tests/**",
+  "e2e/**"
+ ],
+ "generated": {
+  "globs": [
+   "**/*.d.ts",
+   "**/generated/**",
+   "**/__generated__/**",
+   "**/*.generated.ts",
+   "**/*.gen.ts",
+   "**/dist/**",
+   "**/coverage/**",
+   "**/node_modules/**"
+  ],
+  "header_regex": "(@generated|This file was automatically generated)"
+ },
+ "manifest": "package.json",
+ "env": {
+  "CI": "true",
+  "NO_UPDATE_NOTIFIER": "1",
+  "npm_config_audit": "false",
+  "npm_config_fund": "false"
+ },
+ "checks": [
+  {
+   "name": "deps",
+   "kind": "deps",
+   "argv": [
+    "npm",
+    "ci",
+    "--ignore-scripts"
+   ],
+   "required": true,
+   "tool": "npm",
+   "when_file": [
+    "package-lock.json",
+    "npm-shrinkwrap.json"
+   ],
+   "note": "frozen install, first (D11); a repo with no committed lockfile fails REPO-05"
+  },
+  {
+   "name": "typecheck",
+   "kind": "typecheck",
+   "argv": [
+    "npx",
+    "--no-install",
+    "tsc",
+    "--noEmit"
+   ],
+   "required": true,
+   "tool": "tsc",
+   "when_file": [
+    "tsconfig.json"
+   ],
+   "note": "type stripping and bundlers do not type-check (TS-TOOL-06); use tsc -b via a project override for project references"
+  },
+  {
+   "name": "prettier",
+   "kind": "format",
+   "argv": [
+    "npx",
+    "--no-install",
+    "prettier",
+    "--check",
+    "."
+   ],
+   "required": true,
+   "tool": "prettier",
+   "when_file": [
+    ".prettierrc",
+    ".prettierrc.json",
+    ".prettierrc.yaml",
+    ".prettierrc.yml",
+    ".prettierrc.toml",
+    ".prettierrc.js",
+    ".prettierrc.cjs",
+    ".prettierrc.mjs",
+    "prettier.config.js",
+    "prettier.config.cjs",
+    "prettier.config.mjs",
+    "prettier.config.ts"
+   ],
+   "note": "required because the formatter config is committed (D14); exit 1 means files need formatting"
+  },
+  {
+   "name": "eslint",
+   "kind": "lint",
+   "argv": [
+    "npx",
+    "--no-install",
+    "eslint",
+    "--max-warnings=0",
+    "."
+   ],
+   "required": true,
+   "tool": "eslint",
+   "when_file": [
+    "eslint.config.js",
+    "eslint.config.mjs",
+    "eslint.config.cjs",
+    "eslint.config.ts",
+    "eslint.config.mts",
+    "eslint.config.cts"
+   ]
+  },
+  {
+   "name": "biome",
+   "kind": "lint",
+   "argv": [
+    "npx",
+    "--no-install",
+    "biome",
+    "ci",
+    "."
+   ],
+   "required": true,
+   "tool": "biome",
+   "when_file": [
+    "biome.json",
+    "biome.jsonc"
+   ],
+   "note": "Biome replaces Prettier and ESLint when its config is committed (D17); it also checks formatting"
+  },
+  {
+   "name": "build",
+   "kind": "build",
+   "argv": [
+    "npm",
+    "run",
+    "build",
+    "--if-present"
+   ],
+   "required": true,
+   "tool": "npm"
+  },
+  {
+   "name": "arch",
+   "kind": "arch",
+   "internal": "arch",
+   "required": false
+  },
+  {
+   "name": "depcruise",
+   "kind": "arch",
+   "argv": [
+    "npx",
+    "--no-install",
+    "depcruise",
+    "src",
+    "--config",
+    ".dependency-cruiser.cjs"
+   ],
+   "required": true,
+   "tool": "depcruise",
+   "when_file": [
+    ".dependency-cruiser.cjs"
+   ],
+   "note": "the project's own dependency-cruiser rules, run when committed (TS-ARCH-05)"
+  },
+  {
+   "name": "test",
+   "kind": "test",
+   "argv": [
+    "npx",
+    "--no-install",
+    "vitest",
+    "run",
+    "{coverage_args}",
+    "--sequence.shuffle.files",
+    "--sequence.shuffle.tests",
+    "--sequence.concurrent"
+   ],
+   "required": true,
+   "tool": "vitest",
+   "coverage_args": [
+    "--coverage",
+    "--coverage.provider=v8",
+    "--coverage.reporter=lcov",
+    "--coverage.reportsDirectory={coverage_dir}"
+   ],
+   "when_file": [
+    "vitest.config.ts",
+    "vitest.config.mts",
+    "vitest.config.cts",
+    "vitest.config.js",
+    "vitest.config.mjs",
+    "vitest.config.cjs",
+    "vite.config.ts",
+    "vite.config.mts",
+    "vite.config.cts",
+    "vite.config.js",
+    "vite.config.mjs",
+    "vite.config.cjs",
+    "vitest.workspace.ts",
+    "vitest.workspace.js"
+   ],
+   "fallback_argv": [
+    "npx",
+    "--no-install",
+    "jest",
+    "--ci",
+    "--randomize",
+    "--maxWorkers=2",
+    "--coverage",
+    "--coverageReporters=lcov",
+    "--coverageDirectory={coverage_dir}"
+   ],
+   "signal_regex": "^\\s*(FAIL|×|✗)|AssertionError|Unhandled (Rejection|Error)|ERR_",
+   "note": "vitest when a vitest or vite config is committed, else jest (Nest default); shuffled files and tests, concurrent, seed printed by the runner"
+  },
+  {
+   "name": "test-repeat",
+   "kind": "test",
+   "argv": [
+    "npx",
+    "--no-install",
+    "vitest",
+    "run",
+    "--changed",
+    "--passWithNoTests",
+    "--repeats=3",
+    "--sequence.shuffle.files",
+    "--sequence.shuffle.tests",
+    "--sequence.concurrent"
+   ],
+   "required": true,
+   "tool": "vitest",
+   "when_file": [
+    "vitest.config.ts",
+    "vitest.config.mts",
+    "vitest.config.cts",
+    "vitest.config.js",
+    "vitest.config.mjs",
+    "vitest.config.cjs",
+    "vite.config.ts",
+    "vite.config.mts",
+    "vite.config.cts",
+    "vite.config.js",
+    "vite.config.mjs",
+    "vite.config.cjs",
+    "vitest.workspace.ts",
+    "vitest.workspace.js"
+   ],
+   "fallback_argv": [
+    "npx",
+    "--no-install",
+    "jest",
+    "--ci",
+    "--randomize",
+    "--onlyChanged",
+    "--passWithNoTests",
+    "--maxWorkers=2"
+   ],
+   "note": "race substitute (D2): the changed test files repeated 3 times, shuffled and concurrent, no retries (TS-CONC-04/05)"
+  },
+  {
+   "name": "coverage",
+   "kind": "coverage",
+   "internal": "coverage",
+   "required": true,
+   "skippable": false
+  },
+  {
+   "name": "npm-audit",
+   "kind": "vuln",
+   "argv": [
+    "npm",
+    "audit",
+    "--audit-level=high",
+    "--omit=dev"
+   ],
+   "required": false,
+   "tool": "npm",
+   "default": "off"
+  },
+  {
+   "name": "osv-scanner",
+   "kind": "vuln",
+   "argv": [
+    "osv-scanner",
+    "scan",
+    "source",
+    "-r",
+    "."
+   ],
+   "required": false,
+   "tool": "osv-scanner",
+   "default": "off",
+   "install": "go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest"
+  }
+ ],
+ "test_commands": [
+  {
+   "argv_prefix": [
+    "npx",
+    "vitest"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "vitest"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "npx",
+    "jest"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "jest"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "node",
+    "--test"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "bun",
+    "test"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "deno",
+    "test"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "npm",
+    "test"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "npm",
+    "run",
+    "test"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "pnpm",
+    "test"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "pnpm",
+    "run",
+    "test"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "yarn",
+    "test"
+   ]
+  },
+  {
+   "argv_prefix": [
+    "yarn",
+    "run",
+    "test"
+   ]
+  }
+ ],
+ "race": {
+  "mode": "none",
+  "checks": [
+   "test",
+   "test-repeat"
+  ],
+  "reason": "JavaScript has no data-race detector; races are logical interleavings across await, or SharedArrayBuffer use in worker_threads",
+  "substitute": "the full suite shuffled (files and tests) and concurrent with the runner's printed seed, plus the changed test files repeated 3 times (vitest --repeats=3); node:test --test-randomize --test-concurrency needs Node 26.1+; jest 30 --randomize; retries stay off (--retry.count 0)"
+ },
+ "coverage": {
+  "format": "lcov",
+  "path": "{coverage_dir}/lcov.info",
+  "produced_by": [
+   "test"
+  ],
+  "granularity": "line+branch",
+  "exclude": [
+   "**/*.d.ts",
+   "**/generated/**",
+   "**/__generated__/**",
+   "**/*.config.*",
+   "**/migrations/**",
+   "**/testdata/**",
+   "src/main.ts",
+   "src/compose/**"
+  ]
+ },
+ "post_edit": {
+  "format_file": [
+   "npx",
+   "--no-install",
+   "prettier",
+   "--write",
+   "{file}"
+  ]
+ },
+ "cache_env": {
+  "TMPDIR": "tmp"
+ },
+ "shared_env": [
+  "npm_config_cache",
+  "npm_config_store_dir",
+  "PNPM_HOME",
+  "YARN_CACHE_FOLDER",
+  "BUN_INSTALL_CACHE_DIR",
+  "DENO_DIR"
+ ],
+ "env_hints": {
+  "VITEST_MAX_WORKERS": "2"
+ },
+ "artifacts": [
+  "dist/",
+  "build/",
+  "coverage/",
+  "*.tsbuildinfo",
+  ".turbo/",
+  "node_modules/.cache/",
+  "node_modules/.vite/",
+  ".eslintcache",
+  ".nyc_output/",
+  "*.cpuprofile",
+  "*.heapprofile",
+  "*.heapsnapshot",
+  "lcov.info",
+  "junit.xml",
+  "*.tgz"
+ ],
+ "arch": {
+  "parser": "regex",
+  "import_regex": "(?:import|export)\\s+(?:type\\s+)?(?:[^'\";]*?\\s+from\\s+)?['\"]([^'\"]+)['\"]|import\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)|require\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)",
+  "resolver": "relative-path",
+  "native_check": "depcruise",
+  "forbidden_in_domain": [
+   "node:fs",
+   "node:net",
+   "node:http",
+   "node:https",
+   "node:child_process",
+   "node:crypto",
+   "fs",
+   "http",
+   "child_process",
+   "@nestjs/*",
+   "express",
+   "fastify",
+   "hono",
+   "pg",
+   "@prisma/client",
+   "typeorm"
+  ],
+  "impure_calls": [
+   "Date.now",
+   "new Date(",
+   "Math.random",
+   "crypto.randomUUID",
+   "process.env",
+   "fetch(",
+   "setTimeout(",
+   "setInterval("
+  ]
+ },
+ "test_jobs": "--maxWorkers=2",
+ "config_files": [
+  "package.json",
+  "tsconfig.json",
+  "tsconfig.build.json",
+  "eslint.config.mjs",
+  "eslint.config.js",
+  "eslint.config.ts",
+  "biome.json",
+  "biome.jsonc",
+  ".prettierrc",
+  ".prettierrc.json",
+  ".prettierrc.yaml",
+  ".prettierignore",
+  ".editorconfig",
+  ".dependency-cruiser.cjs",
+  "vitest.config.ts",
+  "jest.config.ts",
+  "jest.config.js",
+  "bunfig.toml",
+  ".nvmrc",
+  ".node-version",
+  ".npmrc",
+  "pnpm-workspace.yaml",
+  "knip.json",
+  "renovate.json"
+ ],
+ "sources": {
+  "checks": "https://www.typescriptlang.org/tsconfig/ ; https://typescript-eslint.io/getting-started/typed-linting/ ; https://prettier.io/docs/cli ; https://biomejs.dev/reference/cli/ ; https://docs.npmjs.com/cli/v11/commands/npm-ci ; https://docs.npmjs.com/cli/v11/commands/npm-audit ; https://pnpm.io/cli/install ; https://pnpm.io/cli/audit ; https://yarnpkg.com/cli/install ; https://bun.sh/docs/cli/install ; https://google.github.io/osv-scanner/",
+  "race": "https://vitest.dev/guide/cli.html ; https://nodejs.org/api/test.html ; https://jestjs.io/docs/cli ; https://bun.sh/docs/cli/test",
+  "coverage": "https://vitest.dev/guide/coverage.html ; https://vitest.dev/config/coverage ; https://jestjs.io/docs/cli ; https://bun.sh/docs/test/coverage",
+  "arch": "https://github.com/sverweij/dependency-cruiser/blob/main/doc/rules-reference.md",
+  "versions": "https://nodejs.org/en/about/previous-releases"
+ }
+}

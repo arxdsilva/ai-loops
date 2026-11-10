@@ -25,24 +25,26 @@ Written by the `planner` as `plan.v<N>.md` (`specs/WORKFLOW.md §2.2`). Run `loo
 - Effective cap: <min of the three>
 - Peak agents per wave: W1=<n>, W2=<n> (never above the effective cap; larger waves are split into sub-waves W1a, W1b)
 - Duplicated roles: <e.g. W1-domain-orders / W1-domain-payments: disjoint globs internal/domain/orders/**, internal/domain/payments/**> | none
-- Test-run concurrency: <max_concurrent_test_runs>, each with GOFLAGS=-p=2
+- Test-run concurrency: <max_concurrent_test_runs>, each with the pack's env_hints (Go: GOFLAGS=-p=2)
 
-## Contract (wave 0, architect)
+## Contract (wave 0, architect + <id>-engineer)
+- Languages: <id (root, variant) per pack from research/language.json, e.g. go (., -); typescript (web/, -)>
 - Ports / interfaces (signatures):
 - Typed commands / DTOs / read models:
 - Stubs so every package compiles:
-- Dependencies (go get):
-- Shared config (Makefile, CI, cmd/**, internal/compose/**):
-- Done when: `go build ./...` and `go vet ./...` pass.
+- Dependencies (manifest + lockfile, frozen-install clean; Go: go get):
+- Toolchain and repo files (<id>-engineer): pins, format/lint/typecheck configs, test and coverage prerequisites (specs/REPO_PRACTICES.md):
+- Shared config (Makefile, CI, the composition root):
+- Done when: each pack's build and lint checks pass: `loops gate --only <checks>` (Go: `--only build,vet`).
 
 ## Waves
 
 ### Wave 1: <goal>
-| id | role | model - reason | job | owns | must not touch | tests (test files per agent) | claims |
-|---|---|---|---|---|---|---|---|
-| W1-domain | domain-engineer | sonnet - rules against a written contract | <scope> | internal/domain/<x>/** | <globs> | GOFLAGS=-p=2 go test -race -count=1 -cover ./internal/domain/<x>/... | C1, C2 |
+| id | role | language | model - reason | job | owns | must not touch | tests (test files per agent) | claims |
+|---|---|---|---|---|---|---|---|---|
+| W1-domain | domain-engineer | go | sonnet - rules against a written contract | <scope> | internal/domain/<x>/** | <globs> | GOFLAGS=-p=2 go test -race -count=1 -cover ./internal/domain/<x>/... | C1, C2 |
 
-Every new package or file has a named test file in the `tests` column; new-code coverage target is at least 70%.
+`language` is the pack id the lane works in (passed as `Language:`; the agent loads `loops:lang-<id>`). Every new module or file has a named test file in the `tests` column, run under the pack's race policy; new-code coverage target is at least 70% (specs/TESTING.md §8).
 
 **W1-domain: <short title>**
 - Goal: <one sentence>

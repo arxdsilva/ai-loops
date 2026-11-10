@@ -1,0 +1,21 @@
+SF:src/hello/__init__.py
+DA:1,1
+DA:2,1
+DA:3,1
+DA:4,0
+DA:6,1
+DA:7,0
+DA:8,0
+LF:7
+LH:4
+FN:1,4,greet
+FNDA:1,greet
+FN:6,8,unused
+FNDA:0,unused
+FNF:2
+FNH:1
+BRDA:2,0,jump to line 3,1
+BRDA:2,0,jump to line 4,0
+BRF:2
+BRH:1
+end_of_record

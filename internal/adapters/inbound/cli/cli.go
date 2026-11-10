@@ -4,7 +4,8 @@
 // Command ownership (one file per command group):
 //
 //	run_cmd.go     run start|phase|event|label|loopback|verdict|end|dir|env|clean (tracker)
-//	go_cmd.go      go, run env|clean, start/end workspace hooks    (run-scoped go cache, cleanup)
+//	go_cmd.go      go, run env|clean, start/end workspace hooks    (run-scoped caches, cleanup)
+//	exec_cmd.go    exec [--pack id] -- <cmd…>                      (run-scoped pack env for any tool)
 //	gate_cmd.go    gate                                            (gate pipeline)
 //	lang_cmd.go    lang list|show|validate|detect                  (language packs)
 //	ticket_cmd.go  ticket fetch                                    (tickets)
@@ -87,9 +88,10 @@ type command struct {
 }
 
 var commands = map[string]command{
-	"run":     {(*App).cmdRun, "run start|phase|event|label|loopback|verdict|override|end [--no-clean]|dir|env [--shell s]|clean [--dry-run] [--json] …  record the workflow; env/clean: run-scoped go cache and artifact cleanup"},
+	"run":     {(*App).cmdRun, "run start|phase|event|label|loopback|verdict|override|end [--no-clean]|dir|env [--shell s]|clean [--dry-run] [--json] …  record the workflow; env/clean: run-scoped caches (go and detected packs) and artifact cleanup"},
 	"go":      {cmdGo, "go <args…>   go with the active run's GOCACHE/GOTMPDIR (plain go without a run)"},
-	"gate":    {(*App).cmdGate, "gate [--pkgs p,…] [--only c,…] [--skip c,…] [--base ref] [--vuln] [--fail-fast]   build, gofmt, vet, staticcheck, arch, test -race, coverage of new code (≥70%), govulncheck"},
+	"exec":    {cmdExec, "exec [--pack id] -- <cmd…>   a command with the active run's cache env and cache_argv for its language pack (plain without a run)"},
+	"gate":    {(*App).cmdGate, "gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--fail-fast]   every detected language pack's checks (loops lang show <id>): build, format, lint, arch, tests under the race policy, coverage of new code (≥70%), vuln when enabled"},
 	"ticket":  {(*App).cmdTicket, "ticket fetch [REF] [--source s] [--body-file f|-]"},
 	"arch":    {(*App).cmdArch, "arch [--json] [--root dir]"},
 	"status":  {(*App).cmdStatus, "status [--json|--statusline|--subagent]"},

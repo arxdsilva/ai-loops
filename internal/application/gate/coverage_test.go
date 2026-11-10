@@ -196,7 +196,7 @@ func TestCoverageErrors(t *testing.T) {
 	}
 	// No coverprofile path from the caller.
 	s0 := New(&fakeCmd{}, fakeArch{ok: true}, &fakeRec{}, &tick{}).WithCoverage(&fakeCov{}, CoverageConfig{})
-	if res, _ := s0.Run(context.Background(), Options{}); res.OK || !strings.Contains(res.Checks[6].Output, "no coverprofile path") {
+	if res, _ := s0.Run(context.Background(), goOpts(Options{})); res.OK || !strings.Contains(res.Checks[6].Output, "no coverprofile path") {
 		t.Fatalf("%+v", res.Checks[6])
 	}
 	// No coverage port at all.
@@ -210,7 +210,7 @@ func TestCoverageErrors(t *testing.T) {
 func TestTestCommandWithoutProfile(t *testing.T) {
 	f := &fakeCmd{}
 	s := New(f, fakeArch{ok: true}, &fakeRec{}, &tick{}).WithCoverage(&fakeCov{}, CoverageConfig{})
-	_, _ = s.Run(context.Background(), Options{Only: []string{"test"}})
+	_, _ = s.Run(context.Background(), goOpts(Options{Only: []string{"test"}}))
 	if len(f.calls) != 1 || f.calls[0] != "go test -race -count=1 ./..." {
 		t.Fatal(f.calls)
 	}

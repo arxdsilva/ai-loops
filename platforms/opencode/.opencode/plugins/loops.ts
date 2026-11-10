@@ -10,8 +10,8 @@ import { Plugin } from "@opencode/plugin"
 import { spawnSync } from "node:child_process"
 
 const LOOPS = process.env.LOOPS_BIN ?? "loops"
-const BEFORE: string[] = ["read-guard", "race-guard", "go-env", "model-guard"]
-const AFTER: string[] = ["go-post-edit", "trace"]
+const BEFORE: string[] = ["read-guard", "test-guard", "toolchain-env", "model-guard"]
+const AFTER: string[] = ["post-edit", "trace"]
 
 function run(name: string, payload: unknown) {
   return spawnSync(LOOPS, ["hook", name, "--platform", "opencode"], {

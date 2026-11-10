@@ -34,7 +34,7 @@ Cancel from the Cursor UI; re-spawn with a tighter block.
 `loops watch` in a side terminal; `loops report`.
 
 ## Install and verify
-Cursor marketplace / team marketplace import of `arxdsilva/ai-loops` (package `platforms/cursor`). Local dev: copy it to `~/.cursor/plugins/local/loops`. Needs Go. Verify: `loops version`.
+Cursor marketplace / team marketplace import of `arxdsilva/ai-loops` (package `platforms/cursor`). Local dev: copy it to `~/.cursor/plugins/local/loops`. Needs `loops` on PATH (prebuilt; `install.sh`). Verify: `loops version`.
 
 ## Hardware and budgets
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
@@ -45,5 +45,7 @@ Dashboard > Plugins & MCPs > marketplace > Refresh, then start a new agent (or r
 ## Model fallback
 Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).
 
-## Go environment
+## Run-scoped toolchain env
 Go commands on this platform are rewritten automatically when the command is a lone `go build|test|vet|list`; anything else is denied, so use `loops go …`. Either way they use the run's own Go cache, which `loops run end` deletes.
+
+Other language packs: their commands are not rewritten here, so run their build and test commands through `loops exec -- <cmd>` to use the run-scoped env.

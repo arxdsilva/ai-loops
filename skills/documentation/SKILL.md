@@ -1,6 +1,6 @@
 ---
 name: documentation
-description: Use when writing or updating package AGENTS.md files, interface summaries, README sections or, rarely, ADRs in a Go backend repo, without duplicating canonical specs or recording reasoning transcripts.
+description: Use when writing or updating package AGENTS.md files, interface summaries, README sections or, rarely, ADRs in a backend repo in any language pack, without duplicating canonical specs or recording reasoning transcripts.
 ---
 
 # Agent documentation

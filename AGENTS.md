@@ -4,14 +4,15 @@ This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and 
 
 ## Where things are
 - The workflow spec, which everything implements: `specs/WORKFLOW.md`. Roles: `ROLES.md` (matrix) and `agents/*.md` (definitions).
-- Rules for Go code, here and in target repos: `specs/languages/go/RULES.md`, `specs/ARCHITECTURE.md`, `specs/SOLID.md`. Agent rules: `specs/PARALLEL_WORK.md`, `specs/CONTEXT_DISCIPLINE.md`.
-- Skills: `skills/<name>/SKILL.md`. The `work` skill is the orchestrator; the rest are reference skills that roles load.
+- Language-neutral rules for target repos (and this one): `specs/ARCHITECTURE.md`, `specs/SOLID.md`, `specs/TESTING.md`, `specs/REPO_PRACTICES.md`. Agent rules: `specs/PARALLEL_WORK.md`, `specs/CONTEXT_DISCIPLINE.md`.
+- Languages: `specs/languages/<id>/` holds each pack (`pack.json`, validated by `loops lang validate`) and its rule book (`RULES.md`); Go also has `ARCHITECTURE.md`, and its `RULES.md` governs this repo's Go code. Each pack has a `skills/lang-<id>/` skill and an `agents/<id>-engineer.md` role (15 languages; `loops lang list`).
+- Skills: `skills/<name>/SKILL.md`. The `work` skill is the orchestrator; the rest are reference skills that roles load, including one `lang-<id>` per language.
 - Templates the agents fill in: `templates/`.
 - Plugin wiring for Claude Code (and Copilot, which reads the same layout): `.claude-plugin/`, `hooks/hooks.json`, `bin/loops` (a shim that builds `cmd/loops` on first use), `mod/` (the live pane), `settings.json`.
 - Other platforms: `specs/PLATFORMS.md`. `platforms/<name>/`, `.agents/plugins/marketplace.json` and `.cursor-plugin/marketplace.json` are **generated** by `go run ./cmd/loops port build` from the canonical sources (embedded through `embed.go`). Never edit them by hand. Regenerate whenever agents/, skills/, specs/, templates/, ROLES.md, hooks/hooks.json or plugin.json change; CI runs `loops port check`.
 - Go tooling, laid out hexagonally:
-  - `internal/domain/{run,archrule,plugin}`: pure code, no I/O, no wall clock;
-  - `internal/application/{tracker,guard,gate,archcheck,ticket,port}`: use cases with consumer-owned ports (`port` = per-platform emitters and the install plan);
+  - `internal/domain/{run,archrule,plugin,pack,glob,coverage,workspace,…}`: pure code, no I/O, no wall clock (`pack` = the language-pack schema);
+  - `internal/application/{tracker,guard,gate,archcheck,langpack,ticket,port,…}`: use cases with consumer-owned ports (`port` = per-platform emitters and the install plan; `langpack` = load and detect packs);
   - `internal/adapters/{inbound/{cli,hook},outbound/{runstore,goparse,gotool,vcs,fsys,htmlreport,portfs}}`;
   - `internal/compose/loops` and `cmd/loops` (wiring only).
 
@@ -20,7 +21,7 @@ This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and 
 - **Dependencies point inward.** Adapters depend on application, application on domain. Application packages reach the OS only through ports. `go run ./cmd/loops arch` must report 0 errors.
 - **Every `go test` runs with `-race`.** Never weaken a test to make it pass.
 - **The `events.jsonl` schema is additive-only.** Never rename a `run.Kind`, a `run.Phase` value or a JSON field: the status line, the mod pane, the report and older runs all read them.
-- **Hooks fail open.** Bad input, no active run, or an internal error means exit 0 with no output. Only `read-guard` and `model-guard` deny (exit 2), and only `stop-gate` and `go-post-edit` block (JSON `decision`).
+- **Hooks fail open.** Bad input, no active run, or an internal error means exit 0 with no output. Only `read-guard`, `model-guard` and `test-guard` (alias `race-guard`) deny (exit 2), (`test-guard` only in `flag` mode), plus `toolchain-env` (alias `go-env`) for Go commands on platforms that can't rewrite them (`specs/PLATFORMS.md` §5.0); for other packs it only rewrites or fails open. Only `stop-gate` and `post-edit` (alias `go-post-edit`) block (JSON `decision`).
 - **Keep docs and code in step.** Specs, skills and agents name only `loops` commands and flags that exist (`internal/adapters/inbound/cli`). When you change a command, update `specs/WORKFLOW.md` §5 and every caller in the same change.
 - **Cite, don't duplicate.** Say each rule once, in its spec, and cite it elsewhere (`WORKFLOW §4`). Skill bodies stay under ~220 lines and agent bodies under ~90.
 - **No game content.** This was extracted from rimworld-go, and nothing game-specific belongs here.

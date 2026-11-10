@@ -84,6 +84,44 @@ func TestFoldLanesAndSteps(t *testing.T) {
 	if !s.GoDirty || !s.LastGoChange.Equal(t0.Add(4*time.Second)) {
 		t.Fatalf("dirty: %+v", s)
 	}
+	if !s.SourceDirty || !s.LastSourceChange.Equal(t0.Add(4*time.Second)) {
+		t.Fatalf("source dirty: %+v", s)
+	}
+}
+
+func TestFoldSourceDirty(t *testing.T) {
+	s := Fold([]Event{
+		at(1, Event{Kind: KindStep, Name: "Edit", Target: "src/lib.rs"}),
+		at(2, Event{Kind: KindStep, Name: "Write", Target: "README.md"}),
+		at(3, Event{Kind: KindStep, Name: "Read", Target: "src/main.py"}),
+	})
+	if !s.SourceDirty || s.GoDirty || !s.LastSourceChange.Equal(t0.Add(1*time.Second)) || StopReason(s) == "" {
+		t.Fatalf("%+v", s)
+	}
+	s = Fold([]Event{
+		at(1, Event{Kind: KindStep, Name: "MultiEdit", Target: "App.Swift"}),
+		at(2, Event{Kind: KindGate, Name: GateAll, OK: Bool(true)}),
+		at(3, Event{Kind: KindStep, Name: "Edit", Target: "notes.txt"}),
+	})
+	if s.SourceDirty || StopReason(s) != "" {
+		t.Fatalf("green gate should clear: %+v", s)
+	}
+	s = Fold([]Event{
+		at(1, Event{Kind: KindStep, Name: "Edit", Target: "a.ts"}),
+		at(5, Event{Kind: KindStep, Name: "Edit", Target: "b.ts"}),  // during the gate
+		at(3, Event{Kind: KindGate, Name: GateAll, OK: Bool(true)}), // stamped with pipeline start
+	})
+	if !s.SourceDirty {
+		t.Fatalf("edit during gate must stay dirty: %+v", s)
+	}
+	s = Fold([]Event{
+		at(1, Event{Kind: KindStep, Name: "Edit", Target: "a.py"}),
+		at(2, Event{Kind: KindGate, Name: GateAll, OK: Bool(false)}),
+		at(3, Event{Kind: KindStep, Name: "post-edit", Target: "b.py"}),
+	})
+	if !s.SourceDirty || !s.LastSourceChange.Equal(t0.Add(1*time.Second)) {
+		t.Fatalf("failed gate keeps dirty; post-edit steps are not edits: %+v", s)
+	}
 }
 
 func TestFoldRecentRing(t *testing.T) {
@@ -128,14 +166,17 @@ func TestStopReason(t *testing.T) {
 		{"dirty ended", State{GoDirty: true, Ended: true}, false},
 		{"dirty running lane", State{GoDirty: true, Lanes: []Lane{{Running: true}}}, false},
 		{"dirty stopped lane", State{GoDirty: true, Lanes: []Lane{{}}}, true},
+		{"source dirty", State{SourceDirty: true}, true},
+		{"source dirty ended", State{SourceDirty: true, Ended: true}, false},
+		{"source dirty running lane", State{SourceDirty: true, Lanes: []Lane{{Running: true}}}, false},
 	}
 	for _, c := range cases {
 		got := StopReason(c.s)
 		if (got != "") != c.want {
 			t.Errorf("%s: %q", c.name, got)
 		}
-		if got != "" && !strings.Contains(got, "loops gate") {
-			t.Errorf("%s: text", c.name)
+		if got != "" && (!strings.Contains(got, "loops gate") || !strings.Contains(got, "source files changed") || strings.Contains(got, "Go files")) {
+			t.Errorf("%s: text %q", c.name, got)
 		}
 	}
 }

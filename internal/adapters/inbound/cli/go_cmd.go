@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/application/tracker"
+	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 	"github.com/arxdsilva/ai-loops/internal/domain/workspace"
 )
@@ -23,6 +25,28 @@ type Workspace interface {
 	Clean(ctx context.Context, runDir string, dryRun bool) (workspace.Report, error)
 	// Go runs the go tool with env added, stdio passed through; it returns the exit code.
 	Go(ctx context.Context, dir string, env, args []string, in io.Reader, out, errw io.Writer) int
+}
+
+// PackWorkspace is the optional, language-pack side of a Workspace: the
+// detected packs, each pack's run-scoped env (TOOLING §5) and running any
+// tool. Without it `loops run env` prints the Go line only and `loops exec`
+// is unavailable.
+type PackWorkspace interface {
+	// Packs returns the detected language packs.
+	Packs() []langpack.Detected
+	// PackEnv creates <run>/<id>/{cache,tmp} and returns the pack's env.
+	PackEnv(runDir string, p pack.Pack) ([]string, error)
+	// Exec runs argv with env added, stdio passed through; it returns the exit code.
+	Exec(ctx context.Context, dir string, env, argv []string, in io.Reader, out, errw io.Writer) int
+}
+
+// packsOf returns the packs of ds, one per id.
+func packsOf(ds []langpack.Detected) []pack.Pack {
+	ps := make([]pack.Pack, 0, len(ds))
+	for _, d := range ds {
+		ps = append(ps, d.Pack)
+	}
+	return workspace.Unique(ps)
 }
 
 // wsCmd holds the workspace commands (`loops run env|clean`, `loops go`,
@@ -50,7 +74,9 @@ func (a wsCmd) runEnv(ctx context.Context) (dir string, env []string, ok bool, e
 }
 
 // env implements `loops run env [--shell sh|fish|powershell]`: the exports
-// that scope go commands to the run; nothing (exit 0) without a run.
+// that scope go commands to the run (the GOCACHE/GOTMPDIR line, always
+// first), then one line per other detected pack with its cache_env and env
+// (for Go: any env beyond those two); nothing (exit 0) without a run.
 func (a wsCmd) env(ctx context.Context, args []string) int {
 	fs := a.newFlagSet("run env")
 	shell := fs.String("shell", "sh", "sh|fish|powershell")
@@ -73,6 +99,26 @@ func (a wsCmd) env(ctx context.Context, args []string) int {
 	}
 	line, _ := workspace.Exports(*shell, workspace.GoCache(dir), workspace.GoTmp(dir))
 	fmt.Fprintln(a.Out, line)
+	pw, ok := a.Workspace.(PackWorkspace)
+	if !ok {
+		return 0
+	}
+	for _, p := range packsOf(pw.Packs()) {
+		env, err := pw.PackEnv(dir, p)
+		if err != nil {
+			return a.fail("run env", err)
+		}
+		if p.ID == workspace.GoPack {
+			env = workspace.ExtraEnv(env, "GOCACHE", "GOTMPDIR")
+		}
+		line, err := workspace.ExportsEnv(*shell, env)
+		if err != nil {
+			return a.fail("run env", err)
+		}
+		if line != "" {
+			fmt.Fprintln(a.Out, line)
+		}
+	}
 	return 0
 }
 

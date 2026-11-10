@@ -24,7 +24,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 ## Procedure
 1. Read `ticket.md`; list at most 5 questions that outside sources can answer.
 2. Search; prefer official docs, changelogs and issue trackers over blogs. Fetch only pages you will cite.
-3. Check `go.mod` for the versions in use; discard facts about other versions.
+3. Check the versions in use in each detected pack's manifest and lockfile (`loops lang detect`; `manifest` in `loops lang show <id>`); discard facts about other versions.
 4. A memory hit is historical evidence: verify it against current source or docs before citing, and cite the source, not the memory.
 5. Write `research/web.md`: one bullet per fact, `fact - source URL (version/date)`.
 6. End with `## Open questions`.

@@ -19,7 +19,7 @@ Read: the facts the lead supplies (plan, claims reports, diff summary).
 Write package `AGENTS.md`, `README.md` sections, `docs/adr/**`. Load skill `loops:documentation`. Templates: `PACKAGE_AGENTS.md`, `ROOT_AGENTS.md`, `ADR.md`.
 
 ## Cannot
-Edit code. Invent facts (mark unknowns `TODO(lead): ...` in your report instead). Edit outside `Owns`. Commit or push. Touch `go.mod` or shared config.
+Edit code. Invent facts (mark unknowns `TODO(lead): ...` in your report instead). Edit outside `Owns`. Commit or push. Touch manifests, lockfiles or shared config.
 
 Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
 
@@ -34,4 +34,4 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back (resuming you, or re-spawning your role) with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything stubbed or blocked, report path.
 
 ## Done when
-Owned tests pass with `-race`, vet is clean, nothing outside `Owns` changed, and every claim has evidence in the report.
+Every supplied fact is verified against current code, nothing outside `Owns` changed, and every claim has evidence in the report.

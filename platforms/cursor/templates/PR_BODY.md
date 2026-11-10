@@ -14,7 +14,7 @@ Written by `product-reviewer` as `pr.md`: at most about 40 lines before the `<de
 ## How to verify
 <commands a reviewer can run>
 
-New-code coverage: <X>% (min 70%), tests run with -race
+New-code coverage: <X>% (min 70%), tests run under each pack's race policy
 
 ## Risk / rollback
 <what could go wrong; how to revert; migrations and their direction>

@@ -1,6 +1,6 @@
 ---
 name: debugging
-description: Use when investigating a backend bug, regression, flaky test or production incident in a Go service - reduce it to a minimal reproducible artifact, find the first divergence, fix the root cause and keep a regression test.
+description: Use when investigating a backend bug, regression, flaky test or production incident in a backend service in any language pack - reduce it to a minimal reproducible artifact, find the first divergence, fix the root cause and keep a regression test.
 ---
 
 # Debugging and regression reproduction
@@ -8,7 +8,7 @@ description: Use when investigating a backend bug, regression, flaky test or pro
 ## Load
 
 - `specs/CONTEXT_DISCIPLINE.md §27, §29-30` (logs, error reports, repro artifacts).
-- `specs/languages/go/RULES.md §13, §24` (ordering, observational logging).
+- Your language: `loops:lang-<id>` (its `testing.md` for repeat and seed flags, `concurrency.md` for race tooling). Go: `specs/languages/go/RULES.md §13, §24` (ordering, observational logging).
 
 ## Goal
 
@@ -33,21 +33,21 @@ relevant log window (<= 20 lines)
 4. Reduce the input and the setup until removing anything makes the bug vanish.
 5. Write the failing test or fixture first.
 6. Inspect the owning package and its invariant; fix the root cause, not the symptom.
-7. Verify repeatedly (`-count=N`, `-race`, shuffled order); run nearby tests and benchmarks.
+7. Verify repeatedly under the pack's race policy: repeat runs, shuffled order with the failing seed, the race flag or substitute (Go: `-count=N -race -shuffle=on`); run nearby tests and benchmarks.
 
 ## Logs
 
-Filter by request ID, entity ID, time range or component. Logging stays observational: it must not change ordering, randomness or state (`specs/languages/go/RULES.md §24`). Do not add logging that would stay in the fix unless operators need it.
+Filter by request ID, entity ID, time range or component. Logging stays observational: it must not change ordering, randomness or state. Do not add logging that would stay in the fix unless operators need it.
 
 ## Common classes to check early
 
 - stale revision or cache committed; missing invalidation;
 - lease or lock not released; deleted entity still referenced;
-- implicit map or storage ordering; tie-break missing;
+- implicit hash-map or storage ordering; tie-break missing;
 - RNG or clock coupling; time zone or DST;
 - retry without idempotency key; duplicate delivery;
 - transaction boundary too wide or too narrow; read-after-write on a replica;
-- context cancelled too early; goroutine leak; data race (`-race`);
+- cancellation too early; leaked thread, task or goroutine; data race (the pack's race policy);
 - migration or schema mismatch; omitted field in a DTO;
 - worker completion order leaking into results.
 
