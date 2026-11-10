@@ -63,6 +63,28 @@ func TestNormalize(t *testing.T) {
 			lineProfile("jacoco", nil, "com/x/A.java", "com/y/B.kt"),
 			Normalizer{PackRoot: "/r", SourceRoots: []string{`mod\src\main\java`}, Exists: exists("com/y/B.kt")},
 			map[string]string{"mod/src/main/java/com/x/A.java": "1:0", "com/y/B.kt": "2:1"}},
+		{"jacoco multi-module: source roots under the report's ancestors, nearest first",
+			lineProfile("jacoco", nil, "com/acme/Foo.java", "com/acme/Bar.java", "com/acme/Gone.java"),
+			Normalizer{PackRoot: "/r", SourceRoots: []string{"src/main/java"}, ReportDir: "module-a/target/site/jacoco",
+				Exists: exists("module-a/src/main/java/com/acme/Foo.java", "src/main/java/com/acme/Foo.java", "src/main/java/com/acme/Bar.java")},
+			map[string]string{"module-a/src/main/java/com/acme/Foo.java": "1:0", "src/main/java/com/acme/Bar.java": "2:1", "src/main/java/com/acme/Gone.java": "3:2"}},
+		{"cobertura multi-module: relative sources and source roots under ancestors",
+			lineProfile("cobertura", []string{"lib"}, "a/x.py", "b/y.py", "c/z.py"),
+			Normalizer{PackRoot: "/r", SourceRoots: []string{"src"}, ReportDir: "svc/build",
+				Exists: exists("svc/lib/a/x.py", "svc/src/b/y.py")},
+			map[string]string{"svc/lib/a/x.py": "1:0", "svc/src/b/y.py": "2:1", "lib/c/z.py": "3:2"}},
+		{"lcov multi-module: module-relative names; a report dir leaving the pack is ignored",
+			lineProfile("lcov", nil, "src/a.ts", "src/b.ts"),
+			Normalizer{PackRoot: "/r", ReportDir: "packages/web/coverage", Exists: exists("packages/web/src/a.ts")},
+			map[string]string{"packages/web/src/a.ts": "1:0", "src/b.ts": "2:1"}},
+		{"symlinked pack root: physical absolute paths match the real root",
+			lineProfile("lcov", nil, "/private/tmp/repo/app/svc.py", "/tmp/repo/app/b.py", "/private/tmp/other/c.py"),
+			Normalizer{PackRoot: "/tmp/repo", RealRoot: "/private/tmp/repo"},
+			map[string]string{"app/svc.py": "1:0", "app/b.py": "2:1"}},
+		{"symlinked pack root: cobertura absolute sources",
+			lineProfile("cobertura", []string{"/private/tmp/repo"}, "app/svc.py"),
+			Normalizer{PackRoot: "/tmp/repo", RealRoot: "/private/tmp/repo", Exists: exists("app/svc.py")},
+			map[string]string{"app/svc.py": "1:0"}},
 		{"unknown formats are taken as pack-relative",
 			lineProfile("clover", nil, "/r/a.php"),
 			Normalizer{PackRoot: "/r"},
@@ -81,6 +103,19 @@ func TestNormalize(t *testing.T) {
 				t.Fatal("normalizing twice must be a no-op")
 			}
 		})
+	}
+}
+
+func TestAncestors(t *testing.T) {
+	for in, want := range map[string][]string{
+		"": nil, ".": nil, "../x": nil, "/abs": nil, "..": nil,
+		"a":          {"a"},
+		`a\b\c`:      {"a/b/c", "a/b", "a"},
+		"./a/b/../c": {"a/c", "a"},
+	} {
+		if got := ancestors(in); !reflect.DeepEqual(got, want) {
+			t.Errorf("%q: %q, want %q", in, got, want)
+		}
 	}
 }
 

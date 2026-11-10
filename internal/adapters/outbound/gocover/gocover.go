@@ -34,6 +34,7 @@ var (
 	_ gate.Coverage     = (*Reader)(nil)
 	_ gate.PackCoverage = (*Reader)(nil)
 	_ gate.Files        = (*Reader)(nil)
+	_ gate.RealPaths    = (*Reader)(nil)
 	_ gate.EnvLookup    = (*Reader)(nil)
 )
 
@@ -239,6 +240,9 @@ func (r *Reader) Exists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
 }
+
+// RealPath returns p with its symlinks resolved (gate.RealPaths).
+func (r *Reader) RealPath(p string) (string, error) { return filepath.EvalSymlinks(p) }
 
 // ReadFile returns p's content.
 func (r *Reader) ReadFile(p string) (string, error) {

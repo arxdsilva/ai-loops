@@ -91,3 +91,38 @@ Language files: [python](python.md) · [typescript](typescript.md) · [java](jav
 3. **Baseline.** When loops changes, update LOOPS_BASELINE first, then re-judge the "loops today" column of the affected rows.
 4. **Synthesis.** Re-run `matrix.py` (`python3 -I matrix.py research/languages --json rules.json`), `universal.py rules.json --md` and `packs.py research/languages`. Then update the grid in MATRIX §1.1 verbatim, the counts in this README, the clusters that moved, and TOOLING §1 and §7.
 5. **Date it.** Update every "As of" line.
+
+## Stage C: end-to-end verification (2026-11-10)
+
+Each pack was run end to end with the real `loops` binary (linux/arm64) inside the language's official Docker image. Each run used a small project laid out per the pack's skill, with the wave-0 prerequisites. Every scenario held for every language:
+- `lang detect` found the pack;
+- a clean gate passed;
+- new tested code passed;
+- new untested code failed coverage, naming the file;
+- an inward layer violation or impure domain call was reported by `loops arch`, or by the native-check note for delegating packs;
+- the race policy ran (flag denied without the flag; `none` substitutes ran with their seeds; the C++ TSan build ran);
+- `run env` and `run end` scoped and cleaned the run's caches.
+
+| Pack | Image | Fixes found by the run |
+|---|---|---|
+| go | golang:1.27 | none |
+| rust | rust:1 (1.99.1) | missing-plugin hint for `cargo llvm-cov` (`skip_on` on a required check now fails with the install hint) |
+| cpp | gcc:16 + cmake + gcovr | none |
+| java | maven:3-eclipse-temurin-25, gradle:jdk25 | mvn and gradle fallbacks for the spotless and spotbugs checks; variant `skip_on` overlay (loops) |
+| kotlin | gradle:jdk25 | none |
+| scala | sbtscala/scala-sbt (sbt 1.13.1) | coverage glob covers subprojects (`**/target/scala-*/coverage-report/cobertura.xml`) |
+| clojure | clojure:temurin-21-tools-deps | none |
+| python | python:3.13-slim | the pytest seed is recorded (loops) |
+| ruby | ruby:3.4 | SimpleCov `track_files` so unloaded new files show up; unreported new files now fail (loops) |
+| php | php:8.4-cli + pcov | impure calls written with a leading `\` |
+| typescript | node:26 | `test-repeat` repeats the whole suite, since `--changed` has no base |
+| csharp | dotnet/sdk:10.0 (VSTest and MTP) | `*.Infra` layer name |
+| swift | swift:6.4.2 | `cache_argv` after the subcommand; Linux coverage objects are `*.so` |
+| elixir | elixir:latest (1.20, OTP 29) | `cli/0` keyword syntax in the skill |
+| erlang | erlang:latest + rebar3 | `proper` plugin `skip_on`; the docs no longer claim `xref` enforces layer direction |
+
+An independent code review of the tooling found and fixed these issues before release:
+- Artifact-directory cleanup could delete authored, uncommitted files. Globs are now anchored to the pack root, and a content guard keeps any directory that holds authored files; directories are removed only inside git.
+- Line-based coverage could pass vacuously, for multi-module reports, symlinked roots and files that tests never loaded.
+- Stale-report deletion had no containment.
+- Several edge cases in hook command rewriting and the race guard.

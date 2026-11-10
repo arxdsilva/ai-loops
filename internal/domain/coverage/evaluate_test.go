@@ -324,3 +324,47 @@ func TestWholeFile(t *testing.T) {
 		t.Fatal(w)
 	}
 }
+
+func TestEvaluateFlagsUnreportedFiles(t *testing.T) {
+	p := Profile{Files: map[string][]Block{"lib/a.rb": {{StartLine: 1, EndLine: 1, NumStmt: 1, Count: 1}}}}
+	ch := Changes{
+		"lib/a.rb":      {Ranges: []LineRange{{1, 1}}},
+		"lib/new.rb":    {Ranges: WholeFile()},                      // untracked, not loaded by any test
+		"lib/added.rb":  {Ranges: []LineRange{{1, 9}}, Added: true}, // added in the diff
+		"lib/edited.rb": {Ranges: []LineRange{{3, 3}}},              // existing file no test loads
+	}
+	o := Options{SourceGlobs: []string{"**/*.rb"}, FlagUnreported: true}
+	r := Evaluate(p, ch, nil, o)
+	want := []string{
+		"lib/added.rb:1: new file added.rb is not in the coverage report",
+		"lib/edited.rb:3: changed file edited.rb is not in the coverage report",
+		"lib/new.rb:1: new file new.rb is not in the coverage report",
+	}
+	if r.OK || len(r.Findings) != len(want) {
+		t.Fatalf("%+v", r.Findings)
+	}
+	for i, f := range r.Findings {
+		if !strings.HasPrefix(f.String(), want[i]) || !strings.Contains(f.Msg, "gate.coverage_exclude") {
+			t.Fatalf("%d: %s", i, f)
+		}
+	}
+	// An empty report says nothing about modified files; new ones still fail.
+	r = Evaluate(Profile{Format: FormatLcov, Normalized: true, Files: map[string][]Block{}}, ch, nil, o)
+	if r.OK || len(r.Findings) != 2 || strings.Contains(r.String(), "edited.rb") {
+		t.Fatalf("empty report: %+v", r.Findings)
+	}
+	// No git base: whole-package judgement, no unreported findings.
+	if r := Evaluate(p, ch, nil, Options{SourceGlobs: o.SourceGlobs, FlagUnreported: true, Whole: true}); strings.Contains(r.String(), "not in the coverage report") {
+		t.Fatalf("whole: %+v", r.Findings)
+	}
+	o.FlagUnreported = false
+	if r := Evaluate(p, ch, nil, o); !r.OK {
+		t.Fatalf("Go semantics changed: %+v", r.Findings)
+	}
+	if !(FileChange{Added: true}).IsNew() || (FileChange{Ranges: []LineRange{{1, 2}}}).IsNew() {
+		t.Fatal("IsNew")
+	}
+	if f, ok := unreportedFinding("x.rb", FileChange{}, p.Files, Options{FlagUnreported: true}); !ok || f.Line != 1 {
+		t.Fatalf("no ranges: %+v %v", f, ok)
+	}
+}

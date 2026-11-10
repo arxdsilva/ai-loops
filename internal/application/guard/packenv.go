@@ -69,7 +69,9 @@ func PackTools(p pack.Pack) []string {
 		}
 	}
 	for k := range p.CacheArgv {
-		add(strings.Fields(k)[0])
+		if f := strings.Fields(k); len(f) > 0 {
+			add(f[0])
+		}
 	}
 	return out
 }
@@ -103,7 +105,9 @@ func (s PackScope) tool(w string) bool {
 // Scope rewrites command so the pack's tools run with the scope's env and
 // cache flags: a VAR=value prefix and the cache_argv flags after the tool
 // for a simple command, an `export …;` statement in front of anything else
-// (cache flags are then left out). ok is false when the line does not use
+// (cache flags are then left out). A command led by a reserved word or
+// keyword (`!`, `time`, `{`, `if`…) is not simple: `VAR=x ! cmd` would run
+// a command named "!". ok is false when the line does not use
 // the pack's tools, already sets one of the env variables, goes through
 // `loops`, or cannot be parsed: the caller leaves it alone.
 func (s PackScope) Scope(command string) (string, bool) {
@@ -117,7 +121,7 @@ func (s PackScope) Scope(command string) (string, bool) {
 		k, _, _ := strings.Cut(kv, "=")
 		keys[k] = true
 	}
-	simple := true
+	simple := !reserved[firstWord(tokens)]
 	for i, t := range tokens {
 		if t.op {
 			simple = false
@@ -154,8 +158,23 @@ func (s PackScope) Scope(command string) (string, bool) {
 	return strings.Join(assign, " ") + " " + out, true
 }
 
-// insertArgv adds the cache flags after the tool words of a simple command,
-// unless the command already carries the first flag.
+// firstWord returns the command word of a token list: the first word after
+// any VAR=value prefixes ("" when there is none).
+func firstWord(tokens []token) string {
+	for _, t := range tokens {
+		if t.op {
+			return ""
+		}
+		if !envPrefix.MatchString(t.s) {
+			return t.s
+		}
+	}
+	return ""
+}
+
+// insertArgv adds the cache flags after the tool words of a simple command:
+// the flags of the longest cache_argv key that prefixes it ("swift build"
+// before "swift"), unless the command already carries their first flag.
 func (s PackScope) insertArgv(command string) string {
 	words, ends := rawWords(command)
 	i := 0
@@ -188,8 +207,11 @@ func (s PackScope) insertArgv(command string) string {
 		for j := 1; j < len(kw); j++ {
 			match = match && words[i+j] == kw[j]
 		}
-		if !match || slicesHas(words, flags[0]) {
+		if !match {
 			continue
+		}
+		if slicesHas(words, flags[0]) {
+			return command // already scoped by hand; a shorter key must not apply
 		}
 		q := make([]string, len(flags))
 		for j, f := range flags {

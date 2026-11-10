@@ -7,7 +7,7 @@ Digest of `specs/languages/erlang/RULES.md` ARCH. Layering rules: `specs/ARCHITE
 - Modules are flat atoms, so there is no `internal/`. Use a per-app prefix (`ms_pg_*`), a small `-export` facade, `-doc false.` on internals (OTP 27+), `-export_type` only for public types (`ERL-ARCH-03`).
 - No import cycles between apps: `rebar3 xref`, `rebar3 tree`, the `applications` lists.
 - Ports are `-callback` behaviours in the consuming app (`ms_app_repo`); the adapter app implements them; the release app injects the module with `application:set_env` or a function argument. No `application:get_env` in the domain.
-- `loops arch` has no Erlang import parser: the `xref` check enforces direction (pack `arch.native_check`).
+- `loops arch` has no Erlang import parser. The `xref` check (pack `arch.native_check`) catches undefined and deprecated calls, not layer direction: add `xref_queries` in `rebar.config` that forbid domain-to-adapter app calls, and review direction.
 
 ## Domain purity (`ERL-ARCH-07`)
 No processes, `ets`, `file`, `gen_tcp`, `httpc`, `os:`, `erlang:system_time`, `os:timestamp`, `rand:` or `!` in the domain. Pass time and random values as arguments. Records stay private to one app: share through accessors or maps (`ERL-IDIOM-05`).

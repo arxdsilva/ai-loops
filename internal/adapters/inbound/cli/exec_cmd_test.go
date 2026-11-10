@@ -176,3 +176,14 @@ func TestRunEnvPacks(t *testing.T) {
 		t.Fatal(code, e.err)
 	}
 }
+
+// A project without a Go pack gets no GOCACHE/GOTMPDIR line.
+func TestRunEnvNoGoLineWithoutGo(t *testing.T) {
+	e, _ := packWSSetup(t, fooPk)
+	e.do("run", "start", "--title", "x")
+	dir := e.log.Dir(e.ptr.id)
+	want := "export FOO_CACHE='" + workspace.PackCache(dir, "foo") + "' FOO_MODE='ci'\n"
+	if code := e.do("run", "env"); code != 0 || e.out.String() != want {
+		t.Fatalf("%d %q\nwant %q", code, e.out, want)
+	}
+}

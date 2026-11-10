@@ -590,3 +590,49 @@ func TestGlobFiles(t *testing.T) {
 		}
 	}
 }
+
+// A skip_on match skips an optional check but fails a required one, with
+// its install hint (D12: required checks never skip silently).
+func TestSkipOnRequiredFails(t *testing.T) {
+	p := pack.Pack{ID: "x", Checks: []pack.Check{
+		{Name: "opt", Kind: "lint", Argv: []string{"cargo", "clippy"}, SkipOn: &pack.SkipOn{OutputRegex: "no such command", Note: "clippy missing"}},
+		{Name: "test", Kind: "test", Required: true, Argv: []string{"cargo", "llvm-cov"}, Install: "cargo install cargo-llvm-cov --locked",
+			SkipOn: &pack.SkipOn{OutputRegex: "no such command: `llvm-cov`", Note: "cargo-llvm-cov is not installed"}},
+	}}
+	cmd := &scriptCmd{fn: func(argv string, _ []string) (string, error) {
+		return "error: no such command: `" + strings.Fields(argv)[1] + "`", exitErr(101)
+	}}
+	o := Options{Root: "/p", Packs: []langpack.Detected{detected(p, ".")}}
+	res, _ := New(cmd, fakeArch{ok: true}, &fakeRec{}, &tick{}).Run(context.Background(), o)
+	if c := byName(res, "opt"); !c.Skipped || c.Output != "clippy missing" {
+		t.Fatalf("optional: %+v", c)
+	}
+	c := byName(res, "test")
+	if c.OK || c.Skipped || !strings.Contains(c.Output, "cargo-llvm-cov is not installed") || !strings.Contains(c.Output, "install: cargo install cargo-llvm-cov --locked") {
+		t.Fatalf("required: %+v", c)
+	}
+	if res.OK {
+		t.Fatal("gate passed with a required check missing its tool")
+	}
+}
+
+func TestRunnerSeedRecorded(t *testing.T) {
+	p := pack.Pack{ID: "python", Race: pack.Race{Mode: pack.RaceNone, Checks: []string{"test"}, Substitute: "random"},
+		Checks: []pack.Check{{Name: "test", Kind: "test", Required: true, Argv: []string{"pytest", "-p", "randomly"}}}}
+	cmd := &scriptCmd{fn: func(string, []string) (string, error) {
+		return "===== test session starts =====\nUsing --randomly-seed=4242\n1 passed\n", nil
+	}}
+	rec := &fakeRec{}
+	o := Options{Root: "/p", Packs: []langpack.Detected{detected(p, ".")}}
+	if _, err := New(cmd, fakeArch{ok: true}, rec, &tick{}).Run(context.Background(), o); err != nil {
+		t.Fatal(err)
+	}
+	if ev := evNamed(rec, "test"); ev == nil || !strings.Contains(ev.Note, "seed 4242") {
+		t.Fatalf("%+v", ev)
+	}
+	for _, line := range []string{"Running ExUnit with seed: 77, max_cases: 8", "Randomized with seed 77", "Random Seed:   77", "kaocha --seed 77"} {
+		if m := runnerSeedRe.FindStringSubmatch(line); m == nil || m[1] != "77" {
+			t.Errorf("%q: %v", line, m)
+		}
+	}
+}

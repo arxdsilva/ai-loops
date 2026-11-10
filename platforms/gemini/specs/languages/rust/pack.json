@@ -2,93 +2,430 @@
   "schema": 1,
   "id": "rust",
   "name": "Rust",
-  "versions": {"stable": "1.99", "as_of": "2026-11"},
-  "detect": [{"file": "Cargo.toml"}],
-  "variants": [
-    {"name": "nextest", "detect": [{"file": ".config/nextest.toml"}],
-     "checks": [
-       {"name": "test", "kind": "test", "required": true, "tool": "cargo-nextest",
-        "argv": ["cargo", "llvm-cov", "nextest", "{pkgs}", "--locked", "--lcov", "--output-path", "{coverage}"],
-        "install": "rustup component add llvm-tools-preview && cargo install cargo-nextest cargo-llvm-cov --locked",
-        "signal_regex": "^error|FAIL|panicked at|SIGABRT|SIGSEGV"}
-     ]}
+  "versions": {
+    "stable": "1.99",
+    "as_of": "2026-11"
+  },
+  "detect": [
+    {
+      "file": "Cargo.toml"
+    }
   ],
-  "scope": {"pkgs": ["--workspace"]},
-  "source_globs": ["**/*.rs"],
-  "test_globs": ["**/tests/**/*.rs", "**/benches/**/*.rs", "**/tests.rs", "**/*_test.rs", "**/*_tests.rs"],
+  "variants": [
+    {
+      "name": "nextest",
+      "detect": [
+        {
+          "file": ".config/nextest.toml"
+        }
+      ],
+      "checks": [
+        {
+          "name": "test",
+          "kind": "test",
+          "required": true,
+          "tool": "cargo-nextest",
+          "argv": [
+            "cargo",
+            "llvm-cov",
+            "nextest",
+            "{pkgs}",
+            "--locked",
+            "--lcov",
+            "--output-path",
+            "{coverage}"
+          ],
+          "install": "rustup component add llvm-tools-preview && cargo install cargo-nextest cargo-llvm-cov --locked",
+          "signal_regex": "^error|FAIL|panicked at|SIGABRT|SIGSEGV",
+          "skip_on": {
+            "output_regex": "no such command: `llvm-cov`|no such command: `nextest`",
+            "note": "cargo-llvm-cov (or cargo-nextest) is not installed"
+          }
+        }
+      ]
+    }
+  ],
+  "scope": {
+    "pkgs": [
+      "--workspace"
+    ]
+  },
+  "source_globs": [
+    "**/*.rs"
+  ],
+  "test_globs": [
+    "**/tests/**/*.rs",
+    "**/benches/**/*.rs",
+    "**/tests.rs",
+    "**/*_test.rs",
+    "**/*_tests.rs"
+  ],
   "generated": {
-    "globs": ["**/*.pb.rs", "**/*.generated.rs", "**/generated/**/*.rs", ".sqlx/**"],
+    "globs": [
+      "**/*.pb.rs",
+      "**/*.generated.rs",
+      "**/generated/**/*.rs",
+      ".sqlx/**",
+      "target/**"
+    ],
     "header_regex": "^\\s*//\\s*(@generated|This file is @generated|Code generated)"
   },
   "manifest": "Cargo.toml",
-  "env": {"CARGO_INCREMENTAL": "0"},
+  "env": {
+    "CARGO_INCREMENTAL": "0"
+  },
   "checks": [
-    {"name": "deps", "kind": "deps", "argv": ["cargo", "fetch", "--locked"], "required": false, "tool": "cargo",
-     "note": "verifies Cargo.lock is current and warms CARGO_HOME; needs network on a cold cache"},
-    {"name": "build", "kind": "build", "argv": ["cargo", "build", "{pkgs}", "--all-targets", "--locked"], "required": true, "tool": "cargo"},
-    {"name": "fmt", "kind": "format", "argv": ["cargo", "fmt", "--all", "--check"], "required": false, "tool": "rustfmt",
-     "install": "rustup component add rustfmt",
-     "note": "required in practice when rustfmt.toml is committed; fails on exit code, no output parsing"},
-    {"name": "clippy", "kind": "lint", "required": true, "tool": "clippy", "install": "rustup component add clippy",
-     "argv": ["cargo", "clippy", "{pkgs}", "--all-targets", "--all-features", "--locked", "--",
-              "-D", "warnings", "-D", "unsafe_code", "-D", "clippy::await_holding_lock", "-D", "clippy::await_holding_refcell_ref"],
-     "note": "also the race substitute (RUST-CONC-04): unsafe_code and await_holding_lock are denied; a crate that needs unsafe opts out with an explicit allow and a SAFETY comment"},
-    {"name": "arch", "kind": "arch", "internal": "arch", "required": false},
-    {"name": "test", "kind": "test", "required": true, "tool": "cargo-llvm-cov",
-     "argv": ["cargo", "llvm-cov", "{pkgs}", "--locked", "--lcov", "--output-path", "{coverage}"],
-     "install": "rustup component add llvm-tools-preview && cargo install cargo-llvm-cov --locked",
-     "signal_regex": "^error|FAILED|panicked at|SIGABRT|SIGSEGV"},
-    {"name": "doctest", "kind": "test", "argv": ["cargo", "test", "--doc", "{pkgs}", "--locked"], "required": true, "tool": "cargo",
-     "note": "doctests are not measured by llvm-cov and nextest does not run them"},
-    {"name": "coverage", "kind": "coverage", "internal": "coverage", "required": true, "skippable": false},
-    {"name": "miri", "kind": "test", "required": false, "default": "off", "tool": "cargo-miri",
-     "argv": ["cargo", "+nightly", "miri", "test", "{pkgs}"], "env": {"MIRIFLAGS": "-Zmiri-many-seeds"},
-     "install": "rustup toolchain install nightly --component miri",
-     "note": "opt in for crates that contain unsafe or atomics (RUST-CONC-03)"},
-    {"name": "loom", "kind": "test", "required": false, "default": "off", "tool": "cargo",
-     "argv": ["cargo", "test", "--release", "{pkgs}"], "env": {"RUSTFLAGS": "--cfg loom"},
-     "note": "opt in for lock-free code modelled with the loom crate; RUSTFLAGS changes rebuild everything"},
-    {"name": "tsan", "kind": "test", "required": false, "default": "off", "tool": "cargo",
-     "argv": ["cargo", "+nightly", "test", "-Zbuild-std", "--target", "{host_triple}", "{pkgs}"],
-     "env": {"RUSTFLAGS": "-Zsanitizer=thread", "RUSTDOCFLAGS": "-Zsanitizer=thread"},
-     "install": "rustup toolchain install nightly --component rust-src",
-     "note": "opt in for FFI or mixed unsafe code; Linux and macOS targets only"},
-    {"name": "doc", "kind": "lint", "argv": ["cargo", "doc", "--no-deps", "{pkgs}", "--locked"], "required": false, "default": "off", "tool": "rustdoc",
-     "env": {"RUSTDOCFLAGS": "-D warnings"}},
-    {"name": "deny", "kind": "vuln", "argv": ["cargo", "deny", "check"], "required": false, "default": "off", "tool": "cargo-deny",
-     "when_file": ["deny.toml"], "install": "cargo install cargo-deny --locked"},
-    {"name": "audit", "kind": "vuln", "argv": ["cargo", "audit"], "required": false, "default": "off", "tool": "cargo-audit",
-     "install": "cargo install cargo-audit --locked"}
+    {
+      "name": "deps",
+      "kind": "deps",
+      "argv": [
+        "cargo",
+        "fetch",
+        "--locked"
+      ],
+      "required": false,
+      "tool": "cargo",
+      "note": "verifies Cargo.lock is current and warms CARGO_HOME; needs network on a cold cache"
+    },
+    {
+      "name": "build",
+      "kind": "build",
+      "argv": [
+        "cargo",
+        "build",
+        "{pkgs}",
+        "--all-targets",
+        "--locked"
+      ],
+      "required": true,
+      "tool": "cargo"
+    },
+    {
+      "name": "fmt",
+      "kind": "format",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "required": false,
+      "tool": "rustfmt",
+      "install": "rustup component add rustfmt",
+      "note": "required in practice when rustfmt.toml is committed; fails on exit code, no output parsing"
+    },
+    {
+      "name": "clippy",
+      "kind": "lint",
+      "required": true,
+      "tool": "clippy",
+      "install": "rustup component add clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "{pkgs}",
+        "--all-targets",
+        "--all-features",
+        "--locked",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "unsafe_code",
+        "-D",
+        "clippy::await_holding_lock",
+        "-D",
+        "clippy::await_holding_refcell_ref"
+      ],
+      "note": "also the race substitute (RUST-CONC-04): unsafe_code and await_holding_lock are denied; a crate that needs unsafe opts out with an explicit allow and a SAFETY comment"
+    },
+    {
+      "name": "arch",
+      "kind": "arch",
+      "internal": "arch",
+      "required": false
+    },
+    {
+      "name": "test",
+      "kind": "test",
+      "required": true,
+      "tool": "cargo-llvm-cov",
+      "argv": [
+        "cargo",
+        "llvm-cov",
+        "{pkgs}",
+        "--locked",
+        "--lcov",
+        "--output-path",
+        "{coverage}"
+      ],
+      "install": "rustup component add llvm-tools-preview && cargo install cargo-llvm-cov --locked",
+      "signal_regex": "^error|FAILED|panicked at|SIGABRT|SIGSEGV",
+      "skip_on": {
+        "output_regex": "no such command: `llvm-cov`|no such command: `nextest`",
+        "note": "cargo-llvm-cov (or cargo-nextest) is not installed"
+      }
+    },
+    {
+      "name": "doctest",
+      "kind": "test",
+      "argv": [
+        "cargo",
+        "test",
+        "--doc",
+        "{pkgs}",
+        "--locked"
+      ],
+      "required": true,
+      "tool": "cargo",
+      "note": "doctests are not measured by llvm-cov and nextest does not run them"
+    },
+    {
+      "name": "coverage",
+      "kind": "coverage",
+      "internal": "coverage",
+      "required": true,
+      "skippable": false
+    },
+    {
+      "name": "miri",
+      "kind": "test",
+      "required": false,
+      "default": "off",
+      "tool": "cargo-miri",
+      "argv": [
+        "cargo",
+        "+nightly",
+        "miri",
+        "test",
+        "{pkgs}"
+      ],
+      "env": {
+        "MIRIFLAGS": "-Zmiri-many-seeds"
+      },
+      "install": "rustup toolchain install nightly --component miri",
+      "note": "opt in for crates that contain unsafe or atomics (RUST-CONC-03)"
+    },
+    {
+      "name": "loom",
+      "kind": "test",
+      "required": false,
+      "default": "off",
+      "tool": "cargo",
+      "argv": [
+        "cargo",
+        "test",
+        "--release",
+        "{pkgs}"
+      ],
+      "env": {
+        "RUSTFLAGS": "--cfg loom"
+      },
+      "note": "opt in for lock-free code modelled with the loom crate; RUSTFLAGS changes rebuild everything"
+    },
+    {
+      "name": "tsan",
+      "kind": "test",
+      "required": false,
+      "default": "off",
+      "tool": "cargo",
+      "argv": [
+        "cargo",
+        "+nightly",
+        "test",
+        "-Zbuild-std",
+        "--target",
+        "{host_triple}",
+        "{pkgs}"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Zsanitizer=thread",
+        "RUSTDOCFLAGS": "-Zsanitizer=thread"
+      },
+      "install": "rustup toolchain install nightly --component rust-src",
+      "note": "opt in for FFI or mixed unsafe code; Linux and macOS targets only"
+    },
+    {
+      "name": "doc",
+      "kind": "lint",
+      "argv": [
+        "cargo",
+        "doc",
+        "--no-deps",
+        "{pkgs}",
+        "--locked"
+      ],
+      "required": false,
+      "default": "off",
+      "tool": "rustdoc",
+      "env": {
+        "RUSTDOCFLAGS": "-D warnings"
+      }
+    },
+    {
+      "name": "deny",
+      "kind": "vuln",
+      "argv": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "required": false,
+      "default": "off",
+      "tool": "cargo-deny",
+      "when_file": [
+        "deny.toml"
+      ],
+      "install": "cargo install cargo-deny --locked"
+    },
+    {
+      "name": "audit",
+      "kind": "vuln",
+      "argv": [
+        "cargo",
+        "audit"
+      ],
+      "required": false,
+      "default": "off",
+      "tool": "cargo-audit",
+      "install": "cargo install cargo-audit --locked"
+    }
   ],
-  "test_commands": [{"argv_prefix": ["cargo", "test"]}, {"argv_prefix": ["cargo", "nextest", "run"]}, {"argv_prefix": ["cargo", "llvm-cov"]}],
+  "test_commands": [
+    {
+      "argv_prefix": [
+        "cargo",
+        "test"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "cargo",
+        "nextest",
+        "run"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "cargo",
+        "llvm-cov"
+      ]
+    }
+  ],
   "race": {
     "mode": "none",
-    "checks": ["clippy"],
+    "checks": [
+      "clippy"
+    ],
     "reason": "Safe Rust is data-race free at compile time (Send and Sync); there is no -race flag, and ThreadSanitizer needs nightly, -Zbuild-std and a target",
     "substitute": "clippy -D warnings with unsafe_code and await_holding_lock denied (required); crates with unsafe or atomics add the optional miri, loom and tsan checks"
   },
   "coverage": {
-    "format": "lcov", "path": "{coverage}", "produced_by": ["test"], "granularity": "line",
-    "exclude": ["**/tests/**", "**/benches/**", "**/examples/**", "**/build.rs", "**/src/main.rs", "**/src/bin/**", "**/xtask/**"]
+    "format": "lcov",
+    "path": "{coverage}",
+    "produced_by": [
+      "test"
+    ],
+    "granularity": "line",
+    "exclude": [
+      "**/tests/**",
+      "**/benches/**",
+      "**/examples/**",
+      "**/build.rs",
+      "**/src/main.rs",
+      "**/src/bin/**",
+      "**/xtask/**"
+    ]
   },
   "placeholders": {
-    "edition": {"file": "{manifest_dir}/Cargo.toml", "regex": "(?m)^\\s*edition\\s*=\\s*\"(\\d+)\""},
-    "host_triple": {"argv": ["sh", "-c", "rustc -vV | sed -n 's/^host: //p'"]}
+    "edition": {
+      "file": "{manifest_dir}/Cargo.toml",
+      "regex": "(?m)^\\s*edition\\s*=\\s*\"(\\d+)\""
+    },
+    "host_triple": {
+      "argv": [
+        "sh",
+        "-c",
+        "rustc -vV | sed -n 's/^host: //p'"
+      ]
+    }
   },
-  "post_edit": {"format_file": ["rustfmt", "--edition", "{edition}", "{file}"]},
-  "cache_env": {"CARGO_TARGET_DIR": "cache", "TMPDIR": "tmp"},
-  "shared_env": ["CARGO_HOME", "RUSTUP_HOME", "SCCACHE_DIR"],
-  "env_hints": {"CARGO_BUILD_JOBS": "2", "RUSTC_WRAPPER": "sccache (optional, shares compiled objects across per-run target dirs)"},
-  "artifacts": ["target/", "lcov.info", "cobertura.xml", "*.profraw", "*.profdata", "mutants.out/", "flamegraph.svg", "perf.data", "perf.data.old"],
+  "post_edit": {
+    "format_file": [
+      "rustfmt",
+      "--edition",
+      "{edition}",
+      "{file}"
+    ]
+  },
+  "cache_env": {
+    "CARGO_TARGET_DIR": "cache",
+    "TMPDIR": "tmp"
+  },
+  "shared_env": [
+    "CARGO_HOME",
+    "RUSTUP_HOME",
+    "SCCACHE_DIR"
+  ],
+  "env_hints": {
+    "CARGO_BUILD_JOBS": "2",
+    "RUSTC_WRAPPER": "sccache (optional, shares compiled objects across per-run target dirs)"
+  },
+  "artifacts": [
+    "target/",
+    "lcov.info",
+    "cobertura.xml",
+    "*.profraw",
+    "*.profdata",
+    "mutants.out/",
+    "flamegraph.svg",
+    "perf.data",
+    "perf.data.old"
+  ],
   "arch": {
     "parser": "regex",
     "import_regex": "^\\s*(?:pub(?:\\([^)]*\\))?\\s+)?(?:use|extern\\s+crate)\\s+([A-Za-z_][A-Za-z0-9_]*)",
     "resolver": "crate-path",
-    "forbidden_in_domain": ["std::fs", "std::net", "std::env", "std::process", "std::thread", "tokio", "sqlx", "diesel", "axum", "actix_web", "reqwest", "hyper", "tracing"],
-    "impure_calls": ["SystemTime::now", "Instant::now", "Utc::now", "OffsetDateTime::now_utc", "Uuid::new_v4", "rand::", "thread_rng", "tokio::spawn", "thread::spawn"]
+    "forbidden_in_domain": [
+      "std::fs",
+      "std::net",
+      "std::env",
+      "std::process",
+      "std::thread",
+      "tokio",
+      "sqlx",
+      "diesel",
+      "axum",
+      "actix_web",
+      "reqwest",
+      "hyper",
+      "tracing"
+    ],
+    "impure_calls": [
+      "SystemTime::now",
+      "Instant::now",
+      "Utc::now",
+      "OffsetDateTime::now_utc",
+      "Uuid::new_v4",
+      "rand::",
+      "thread_rng",
+      "tokio::spawn",
+      "thread::spawn"
+    ]
   },
   "test_jobs": "CARGO_BUILD_JOBS=2 (env); cargo nextest -j2; cargo test -- --test-threads=2",
-  "config_files": ["Cargo.toml", "rust-toolchain.toml", "rustfmt.toml", ".rustfmt.toml", "clippy.toml", ".clippy.toml", "deny.toml", ".cargo/config.toml", ".config/nextest.toml", ".editorconfig"],
+  "config_files": [
+    "Cargo.toml",
+    "rust-toolchain.toml",
+    "rustfmt.toml",
+    ".rustfmt.toml",
+    "clippy.toml",
+    ".clippy.toml",
+    "deny.toml",
+    ".cargo/config.toml",
+    ".config/nextest.toml",
+    ".editorconfig"
+  ],
   "sources": {
     "checks": "https://doc.rust-lang.org/cargo/commands/cargo-build.html; https://doc.rust-lang.org/cargo/commands/cargo-fmt.html; https://doc.rust-lang.org/clippy/usage.html; https://embarkstudios.github.io/cargo-deny/cli/check.html; https://github.com/rustsec/rustsec/tree/main/cargo-audit",
     "race": "https://doc.rust-lang.org/nightly/unstable-book/compiler-flags/sanitizer.html; https://github.com/rust-lang/miri; https://github.com/tokio-rs/loom",

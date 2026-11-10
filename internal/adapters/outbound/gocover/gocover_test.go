@@ -260,6 +260,14 @@ func TestFilesAndModule(t *testing.T) {
 	if _, err := r.Profile(filepath.Join(dir, "none.out")); err == nil {
 		t.Fatal("missing profile accepted")
 	}
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(filepath.Join(dir, "p"), link); err != nil {
+		t.Skip(err)
+	}
+	want, _ := filepath.EvalSymlinks(filepath.Join(dir, "p"))
+	if got, err := r.RealPath(link); err != nil || got != want {
+		t.Fatalf("RealPath %q %v, want %q", got, err, want)
+	}
 }
 
 // M2: an explicit base diffs from merge-base(HEAD, base) (three-dot), so

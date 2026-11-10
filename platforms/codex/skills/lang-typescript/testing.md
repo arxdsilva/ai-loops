@@ -28,7 +28,7 @@ fast-check for parsers, money math, state machines and codecs (`fc.assert(fc.pro
 - The gate computes new-code coverage itself: lcov `DA:` lines of changed non-test source files, at least 70%. `coverage.thresholds` is repo-wide and does not count.
 
 ## Race substitute (TS-CONC-04, 05)
-Shuffle files and tests, concurrent, a printed seed, `--repeats=3` on changed files, no retries: details in SKILL.md §4 and `concurrency.md`.
+Shuffle files and tests, concurrent, a printed seed, the whole suite repeated (`--repeats=2`), no retries: details in SKILL.md §4 and `concurrency.md`.
 
 ## Deno (no gate variant)
 Detected by `deno.json`; the gate does not cover it. Override in project config: `deno test --coverage=cov` then `deno coverage cov --lcov --output=<dir>/lcov.info`, `deno fmt --check`, `deno lint`, `deno check`. Log it with `loops run override`.

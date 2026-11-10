@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/application/tracker"
@@ -97,13 +98,18 @@ func (a wsCmd) env(ctx context.Context, args []string) int {
 	if !ok {
 		return 0
 	}
-	line, _ := workspace.Exports(*shell, workspace.GoCache(dir), workspace.GoTmp(dir))
-	fmt.Fprintln(a.Out, line)
-	pw, ok := a.Workspace.(PackWorkspace)
-	if !ok {
-		return 0
+	pw, isPW := a.Workspace.(PackWorkspace)
+	var packs []pack.Pack
+	if isPW {
+		packs = packsOf(pw.Packs())
 	}
-	for _, p := range packsOf(pw.Packs()) {
+	// The GOCACHE/GOTMPDIR line: for a Go project, or when nothing is
+	// detected (the pre-pack behaviour), never for a project without Go.
+	if len(packs) == 0 || slices.ContainsFunc(packs, func(p pack.Pack) bool { return p.ID == workspace.GoPack }) {
+		line, _ := workspace.Exports(*shell, workspace.GoCache(dir), workspace.GoTmp(dir))
+		fmt.Fprintln(a.Out, line)
+	}
+	for _, p := range packs {
 		env, err := pw.PackEnv(dir, p)
 		if err != nil {
 			return a.fail("run env", err)

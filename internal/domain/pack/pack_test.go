@@ -199,6 +199,21 @@ func TestDetectAndVariants(t *testing.T) {
 	}
 }
 
+func TestVariantOverlayKeepsEveryField(t *testing.T) {
+	no := false
+	base := []Check{{Name: "fmt", Kind: "format", Argv: []string{"./mvnw", "spotless:check"}, SkipOn: &SkipOn{OutputRegex: "No plugin found", Note: "maven"}}}
+	over := []Check{{Name: "fmt", Argv: []string{"./gradlew", "spotlessCheck"}, SkipOn: &SkipOn{OutputRegex: "Task '.*' not found", Note: "gradle"},
+		Default: "off", Skippable: &no, SignalRegex: "^E", FailsOn: "output", OutputExclude: []string{"x"}, EnvRequired: []string{"T"}, Internal: ""}}
+	got := mergeChecks(base, over)[0]
+	if got.SkipOn.Note != "gradle" || got.Default != "off" || got.IsSkippable() || got.SignalRegex != "^E" || got.FailsOn != "output" ||
+		len(got.OutputExclude) != 1 || len(got.EnvRequired) != 1 || got.Kind != "format" || got.Argv[0] != "./gradlew" {
+		t.Fatalf("%+v", got)
+	}
+	if mergeChecks([]Check{{Name: "a"}}, []Check{{Name: "a", Internal: "arch"}})[0].Internal != "arch" {
+		t.Fatal("internal")
+	}
+}
+
 func TestPredicates(t *testing.T) {
 	p := goPack(t)
 	if !p.IsSource("internal/a.go") || p.IsSource("internal/a_test.go") || !p.IsTest("a_test.go") || p.IsSource("a.py") {

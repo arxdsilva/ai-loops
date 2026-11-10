@@ -120,7 +120,7 @@ func ConventionalLayers(resolver string) Layers {
 	if resolver == "project-reference" {
 		l.Domain = append(l.Domain, "**/*.Domain")
 		l.Application = append(l.Application, "**/*.Application")
-		l.Adapters = append(l.Adapters, "**/*.Infrastructure", "**/*.Adapters")
+		l.Adapters = append(l.Adapters, "**/*.Infrastructure", "**/*.Infra", "**/*.Adapters")
 	}
 	return l
 }

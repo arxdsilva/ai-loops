@@ -43,7 +43,7 @@ excoveralls over Erlang `:cover`; format lcov; `MIX_ENV=test mix coveralls.lcov`
 **Wave 0 prerequisites** (D13). The architect or `elixir-engineer` adds these when missing and logs each as an override:
 - `{:excoveralls, "~> 0.18", only: :test}` in `deps/0`;
 - `test_coverage: [tool: ExCoveralls]` in `project/0`;
-- `def cli, do: [preferred_envs: ["coveralls": :test, "coveralls.lcov": :test, "coveralls.json": :test, "coveralls.html": :test]]` (so `mix coveralls.lcov` runs under `:test`);
+- `def cli, do: [preferred_envs: [coveralls: :test, "coveralls.lcov": :test, "coveralls.json": :test, "coveralls.html": :test]]` (so `mix coveralls.lcov` runs under `:test`);
 - `coveralls.json` with `{"coverage_options": {"minimum_coverage": 0}}` (loops owns the threshold) and `skip_files` for `test/`, `priv/repo/migrations/` and generated code;
 - when absent: `.formatter.exs` (the format check then runs), `.tool-versions` (`ELIXIR-REPO-08`).
 The gate preflight fails with the exact snippet when excoveralls is missing.

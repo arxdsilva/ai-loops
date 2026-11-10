@@ -16,6 +16,15 @@ type LineRange struct{ Start, End int }
 type FileChange struct {
 	Ranges    []LineRange
 	Generated bool
+	// Added is true for a file the diff adds (--- /dev/null); untracked
+	// files are marked by the caller with WholeFile ranges.
+	Added bool
+}
+
+// IsNew reports whether the whole file is new: added in the diff, or
+// untracked (WholeFile).
+func (fc FileChange) IsNew() bool {
+	return fc.Added || (len(fc.Ranges) == 1 && fc.Ranges[0] == WholeFile()[0])
 }
 
 // Changes maps module-relative slash paths to their changes.
@@ -32,6 +41,7 @@ func WholeFile() []LineRange { return []LineRange{{1, math.MaxInt32}} }
 func ParseDiff(text string) (Changes, error) {
 	out := Changes{}
 	cur := ""
+	added := false
 	oldLeft, newLeft := 0, 0
 	for i, line := range strings.Split(text, "\n") {
 		line = strings.TrimSuffix(line, "\r")
@@ -49,7 +59,9 @@ func ParseDiff(text string) (Changes, error) {
 		}
 		switch {
 		case strings.HasPrefix(line, "diff --git "):
-			cur = ""
+			cur, added = "", false
+		case strings.HasPrefix(line, "--- "):
+			added = strings.TrimRight(strings.TrimPrefix(line, "--- "), "\t") == "/dev/null"
 		case strings.HasPrefix(line, "rename to "):
 			name, err := unquote(strings.TrimPrefix(line, "rename to "))
 			if err != nil {
@@ -64,9 +76,9 @@ func ParseDiff(text string) (Changes, error) {
 			}
 			cur = name
 			if cur != "" {
-				if _, ok := out[cur]; !ok {
-					out[cur] = FileChange{}
-				}
+				fc := out[cur]
+				fc.Added = fc.Added || added
+				out[cur] = fc
 			}
 		case strings.HasPrefix(line, "@@ "):
 			r, oldN, newN, err := hunk(line)

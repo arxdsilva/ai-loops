@@ -41,7 +41,7 @@
   "placeholders": {
     "codecov_dir": {"argv": ["swift", "test", "--scratch-path", "{run}/swift/build", "--show-codecov-path"], "dirname": true},
     "bin_path": {"argv": ["swift", "build", "--scratch-path", "{run}/swift/build", "--show-bin-path"]},
-    "test_objects": {"glob": ["{bin_path}/*-test-runner", "{bin_path}/*.xctest/Contents/MacOS/*"]}
+    "test_objects": {"glob": ["{bin_path}/*.so", "{bin_path}/*.xctest/Contents/MacOS/*"]}
   },
   "coverage": {
     "format": "lcov", "path": "{coverage}", "produced_by": ["test"], "granularity": "line",
@@ -56,7 +56,9 @@
   "notes": ["coverage.produce passes one -object per test binary: llvm-cov export reads extra positionals as source filters. xcrun on macOS, the toolchain llvm-cov on Linux."],
   "post_edit": {"format_file": ["swift", "format", "format", "--in-place", "{file}"],
                 "lint_dir": ["swift", "format", "lint", "--strict", "--recursive", "{dir}"]},
-  "cache_argv": {"swift": ["--scratch-path", "{run}/swift/build"]},
+  "cache_argv": {"swift build": ["--scratch-path", "{run}/swift/build"],
+                 "swift test": ["--scratch-path", "{run}/swift/build"],
+                 "swift run": ["--scratch-path", "{run}/swift/build"]},
   "artifacts": [".build/", ".swiftpm/", "*.profraw", "*.profdata", "*.lcov"],
   "arch": {
     "parser": "regex",

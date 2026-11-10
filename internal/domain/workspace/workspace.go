@@ -10,9 +10,12 @@
 // name matches a Go build/test/profile output pattern, or its first bytes are
 // an executable binary header (ELF, Mach-O, PE), or it matches a detected
 // pack's artifact glob. Scripts (#!) are never artifacts. A pack glob ending
-// in "/" names a directory, removed whole only when the directory itself is
-// new since the baseline (D25, ArtifactDirs). Everything else new is
-// reported "left for review".
+// in "/" names a directory, anchored at the pack root unless it holds
+// another "/", and removed whole only in a git work tree, when the directory
+// itself is new since the baseline (D25, ArtifactDirs) and holds nothing
+// authored (DirReason). A file a pack glob matches is kept when it looks
+// authored (FileGuard: sources, tests, scripts, documents, fixtures).
+// Everything else new is reported "left for review" (WORKFLOW §2.6).
 //
 // Paths are slash-separated and relative to the project root; the adapter
 // owns every filesystem and git call.
@@ -213,6 +216,10 @@ type Entry struct {
 	Kind EntryKind
 	Size int64
 	Head []byte // first HeadSize bytes of a regular file
+	// InArtifactDir is set by the adapter when the file lies in a pack
+	// artifact directory whose new files may go (a git work tree, the
+	// directory pre-existing or passing the directory guard; DecideFor).
+	InArtifactDir bool
 }
 
 // Action is what cleanup does with an entry.

@@ -2,90 +2,421 @@
   "schema": 1,
   "id": "clojure",
   "name": "Clojure (JVM backend)",
-  "versions": {"stable": "1.12.6", "as_of": "2026-11"},
-  "detect": [{"file": "deps.edn"}, {"file": "project.clj"}, {"file": "workspace.edn"}],
-  "scope": {"pkgs": ["src", "test"], "pkg_dirs": ["src", "test"]},
-  "source_globs": ["**/*.clj", "**/*.cljc"],
-  "test_globs": ["test/**/*_test.clj", "test/**/*_test.cljc", "**/test/**/*_test.clj", "**/test/**/*_test.cljc"],
-  "generated": {"globs": ["**/target/**", "**/classes/**"]},
+  "versions": {
+    "stable": "1.12.6",
+    "as_of": "2026-11"
+  },
+  "detect": [
+    {
+      "file": "deps.edn"
+    },
+    {
+      "file": "project.clj"
+    },
+    {
+      "file": "workspace.edn"
+    }
+  ],
+  "scope": {
+    "pkgs": [
+      "src",
+      "test"
+    ],
+    "pkg_dirs": [
+      "src",
+      "test"
+    ]
+  },
+  "source_globs": [
+    "**/*.clj",
+    "**/*.cljc"
+  ],
+  "test_globs": [
+    "test/**/*_test.clj",
+    "test/**/*_test.cljc",
+    "**/test/**/*_test.clj",
+    "**/test/**/*_test.cljc"
+  ],
+  "generated": {
+    "globs": [
+      "**/target/**",
+      "**/classes/**"
+    ]
+  },
   "manifest": "deps.edn",
   "variants": [
-    {"name": "lein", "detect": [{"file": "project.clj"}],
-     "checks": [
-       {"name": "deps", "argv": ["lein", "deps"], "when_file": ["project.clj"], "tool": "lein"},
-       {"name": "cljfmt", "argv": ["lein", "cljfmt", "check"], "tool": "lein-cljfmt", "install": "add [dev.weavejester/lein-cljfmt \"0.16.6\"] to :plugins in project.clj"},
-       {"name": "test", "argv": ["lein", "cloverage", "--lcov", "--no-html", "--output", "{coverage_dir}"], "tool": "lein-cloverage",
-        "note": "Leiningen variant: project.clj needs the lein-cloverage plugin (D13)"},
-       {"name": "test-repeat", "argv": ["lein", "kaocha", "--randomize", "--seed", "{seed}"], "tool": "lein",
-        "note": "Leiningen variant: needs a kaocha alias in project.clj (D13)"}
-     ],
-     "test_commands": [
-       {"argv_prefix": ["lein", "test"]},
-       {"argv_prefix": ["lein", "kaocha"]},
-       {"argv_prefix": ["lein", "cloverage"]},
-       {"argv_prefix": ["bin/kaocha"]}
-     ]}
+    {
+      "name": "lein",
+      "detect": [
+        {
+          "file": "project.clj"
+        }
+      ],
+      "checks": [
+        {
+          "name": "deps",
+          "argv": [
+            "lein",
+            "deps"
+          ],
+          "when_file": [
+            "project.clj"
+          ],
+          "tool": "lein"
+        },
+        {
+          "name": "cljfmt",
+          "argv": [
+            "lein",
+            "cljfmt",
+            "check"
+          ],
+          "tool": "lein-cljfmt",
+          "install": "add [dev.weavejester/lein-cljfmt \"0.16.6\"] to :plugins in project.clj"
+        },
+        {
+          "name": "test",
+          "argv": [
+            "lein",
+            "cloverage",
+            "--lcov",
+            "--no-html",
+            "--output",
+            "{coverage_dir}"
+          ],
+          "tool": "lein-cloverage",
+          "note": "Leiningen variant: project.clj needs the lein-cloverage plugin (D13)"
+        },
+        {
+          "name": "test-repeat",
+          "argv": [
+            "lein",
+            "kaocha",
+            "--randomize",
+            "--seed",
+            "{seed}"
+          ],
+          "tool": "lein",
+          "note": "Leiningen variant: needs a kaocha alias in project.clj (D13)"
+        }
+      ],
+      "test_commands": [
+        {
+          "argv_prefix": [
+            "lein",
+            "test"
+          ]
+        },
+        {
+          "argv_prefix": [
+            "lein",
+            "kaocha"
+          ]
+        },
+        {
+          "argv_prefix": [
+            "lein",
+            "cloverage"
+          ]
+        },
+        {
+          "argv_prefix": [
+            "bin/kaocha"
+          ]
+        }
+      ]
+    }
   ],
   "checks": [
-    {"name": "deps", "kind": "deps", "argv": ["clojure", "-P", "-M:test"], "required": true, "tool": "clojure", "when_file": ["deps.edn"],
-     "note": "prefetch only: resolves and downloads, never edits deps.edn (D11)"},
-    {"name": "cljfmt", "kind": "format", "argv": ["clojure", "-Tcljfmt", "check"], "required": true, "tool": "cljfmt",
-     "when_file": [".cljfmt.edn", "cljfmt.edn"],
-     "install": "clojure -Ttools install-latest :lib io.github.weavejester/cljfmt :as cljfmt",
-     "note": "required only when the project committed a cljfmt config (D14)"},
-    {"name": "clj-kondo", "kind": "lint", "argv": ["clj-kondo", "--lint", "{pkgs}", "--parallel"], "required": true, "tool": "clj-kondo",
-     "exit_codes": {"0": "pass", "2": "fail", "3": "fail"},
-     "install": "brew install borkdude/brew/clj-kondo",
-     "note": "exit 2 = warnings, 3 = errors (default --fail-level warning); for a Polylith workspace pass --pkgs components bases projects"},
-    {"name": "poly", "kind": "arch", "argv": ["clojure", "-M:poly", "check"], "required": false, "tool": "poly",
-     "when_file": ["workspace.edn"], "note": "Polylith interface and dependency rules; the :poly alias is part of the Polylith workspace"},
-    {"name": "arch", "kind": "arch", "internal": "arch", "required": false},
-    {"name": "test", "kind": "test", "argv": ["clojure", "-M:cov", "-o", "{coverage_dir}"], "required": true, "tool": "clojure",
-     "signal_regex": "FAIL in|ERROR in|Execution error|Syntax error|Uncaught exception|Failed \\d+ of|Ran \\d+ tests",
-     "note": "cloverage runs clojure.test, not Kaocha; the :cov alias is a D13 prerequisite"},
-    {"name": "test-repeat", "kind": "test", "argv": ["clojure", "-M:test", "--randomize", "--seed", "{seed}"], "required": true, "tool": "clojure",
-     "repeat": 3, "signal_regex": "FAIL in|ERROR in|Execution error|failures?[,.]|Randomized with --seed",
-     "note": "race substitute: Kaocha randomised order, 3 runs with different printed seeds; tests.edn and the :test alias are D13 prerequisites"},
-    {"name": "coverage", "kind": "coverage", "internal": "coverage", "required": true, "skippable": false},
-    {"name": "nvd", "kind": "vuln", "argv": ["clojure", "-J-Dclojure.main.report=stderr", "-Tnvd", "nvd.task/check", ":classpath", "\"{classpath}\"", ":config-filename", "\"nvd-clojure.edn\""],
-     "required": false, "tool": "nvd-clojure", "default": "off", "env_required": ["NVD_API_TOKEN"],
-     "install": "clojure -Ttools install nvd-clojure/nvd-clojure '{:mvn/version \"RELEASE\"}' :as nvd",
-     "note": "needs an NVD API key; the EDN strings are quoted on purpose (-T parses them)"}
+    {
+      "name": "deps",
+      "kind": "deps",
+      "argv": [
+        "clojure",
+        "-P",
+        "-M:test"
+      ],
+      "required": true,
+      "tool": "clojure",
+      "when_file": [
+        "deps.edn"
+      ],
+      "note": "prefetch only: resolves and downloads, never edits deps.edn (D11)"
+    },
+    {
+      "name": "cljfmt",
+      "kind": "format",
+      "argv": [
+        "clojure",
+        "-Tcljfmt",
+        "check"
+      ],
+      "required": true,
+      "tool": "cljfmt",
+      "when_file": [
+        ".cljfmt.edn",
+        "cljfmt.edn"
+      ],
+      "install": "clojure -Ttools install-latest :lib io.github.weavejester/cljfmt :as cljfmt",
+      "note": "required only when the project committed a cljfmt config (D14)"
+    },
+    {
+      "name": "clj-kondo",
+      "kind": "lint",
+      "argv": [
+        "clj-kondo",
+        "--lint",
+        "{pkgs}",
+        "--parallel"
+      ],
+      "required": true,
+      "tool": "clj-kondo",
+      "exit_codes": {
+        "0": "pass",
+        "2": "fail",
+        "3": "fail"
+      },
+      "install": "brew install borkdude/brew/clj-kondo",
+      "note": "exit 2 = warnings, 3 = errors (default --fail-level warning); for a Polylith workspace pass --pkgs components bases projects"
+    },
+    {
+      "name": "poly",
+      "kind": "arch",
+      "argv": [
+        "clojure",
+        "-M:poly",
+        "check"
+      ],
+      "required": false,
+      "tool": "poly",
+      "when_file": [
+        "workspace.edn"
+      ],
+      "note": "Polylith interface and dependency rules; the :poly alias is part of the Polylith workspace"
+    },
+    {
+      "name": "arch",
+      "kind": "arch",
+      "internal": "arch",
+      "required": false
+    },
+    {
+      "name": "test",
+      "kind": "test",
+      "argv": [
+        "clojure",
+        "-M:cov",
+        "-o",
+        "{coverage_dir}"
+      ],
+      "required": true,
+      "tool": "clojure",
+      "signal_regex": "FAIL in|ERROR in|Execution error|Syntax error|Uncaught exception|Failed \\d+ of|Ran \\d+ tests",
+      "note": "cloverage runs clojure.test, not Kaocha; the :cov alias is a D13 prerequisite"
+    },
+    {
+      "name": "test-repeat",
+      "kind": "test",
+      "argv": [
+        "clojure",
+        "-M:test",
+        "--randomize",
+        "--seed",
+        "{seed}"
+      ],
+      "required": true,
+      "tool": "clojure",
+      "repeat": 3,
+      "signal_regex": "FAIL in|ERROR in|Execution error|failures?[,.]|Randomized with --seed",
+      "note": "race substitute: Kaocha randomised order, 3 runs with different printed seeds; tests.edn and the :test alias are D13 prerequisites"
+    },
+    {
+      "name": "coverage",
+      "kind": "coverage",
+      "internal": "coverage",
+      "required": true,
+      "skippable": false
+    },
+    {
+      "name": "nvd",
+      "kind": "vuln",
+      "argv": [
+        "clojure",
+        "-J-Dclojure.main.report=stderr",
+        "-Tnvd",
+        "nvd.task/check",
+        ":classpath",
+        "\"{classpath}\"",
+        ":config-filename",
+        "\"nvd-clojure.edn\""
+      ],
+      "required": false,
+      "tool": "nvd-clojure",
+      "default": "off",
+      "env_required": [
+        "NVD_API_TOKEN"
+      ],
+      "install": "clojure -Ttools install nvd-clojure/nvd-clojure '{:mvn/version \"RELEASE\"}' :as nvd",
+      "note": "needs an NVD API key; the EDN strings are quoted on purpose (-T parses them)"
+    }
   ],
   "test_commands": [
-    {"argv_prefix": ["clojure", "-M:test"]},
-    {"argv_prefix": ["clojure", "-M:cov"]},
-    {"argv_prefix": ["clojure", "-X:test"]},
-    {"argv_prefix": ["clojure", "-M:kaocha"]},
-    {"argv_prefix": ["bin/kaocha"]},
-    {"argv_prefix": ["lein", "test"]},
-    {"argv_prefix": ["lein", "kaocha"]}
+    {
+      "argv_prefix": [
+        "clojure",
+        "-M:test"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "clojure",
+        "-M:cov"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "clojure",
+        "-X:test"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "clojure",
+        "-M:kaocha"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "bin/kaocha"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "lein",
+        "test"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "lein",
+        "kaocha"
+      ]
+    }
   ],
   "race": {
     "mode": "none",
-    "checks": ["test-repeat"],
+    "checks": [
+      "test-repeat"
+    ],
     "reason": "The JVM and Clojure have no general data-race detector; immutable data and managed references (atom, ref, agent) remove most races by construction",
     "substitute": "the test-repeat check: Kaocha randomised order, 3 runs with different printed seeds (--randomize --seed N); concurrency-tagged tests repeated 20 times (--focus-meta :concurrency) and reflection warnings clean stay review items (CLJ-CONC-08)"
   },
   "coverage": {
-    "format": "lcov", "path": "{coverage_dir}/lcov.info", "produced_by": ["test"], "granularity": "form",
-    "exclude": ["test/**", "**/test/**", "dev/**", "development/**", "**/target/**", "build.clj"],
-    "source_roots": ["src"]
+    "format": "lcov",
+    "path": "{coverage_dir}/lcov.info",
+    "produced_by": [
+      "test"
+    ],
+    "granularity": "form",
+    "exclude": [
+      "test/**",
+      "**/test/**",
+      "dev/**",
+      "development/**",
+      "**/target/**",
+      "build.clj"
+    ],
+    "source_roots": [
+      "src"
+    ]
   },
-  "placeholders": {"classpath": {"argv": ["clojure", "-Spath", "-M:test"]}},
-  "post_edit": {"format_file": ["cljfmt", "fix", "{file}"], "lint_dir": ["clj-kondo", "--lint", "{dir}"]},
-  "cache_env": {"JAVA_TOOL_OPTIONS": "-Djava.io.tmpdir={tmp}"},
-  "shared_env": ["GITLIBS", "CLJ_CONFIG"],
-  "artifacts": ["target/", ".cpcache/", ".clj-kondo/.cache/", ".lsp/.cache/", ".nrepl-port", "classes/", "*.class", "*.hprof", "hs_err_pid*.log", ".lein-failures", ".lein-repl-history"],
+  "placeholders": {
+    "classpath": {
+      "argv": [
+        "clojure",
+        "-Spath",
+        "-M:test"
+      ]
+    }
+  },
+  "post_edit": {
+    "format_file": [
+      "cljfmt",
+      "fix",
+      "{file}"
+    ],
+    "lint_dir": [
+      "clj-kondo",
+      "--lint",
+      "{dir}"
+    ]
+  },
+  "cache_env": {
+    "JAVA_TOOL_OPTIONS": "-Djava.io.tmpdir={tmp}"
+  },
+  "shared_env": [
+    "GITLIBS",
+    "CLJ_CONFIG"
+  ],
+  "artifacts": [
+    "target/",
+    ".cpcache/",
+    ".clj-kondo/.cache/",
+    ".lsp/.cache/",
+    ".nrepl-port",
+    "classes/",
+    "*.class",
+    "*.hprof",
+    "hs_err_pid*.log",
+    ".lein-failures",
+    ".lein-repl-history",
+    "**/target/"
+  ],
   "arch": {
     "parser": "regex",
     "import_regex": "\\[\\s*([a-z][A-Za-z0-9_.\\-]*(?:\\.[A-Za-z0-9_\\-]+)+)(?:\\s|\\])",
     "resolver": "dotted-module-underscore",
     "native_check": "poly",
-    "forbidden_in_domain": ["clojure.java.io", "clojure.java.shell", "clojure.java.jdbc", "next.jdbc", "honey.sql", "ring.", "reitit.", "org.httpkit", "clj-http", "hato", "clojure.core.async"],
-    "impure_calls": ["System/currentTimeMillis", "Instant/now", "LocalDate/now", "(rand", "random-uuid", "UUID/randomUUID", "(slurp", "(spit", "(future", "(swap!", "(reset!"]
+    "forbidden_in_domain": [
+      "clojure.java.io",
+      "clojure.java.shell",
+      "clojure.java.jdbc",
+      "next.jdbc",
+      "honey.sql",
+      "ring.",
+      "reitit.",
+      "org.httpkit",
+      "clj-http",
+      "hato",
+      "clojure.core.async"
+    ],
+    "impure_calls": [
+      "System/currentTimeMillis",
+      "Instant/now",
+      "LocalDate/now",
+      "(rand",
+      "random-uuid",
+      "UUID/randomUUID",
+      "(slurp",
+      "(spit",
+      "(future",
+      "(swap!",
+      "(reset!"
+    ]
   },
-  "config_files": [".clj-kondo/config.edn", ".cljfmt.edn", "cljfmt.edn", "tests.edn", ".editorconfig", ".lsp/config.edn", "deps.edn", "project.clj", "workspace.edn", "nvd-clojure.edn", ".tool-versions"],
+  "config_files": [
+    ".clj-kondo/config.edn",
+    ".cljfmt.edn",
+    "cljfmt.edn",
+    "tests.edn",
+    ".editorconfig",
+    ".lsp/config.edn",
+    "deps.edn",
+    "project.clj",
+    "workspace.edn",
+    "nvd-clojure.edn",
+    ".tool-versions"
+  ],
   "sources": {
     "checks": "https://clojure.org/reference/clojure_cli",
     "deps": "https://clojure.org/reference/deps_edn",

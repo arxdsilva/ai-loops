@@ -16,7 +16,7 @@ Arrange-act-assert; names as sentences (`test("rejects an expired token")`). Han
 
 ## Coverage (`SCALA-TEST-06`, `-07`)
 - `sbt -batch clean coverage test coverageReport` (the gate's `test` check). Always `clean` first. Add `coverageAggregate` for multi-project.
-- Cobertura at `target/scala-*/coverage-report/cobertura.xml`. Class `filename` resolves against the `<sources>` entries; skip entries that are not directories (a bogus `--source` appears).
+- Cobertura at `**/target/scala-*/coverage-report/cobertura.xml`. Class `filename` resolves against the `<sources>` entries; skip entries that are not directories (a bogus `--source` appears).
 - New code at least 70%: loops intersects `<line number hits>` with the diff. Exclude generated code (`coverageExcludedPackages`, `coverageExcludedFiles` on Scala 3.3.4+; `$COVERAGE-OFF$` markers work on Scala 2 only). Scala.js and Native are unsupported on Scala 3.
 - Prerequisites (`sbt-scoverage` plugin, thresholds): wave 0, see SKILL.md.
 

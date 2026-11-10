@@ -8,6 +8,7 @@
 package hook
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -90,8 +91,22 @@ func (in toolInput) path() string {
 }
 
 // Handle runs hook name for platform ("" autodetects) and returns the
-// process exit code (2 = deny for PreToolUse; 0 otherwise).
-func (h *Handler) Handle(ctx context.Context, name, platform string, in io.Reader, out, errw io.Writer) int {
+// process exit code (2 = deny for PreToolUse; 0 otherwise). Hooks fail
+// open: output is buffered, so a panic anywhere exits 0 with no output.
+func (h *Handler) Handle(ctx context.Context, name, platform string, in io.Reader, out, errw io.Writer) (code int) {
+	var o, e bytes.Buffer
+	defer func() {
+		if recover() != nil {
+			code = 0
+			return
+		}
+		_, _ = out.Write(o.Bytes())
+		_, _ = errw.Write(e.Bytes())
+	}()
+	return h.handle(ctx, name, platform, in, &o, &e)
+}
+
+func (h *Handler) handle(ctx context.Context, name, platform string, in io.Reader, out, errw io.Writer) int {
 	raw, err := io.ReadAll(io.LimitReader(in, 8<<20))
 	if err != nil {
 		return 0

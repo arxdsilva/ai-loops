@@ -42,6 +42,13 @@ type PackCoverage interface {
 	Head(root, file string) string
 }
 
+// RealPaths resolves symlinks; the gate uses it when the file or coverage
+// port implements it, so reports that name the physical pack root
+// (/private/tmp/x for /tmp/x) still match.
+type RealPaths interface {
+	RealPath(path string) (string, error)
+}
+
 // Diff is the change set the coverage check judges.
 type Diff struct {
 	Base      string   // the resolved base ref or commit
@@ -86,7 +93,9 @@ func (s *Service) stalePending(pr *packRun, name string) bool {
 	return !pr.staleCleaned && slices.Contains(pr.p.Coverage.ProducedBy, name)
 }
 
-// removeStale deletes the reports a previous run left at coverage.path.
+// removeStale deletes the reports a previous run left at coverage.path:
+// only files inside the run's coverage dir, the run dir or strictly below
+// the pack root (reportPaths refuses unsafe paths).
 func (s *Service) removeStale(ctx context.Context, pr *packRun) {
 	pr.staleCleaned = true
 	f := s.fs()
@@ -98,25 +107,97 @@ func (s *Service) removeStale(ctx context.Context, pr *packRun) {
 		return
 	}
 	for _, p := range paths {
-		_ = f.Remove(p)
+		if pr.removable(p) {
+			_ = f.Remove(p)
+		}
 	}
 }
 
 // reportPaths resolves coverage.path: a file, a directory (every file under
-// it) or a glob (every match).
+// it) or a glob (every match). It refuses a path whose built-in
+// placeholders are empty, that is the pack root itself, or that is (or
+// globs from) a filesystem root: such a path would read, and removeStale
+// delete, the project.
 func (s *Service) reportPaths(ctx context.Context, pr *packRun, f Files) ([]string, error) {
 	v, err := pr.vals(pack.Check{}, "")
 	if err != nil {
 		return nil, err
 	}
-	p, err := s.expand(ctx, pr, []string{pr.p.Coverage.Path}, v)
+	cp := pr.p.Coverage.Path
+	for _, name := range pack.Placeholders([]string{cp}) {
+		if vs, builtin := v[name]; builtin && (len(vs) == 0 || strings.TrimSpace(strings.Join(vs, "")) == "") {
+			return nil, fmt.Errorf("coverage.path %q: {%s} is empty", cp, name)
+		}
+	}
+	p, err := s.expand(ctx, pr, []string{cp}, v)
 	if err != nil {
 		return nil, err
 	}
 	if len(p) != 1 {
-		return nil, fmt.Errorf("coverage.path %q expands to %d values", pr.p.Coverage.Path, len(p))
+		return nil, fmt.Errorf("coverage.path %q expands to %d values", cp, len(p))
 	}
-	return globFiles(f, pr.abs(p[0]))
+	if strings.TrimSpace(p[0]) == "" {
+		return nil, fmt.Errorf("coverage.path %q expands to nothing", cp)
+	}
+	abs := filepath.Clean(pr.abs(p[0]))
+	base := abs
+	if hasMeta(filepath.ToSlash(abs)) {
+		base = globBase(abs)
+	} else {
+		for _, dir := range []string{pr.root, pr.runDir} {
+			if dir != "" && abs == filepath.Clean(pr.abs(dir)) {
+				return nil, fmt.Errorf("coverage.path %q is the pack root or run dir", cp)
+			}
+		}
+	}
+	if isFSRoot(base) {
+		return nil, fmt.Errorf("coverage.path %q is rooted at %s", cp, base)
+	}
+	return globFiles(f, abs)
+}
+
+// removable reports whether a stale report may be deleted: it lies inside
+// the run's coverage dir or run dir, or strictly below the pack root.
+func (pr *packRun) removable(p string) bool {
+	for _, dir := range []string{pr.covDir, pr.runDir, pr.root} {
+		if dir != "" && !(filepath.IsAbs(dir) && isFSRoot(dir)) && strictlyUnder(p, dir) {
+			return true
+		}
+	}
+	return false
+}
+
+// strictlyUnder reports whether p lies below dir (not dir itself).
+func strictlyUnder(p, dir string) bool {
+	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(p))
+	if err != nil || rel == "." || rel == ".." || filepath.IsAbs(rel) {
+		return false
+	}
+	return !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// globBase is the directory a glob walks: its segments before the first
+// one holding a metacharacter.
+func globBase(pattern string) string {
+	segs := strings.Split(filepath.ToSlash(pattern), "/")
+	i := slices.IndexFunc(segs, hasMeta)
+	if i < 0 {
+		return filepath.Clean(pattern)
+	}
+	base := strings.Join(segs[:i], "/")
+	if base == "" || strings.HasSuffix(base, ":") {
+		base += "/"
+	}
+	return filepath.FromSlash(base)
+}
+
+// isFSRoot reports whether p is a filesystem root ("/", `C:\`), or "" or ".".
+func isFSRoot(p string) bool {
+	if p == "" || p == "." {
+		return true
+	}
+	c := filepath.Clean(p)
+	return filepath.Dir(c) == c
 }
 
 func (s *Service) noReportErr(pr *packRun) error {
@@ -128,45 +209,67 @@ func (s *Service) noReportErr(pr *packRun) error {
 	return fmt.Errorf("coverage needs the %s check's %s: run %s too (--only %s,coverage)", names, what, names, strings.Join(by, ","))
 }
 
-// readReports produces (coverage.produce), reads and merges the pack's
-// coverage reports.
-func (s *Service) readReports(ctx context.Context, pr *packRun) (coverage.Profile, error) {
-	var none coverage.Profile
+// report is one coverage report's text and the path it was read from.
+type report struct{ path, text string }
+
+// readReports produces (coverage.produce) and reads the pack's coverage
+// reports.
+func (s *Service) readReports(ctx context.Context, pr *packRun) ([]report, error) {
 	cp := pr.p.Coverage
 	for _, step := range cp.Produce {
 		if err := s.produce(ctx, pr, step); err != nil {
-			return none, err
+			return nil, err
 		}
 	}
-	var texts []string
 	if cp.Path == "{coverage}" || s.fs() == nil {
 		// The per-run file: read it through the port, as Go always has.
 		t, err := s.cov.Profile(pr.cov)
 		if err != nil {
-			return none, err
+			return nil, err
 		}
-		texts = append(texts, t)
-	} else {
-		paths, err := s.reportPaths(ctx, pr, s.fs())
-		if err != nil {
-			return none, err
-		}
-		if len(paths) == 0 {
-			return none, fmt.Errorf("no coverage report at %s", cp.Path)
-		}
-		for _, p := range paths {
-			t, err := s.cov.Profile(p)
-			if err != nil {
-				return none, err
-			}
-			texts = append(texts, t)
-		}
+		return []report{{pr.cov, t}}, nil
 	}
+	paths, err := s.reportPaths(ctx, pr, s.fs())
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no coverage report at %s", cp.Path)
+	}
+	var out []report
+	for _, p := range paths {
+		t, err := s.cov.Profile(p)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, report{p, t})
+	}
+	return out, nil
+}
+
+// profile parses the pack's reports and merges them. Line-based reports are
+// normalized one by one first, each against the source roots under its own
+// ancestors (a multi-module build writes one report per module).
+func (s *Service) profile(ctx context.Context, pr *packRun) (coverage.Profile, error) {
+	var none coverage.Profile
+	cp := pr.p.Coverage
+	reps, err := s.readReports(ctx, pr)
+	if err != nil {
+		return none, err
+	}
+	gocover := cp.Format == pack.FormatGoCover || cp.Format == ""
+	f := s.fs()
+	n := coverage.Normalizer{PackRoot: pr.root, RealRoot: s.realPath(pr.root), SourceRoots: cp.SourceRoots,
+		Exists: func(rel string) bool { return f != nil && f.Exists(pr.abs(rel)) }}
 	var profs []coverage.Profile
-	for _, t := range texts {
-		p, err := coverage.Parse(cp.Format, t)
+	for _, r := range reps {
+		p, err := coverage.Parse(cp.Format, r.text)
 		if err != nil {
 			return none, err
+		}
+		if !gocover {
+			n.ReportDir = pr.reportDir(r.path)
+			p = coverage.Normalize(p, n)
 		}
 		profs = append(profs, p)
 	}
@@ -174,6 +277,36 @@ func (s *Service) readReports(ctx context.Context, pr *packRun) (coverage.Profil
 		return profs[0], nil
 	}
 	return coverage.MergeProfiles(profs...), nil
+}
+
+// reportDir is the pack-relative slash dir of a report ("" outside the
+// pack, e.g. the run's coverage dir).
+func (pr *packRun) reportDir(p string) string {
+	if pr.root == "" || !strictlyUnder(p, pr.root) {
+		return ""
+	}
+	rel, err := filepath.Rel(filepath.Clean(pr.root), filepath.Dir(filepath.Clean(p)))
+	if err != nil || rel == "." {
+		return ""
+	}
+	return filepath.ToSlash(rel)
+}
+
+// realPath resolves p's symlinks through the port ("" when unavailable or
+// unchanged).
+func (s *Service) realPath(p string) string {
+	if p == "" {
+		return ""
+	}
+	for _, x := range []any{s.fs(), s.cov} {
+		if r, ok := x.(RealPaths); ok && r != nil {
+			if rp, err := r.RealPath(p); err == nil && rp != p {
+				return rp
+			}
+			return ""
+		}
+	}
+	return ""
 }
 
 // produce runs one coverage export step; stdout_to writes its stdout.
@@ -224,26 +357,22 @@ func (s *Service) evaluate(ctx context.Context, o Options, pr *packRun) (string,
 	case pr.cov == "" && strings.Contains(cp.Path, "{coverage"):
 		return "", none, errors.New("no coverprofile path (Options.CoverProfile)")
 	}
-	prof, err := s.readReports(ctx, pr)
+	prof, err := s.profile(ctx, pr)
 	if err != nil {
 		return "", none, err
 	}
-	gocover := cp.Format == pack.FormatGoCover || cp.Format == ""
 	mod := ""
-	if gocover {
+	if cp.Format == pack.FormatGoCover || cp.Format == "" {
 		if mod, err = s.cov.Module(pr.root); err != nil {
 			return "", none, err
 		}
-	} else {
-		f := s.fs()
-		prof = coverage.Normalize(prof, coverage.Normalizer{PackRoot: pr.root, SourceRoots: cp.SourceRoots,
-			Exists: func(rel string) bool { return f != nil && f.Exists(pr.abs(rel)) }})
 	}
 	copts := coverage.Options{
 		Min: s.covCfg.Min, Exclude: s.covCfg.Exclude, Module: mod, Pkgs: o.Pkgs,
 		SourceGlobs: pr.p.SourceGlobs, TestGlobs: pr.p.TestGlobs,
-		BaseExclude:  append(append([]string{}, cp.Exclude...), pr.p.Generated.Globs...),
-		PackageTests: pr.p.ID == "go",
+		BaseExclude:    append(append([]string{}, cp.Exclude...), pr.p.Generated.Globs...),
+		PackageTests:   pr.p.ID == "go",
+		FlagUnreported: pr.p.ID != "go",
 	}
 	base := o.Base
 	if base == "" {

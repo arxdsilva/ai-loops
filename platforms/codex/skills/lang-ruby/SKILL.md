@@ -63,6 +63,7 @@ SimpleCov.formatter = SimpleCov::Formatter::MultiFormatter.new(
 )
 SimpleCov.start do
   enable_coverage :branch
+  track_files "{lib,app}/**/*.rb" # without it a never-loaded new file is absent from lcov and the gate cannot see it
   skip "/spec/"; skip "/test/"; skip "/config/"; skip "/db/"; skip "/vendor/"
 end
 ```

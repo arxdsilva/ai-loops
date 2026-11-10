@@ -13,7 +13,7 @@ Universal testing rules: `specs/TESTING.md` when present, else `loops:testing`. 
 1. `swift test --sanitize=thread --enable-code-coverage` (the gate's `test` check; both flags work together).
 2. `swift test --show-codecov-path` prints `<bin>/codecov/<Pkg>.json`; `default.profdata` sits beside it.
 3. `swift build --show-bin-path` gives `<bin>`: `.build/out/Products/Debug` (macOS) or `.build/out/Products/Debug-linux-<arch>` (Linux, default Swift Build).
-4. Test objects, one per test target: macOS `<T>.xctest/Contents/MacOS/<T>`; Linux `<T>-test-runner` or `<T>.so`. There is no `<Pkg>PackageTests.xctest` except with `--build-system native`.
+4. Test objects, one per test target: macOS `<T>.xctest/Contents/MacOS/<T>`; Linux `<T>.so` (`<T>-test-runner` has only generated entry-point code, so its report lacks package sources; verified 6.4.2). There is no `<Pkg>PackageTests.xctest` except with `--build-system native`.
 5. `llvm-cov export -format=lcov -instr-profile=<codecov>/default.profdata -ignore-filename-regex='(/checkouts/|\.build/|/Tests/|/DerivedSources/)' -object <o1> -object <o2> …`, with `xcrun` on macOS. A second positional object is read as a source filter and silently drops that target (SWIFT-TEST-06).
 6. loops parses lcov `SF:`/`DA:` against the git base and fails under 70% on added `Sources/**/*.swift` lines (SWIFT-TEST-07). Line granularity only; no branch data by default.
 

@@ -2,81 +2,402 @@
   "schema": 1,
   "id": "scala",
   "name": "Scala",
-  "versions": {"stable": "3.10.0", "lts": "3.9.x (also 3.3.x LTS)", "as_of": "2026-11"},
-  "detect": [{"file": "build.sbt"}, {"file": "build.mill"}],
+  "versions": {
+    "stable": "3.10.0",
+    "lts": "3.9.x (also 3.3.x LTS)",
+    "as_of": "2026-11"
+  },
+  "detect": [
+    {
+      "file": "build.sbt"
+    },
+    {
+      "file": "build.mill"
+    }
+  ],
   "variants": [
     {
       "name": "mill",
-      "detect": [{"file": "build.mill"}],
-      "checks": [
-        {"name": "compile", "argv": ["mill", "__.test.compile"]},
-        {"name": "scalafmt", "argv": ["mill", "mill.scalalib.scalafmt.ScalafmtModule/checkFormatAll", "__.sources"]},
-        {"name": "test", "argv": ["mill", "__.test"]}
+      "detect": [
+        {
+          "file": "build.mill"
+        }
       ],
-      "test_commands": [{"argv_prefix": ["mill", "__.test"]}, {"argv_prefix": ["mill", "__.scoverage"]}],
+      "checks": [
+        {
+          "name": "compile",
+          "argv": [
+            "mill",
+            "__.test.compile"
+          ]
+        },
+        {
+          "name": "scalafmt",
+          "argv": [
+            "mill",
+            "mill.scalalib.scalafmt.ScalafmtModule/checkFormatAll",
+            "__.sources"
+          ]
+        },
+        {
+          "name": "test",
+          "argv": [
+            "mill",
+            "__.test"
+          ]
+        }
+      ],
+      "test_commands": [
+        {
+          "argv_prefix": [
+            "mill",
+            "__.test"
+          ]
+        },
+        {
+          "argv_prefix": [
+            "mill",
+            "__.scoverage"
+          ]
+        }
+      ],
       "coverage": {
         "path": "out/**/scoverage/xmlCoberturaReport.dest/cobertura.xml",
-        "produce": [{"argv": ["mill", "__.scoverage.xmlCoberturaReport"]}]
+        "produce": [
+          {
+            "argv": [
+              "mill",
+              "__.scoverage.xmlCoberturaReport"
+            ]
+          }
+        ]
       },
-      "cache_env": {"JAVA_TOOL_OPTIONS": "-Djava.io.tmpdir={tmp}"},
-      "artifacts": ["out/", ".bsp/", ".bloop/", ".metals/", "*.class", "hs_err_pid*.log", "*.hprof", "*.jfr"]
+      "cache_env": {
+        "JAVA_TOOL_OPTIONS": "-Djava.io.tmpdir={tmp}"
+      },
+      "artifacts": [
+        "out/",
+        ".bsp/",
+        ".bloop/",
+        ".metals/",
+        "*.class",
+        "hs_err_pid*.log",
+        "*.hprof",
+        "*.jfr"
+      ]
     }
   ],
-  "source_globs": ["**/src/main/scala/**/*.scala", "**/src/main/scala-3/**/*.scala", "**/src/main/scala-2.13/**/*.scala", "**/*.sc"],
-  "test_globs": ["**/src/test/scala/**/*.scala", "**/src/it/scala/**/*.scala", "**/*Spec.scala", "**/*Suite.scala", "**/*Test.scala"],
+  "source_globs": [
+    "**/src/main/scala/**/*.scala",
+    "**/src/main/scala-3/**/*.scala",
+    "**/src/main/scala-2.13/**/*.scala",
+    "**/*.sc"
+  ],
+  "test_globs": [
+    "**/src/test/scala/**/*.scala",
+    "**/src/it/scala/**/*.scala",
+    "**/*Spec.scala",
+    "**/*Suite.scala",
+    "**/*Test.scala"
+  ],
   "generated": {
-    "globs": ["**/target/**", "**/src_managed/**", "**/*.pb.scala", "**/BuildInfo.scala", "**/generated/**"],
+    "globs": [
+      "**/target/**",
+      "**/src_managed/**",
+      "**/*.pb.scala",
+      "**/BuildInfo.scala",
+      "**/generated/**"
+    ],
     "header_regex": "^// (Generated|Code generated|AUTO-GENERATED)"
   },
   "manifest": "build.sbt",
   "checks": [
-    {"name": "compile", "kind": "build", "argv": ["sbt", "-batch", "Test/compile"], "required": true, "tool": "sbt",
-     "note": "warnings fail the build only if the project sets -Werror (sbt-tpolecat CI mode); see lang-scala"},
-    {"name": "scalafmt", "kind": "format", "argv": ["sbt", "-batch", "scalafmtCheckAll", "scalafmtSbtCheck"], "required": true, "tool": "sbt-scalafmt",
-     "when_file": [".scalafmt.conf"], "install": "add sbt-scalafmt to project/plugins.sbt (https://github.com/scalameta/sbt-scalafmt)"},
-    {"name": "scalafix", "kind": "lint", "argv": ["sbt", "-batch", "scalafixAll --check"], "required": false, "tool": "sbt-scalafix",
-     "when_file": [".scalafix.conf"], "install": "add sbt-scalafix to project/plugins.sbt (https://scalacenter.github.io/scalafix/docs/users/installation.html)"},
-    {"name": "arch", "kind": "arch", "internal": "arch", "required": false},
-    {"name": "test", "kind": "test", "argv": ["sbt", "-batch", "clean", "coverage", "test", "coverageReport"], "required": true, "tool": "sbt-scoverage",
-     "repeat": 3, "signal_regex": "\\[error\\]|\\*\\*\\* FAILED|==> X|Failed: Total|Failed tests:",
-     "install": "add sbt-scoverage to project/plugins.sbt (https://github.com/scoverage/sbt-scoverage)"},
-    {"name": "coverage", "kind": "coverage", "internal": "coverage", "required": true, "skippable": false},
-    {"name": "dependency-check", "kind": "vuln", "argv": ["sbt", "-batch", "dependencyCheck"], "required": false, "tool": "sbt-dependency-check",
-     "default": "off", "install": "add sbt-dependency-check to project/plugins.sbt (https://github.com/albuch/sbt-dependency-check)"},
-    {"name": "osv", "kind": "vuln", "argv": ["osv-scanner", "scan", "source", "-r", "."], "required": false, "tool": "osv-scanner",
-     "default": "off", "install": "https://google.github.io/osv-scanner/installation/"}
+    {
+      "name": "compile",
+      "kind": "build",
+      "argv": [
+        "sbt",
+        "-batch",
+        "Test/compile"
+      ],
+      "required": true,
+      "tool": "sbt",
+      "note": "warnings fail the build only if the project sets -Werror (sbt-tpolecat CI mode); see lang-scala"
+    },
+    {
+      "name": "scalafmt",
+      "kind": "format",
+      "argv": [
+        "sbt",
+        "-batch",
+        "scalafmtCheckAll",
+        "scalafmtSbtCheck"
+      ],
+      "required": true,
+      "tool": "sbt-scalafmt",
+      "when_file": [
+        ".scalafmt.conf"
+      ],
+      "install": "add sbt-scalafmt to project/plugins.sbt (https://github.com/scalameta/sbt-scalafmt)"
+    },
+    {
+      "name": "scalafix",
+      "kind": "lint",
+      "argv": [
+        "sbt",
+        "-batch",
+        "scalafixAll --check"
+      ],
+      "required": false,
+      "tool": "sbt-scalafix",
+      "when_file": [
+        ".scalafix.conf"
+      ],
+      "install": "add sbt-scalafix to project/plugins.sbt (https://scalacenter.github.io/scalafix/docs/users/installation.html)"
+    },
+    {
+      "name": "arch",
+      "kind": "arch",
+      "internal": "arch",
+      "required": false
+    },
+    {
+      "name": "test",
+      "kind": "test",
+      "argv": [
+        "sbt",
+        "-batch",
+        "clean",
+        "coverage",
+        "test",
+        "coverageReport"
+      ],
+      "required": true,
+      "tool": "sbt-scoverage",
+      "repeat": 3,
+      "signal_regex": "\\[error\\]|\\*\\*\\* FAILED|==> X|Failed: Total|Failed tests:",
+      "install": "add sbt-scoverage to project/plugins.sbt (https://github.com/scoverage/sbt-scoverage)"
+    },
+    {
+      "name": "coverage",
+      "kind": "coverage",
+      "internal": "coverage",
+      "required": true,
+      "skippable": false
+    },
+    {
+      "name": "dependency-check",
+      "kind": "vuln",
+      "argv": [
+        "sbt",
+        "-batch",
+        "dependencyCheck"
+      ],
+      "required": false,
+      "tool": "sbt-dependency-check",
+      "default": "off",
+      "install": "add sbt-dependency-check to project/plugins.sbt (https://github.com/albuch/sbt-dependency-check)"
+    },
+    {
+      "name": "osv",
+      "kind": "vuln",
+      "argv": [
+        "osv-scanner",
+        "scan",
+        "source",
+        "-r",
+        "."
+      ],
+      "required": false,
+      "tool": "osv-scanner",
+      "default": "off",
+      "install": "https://google.github.io/osv-scanner/installation/"
+    }
   ],
   "test_commands": [
-    {"argv_prefix": ["sbt", "test"]}, {"argv_prefix": ["sbt", "testOnly"]}, {"argv_prefix": ["sbt", "testQuick"]},
-    {"argv_prefix": ["sbt", "coverage"]}, {"argv_prefix": ["sbt", "clean", "coverage"]},
-    {"argv_prefix": ["sbt", "-batch", "test"]}, {"argv_prefix": ["sbt", "-batch", "testOnly"]}, {"argv_prefix": ["sbt", "-batch", "testQuick"]},
-    {"argv_prefix": ["sbt", "-batch", "coverage"]}, {"argv_prefix": ["sbt", "-batch", "clean", "coverage"]},
-    {"argv_prefix": ["sbt", "--client", "test"]}, {"argv_prefix": ["sbtn", "test"]},
-    {"argv_prefix": ["scala-cli", "test"]}
+    {
+      "argv_prefix": [
+        "sbt",
+        "test"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbt",
+        "testOnly"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbt",
+        "testQuick"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbt",
+        "coverage"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbt",
+        "clean",
+        "coverage"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbt",
+        "-batch",
+        "test"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbt",
+        "-batch",
+        "testOnly"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbt",
+        "-batch",
+        "testQuick"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbt",
+        "-batch",
+        "coverage"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbt",
+        "-batch",
+        "clean",
+        "coverage"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbt",
+        "--client",
+        "test"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "sbtn",
+        "test"
+      ]
+    },
+    {
+      "argv_prefix": [
+        "scala-cli",
+        "test"
+      ]
+    }
   ],
   "race": {
-    "mode": "none", "flags": [], "env": {}, "checks": ["test"],
+    "mode": "none",
+    "flags": [],
+    "env": {},
+    "checks": [
+      "test"
+    ],
     "reason": "The JVM has no general data-race detector; ThreadSanitizer does not apply to JVM code.",
     "substitute": "The test check runs 3 times (repeat: 3) with suites in parallel: parallelExecution is true by default, and with Test / fork := true the project must also set Test / testForkedParallel := true in build.sbt (forked tests run sequentially otherwise). Concurrent fiber tests (parTraverse/foreachPar, nonFlaky) with virtual time; jcstress/Lincheck for lock-free code are review items."
   },
   "coverage": {
-    "format": "cobertura", "path": "target/scala-*/coverage-report/cobertura.xml", "produced_by": ["test"], "granularity": "statement",
-    "source_roots": ["src/main/scala"],
-    "exclude": ["**/target/**", "**/src_managed/**", "**/project/**"]
+    "format": "cobertura",
+    "path": "**/target/scala-*/coverage-report/cobertura.xml",
+    "produced_by": [
+      "test"
+    ],
+    "granularity": "statement",
+    "source_roots": [
+      "src/main/scala"
+    ],
+    "exclude": [
+      "**/target/**",
+      "**/src_managed/**",
+      "**/project/**"
+    ]
   },
   "post_edit": null,
-  "cache_env": {"JAVA_TOOL_OPTIONS": "-Djava.io.tmpdir={tmp}"},
-  "shared_env": ["COURSIER_CACHE", "sbt.boot.directory"],
-  "artifacts": ["target/", "project/target/", "project/project/", ".bsp/", ".bloop/", ".metals/", ".scala-build/", "out/", "*.class", "hs_err_pid*.log", "*.hprof", "*.jfr", "scoverage-data/", "scoverage-report/", "coverage-report/"],
+  "cache_env": {
+    "JAVA_TOOL_OPTIONS": "-Djava.io.tmpdir={tmp}"
+  },
+  "shared_env": [
+    "COURSIER_CACHE",
+    "sbt.boot.directory"
+  ],
+  "artifacts": [
+    "target/",
+    "project/target/",
+    "project/project/",
+    ".bsp/",
+    ".bloop/",
+    ".metals/",
+    ".scala-build/",
+    "out/",
+    "*.class",
+    "hs_err_pid*.log",
+    "*.hprof",
+    "*.jfr",
+    "scoverage-data/",
+    "scoverage-report/",
+    "coverage-report/",
+    "**/target/"
+  ],
   "arch": {
     "parser": "regex",
     "import_regex": "^\\s*import\\s+([A-Za-z_][A-Za-z0-9_.]*)",
     "resolver": "package-dir",
-    "forbidden_in_domain": ["java.io", "java.net", "java.sql", "java.nio.file", "scala.concurrent", "cats.effect", "zio", "fs2", "org.http4s", "doobie", "skunk", "slick", "play", "org.apache.pekko", "akka"],
-    "impure_calls": ["Instant.now", "LocalDateTime.now", "System.currentTimeMillis", "System.nanoTime", "scala.util.Random", "java.util.UUID.randomUUID", "Thread.sleep", "Await.result", "sys.env"]
+    "forbidden_in_domain": [
+      "java.io",
+      "java.net",
+      "java.sql",
+      "java.nio.file",
+      "scala.concurrent",
+      "cats.effect",
+      "zio",
+      "fs2",
+      "org.http4s",
+      "doobie",
+      "skunk",
+      "slick",
+      "play",
+      "org.apache.pekko",
+      "akka"
+    ],
+    "impure_calls": [
+      "Instant.now",
+      "LocalDateTime.now",
+      "System.currentTimeMillis",
+      "System.nanoTime",
+      "scala.util.Random",
+      "java.util.UUID.randomUUID",
+      "Thread.sleep",
+      "Await.result",
+      "sys.env"
+    ]
   },
   "test_jobs": "set Global / concurrentRestrictions += Tags.limit(Tags.Test, 2)",
-  "config_files": [".scalafmt.conf", ".scalafix.conf", ".editorconfig", "build.sbt", "project/plugins.sbt", "project/build.properties", ".sbtopts", ".jvmopts"],
+  "config_files": [
+    ".scalafmt.conf",
+    ".scalafix.conf",
+    ".editorconfig",
+    "build.sbt",
+    "project/plugins.sbt",
+    "project/build.properties",
+    ".sbtopts",
+    ".jvmopts"
+  ],
   "sources": {
     "checks": "https://www.scala-sbt.org/1.x/docs/Command-Line-Reference.html",
     "scalafmt": "https://github.com/scalameta/sbt-scalafmt",

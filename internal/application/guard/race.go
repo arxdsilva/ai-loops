@@ -86,6 +86,9 @@ func (e raceEnv) assign(word string) raceEnv {
 }
 
 func (e raceEnv) unset(k string) raceEnv {
+	if k == "GOFLAGS" {
+		e.goRace = false
+	}
 	if _, ok := e.vars[k]; ok {
 		e.vars = maps.Clone(e.vars)
 		delete(e.vars, k)
@@ -267,18 +270,39 @@ func (s *raceScan) stage(stage []string, exported *raceEnv, depth int) string {
 			skipAssign()
 			*exported = local
 			return ""
-		case w == "env":
+		case w == "unset":
+			for _, k := range stage[i+1:] {
+				if !strings.HasPrefix(k, "-") {
+					local = local.unset(k)
+				}
+			}
+			*exported = local
+			return ""
+		case path.Base(w) == "env":
 			i++
+		envOpts:
 			for i < len(stage) && (strings.HasPrefix(stage[i], "-") || envPrefix.MatchString(stage[i])) {
-				if envPrefix.MatchString(stage[i]) {
+				a := stage[i]
+				switch {
+				case envPrefix.MatchString(a):
 					skipAssign()
 					continue
-				}
-				if stage[i] == "-u" || stage[i] == "-C" || stage[i] == "-S" {
-					if stage[i] == "-u" && i+1 < len(stage) {
+				case a == "-i" || a == "-" || a == "--ignore-environment":
+					local = raceEnv{} // the command sees only what env sets next
+				case a == "-u" || a == "--unset":
+					if i+1 < len(stage) {
 						local = local.unset(stage[i+1])
 					}
 					i++
+				case strings.HasPrefix(a, "--unset="):
+					local = local.unset(strings.TrimPrefix(a, "--unset="))
+				case strings.HasPrefix(a, "-u"):
+					local = local.unset(a[2:])
+				case a == "-C" || a == "-S" || a == "--chdir" || a == "--split-string":
+					i++
+				case a == "--":
+					i++
+					break envOpts
 				}
 				i++
 			}

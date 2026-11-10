@@ -17,7 +17,7 @@ import (
 
 func fooPack() pack.Pack {
 	return pack.Pack{ID: "foo", CacheEnv: map[string]string{"FOO_CACHE": "cache"}, Env: map[string]string{"FOO_MODE": "ci"},
-		Artifacts: []string{"out/", "*.tmpx"}, CacheArgv: map[string][]string{"sh": {"-e"}}}
+		Artifacts: []string{"out/", "**/out/", "*.tmpx"}, CacheArgv: map[string][]string{"sh": {"-e"}}}
 }
 
 func goPack() pack.Pack {
@@ -114,9 +114,11 @@ func TestPackEndToEnd(t *testing.T) {
 	if !slices.Contains(r.DirsRemoved, "pkg") {
 		t.Errorf("pkg not pruned: %v", r.DirsRemoved)
 	}
-	refused := strings.Join(r.Refused, "\n")
-	if !strings.Contains(refused, "nested/out/") || !strings.Contains(refused, "trk/out/") {
-		t.Errorf("refused %q", refused)
+	// the content guard keeps these for review, with the reason
+	for _, k := range []string{"nested/out/ (holds a nested repository)", "trk/out/ (holds tracked files)"} {
+		if !slices.Contains(r.Kept, k) {
+			t.Errorf("kept %v lacks %s", r.Kept, k)
+		}
 	}
 	for _, k := range []string{"notes.md", "linked"} {
 		if !slices.Contains(r.Kept, k) {
@@ -167,9 +169,14 @@ func TestArtifactDirsNeedV2Snapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, err := s.Clean(ctx, rd, false)
-	if err != nil || len(r.ArtifactDirs) != 0 || !exists(filepath.Join(root, "out/x")) {
+	// v1: no directory is removed as an artifact dir, but the new files the
+	// run left inside artifact dirs are removed as files (they are new since
+	// the file baseline); the pre-existing target/debug/old stays.
+	if err != nil || len(r.ArtifactDirs) != 0 || exists(filepath.Join(root, "out/x")) || exists(filepath.Join(root, "target/debug/new")) ||
+		!exists(filepath.Join(root, "target/debug/old")) {
 		t.Fatalf("v1: %+v %v", r, err)
 	}
+	write(t, root, "out/x", "x", 0o644)
 	if err := writeLines(workspace.BaselineDirs(rd), headerDirsV2, dirs); err != nil {
 		t.Fatal(err)
 	}
@@ -189,20 +196,20 @@ func TestRemoveDirRefusals(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(root, "out")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := removeDir(root, "out", nil, false); err == nil || !exists(filepath.Join(outside, "f")) {
+	if _, err := removeDir(root, "out", nil, nil, false); err == nil || !exists(filepath.Join(outside, "f")) {
 		t.Fatal("symlinked dir removed")
 	}
-	if _, err := removeDir(root, "../x", nil, false); err == nil {
+	if _, err := removeDir(root, "../x", nil, nil, false); err == nil {
 		t.Fatal("unsafe path")
 	}
-	if _, err := removeDir(root, "missing", nil, false); err == nil {
+	if _, err := removeDir(root, "missing", nil, nil, false); err == nil {
 		t.Fatal("missing dir")
 	}
 	write(t, root, "d/out/f", "x", 0o644)
-	if _, err := removeDir(root, "d/out", []string{"d/out/f"}, false); err == nil {
-		t.Fatal("tracked")
+	if _, err := removeDir(root, "d/out", []string{"d/out/f"}, nil, false); err == nil || err.Error() != "holds tracked files" {
+		t.Fatal("tracked", err)
 	}
-	if it, err := removeDir(root, "d/out", nil, false); err != nil || it.Files != 1 || exists(filepath.Join(root, "d/out")) {
+	if it, err := removeDir(root, "d/out", nil, nil, false); err != nil || it.Files != 1 || exists(filepath.Join(root, "d/out")) {
 		t.Fatal(it, err)
 	}
 }

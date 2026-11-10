@@ -68,7 +68,7 @@ func TestParseDiff(t *testing.T) {
 	}
 	want := Changes{
 		"internal/x/a.go":        {Ranges: []LineRange{{4, 5}, {12, 12}}},
-		"internal/y/new.go":      {Ranges: []LineRange{{1, 5}}},
+		"internal/y/new.go":      {Ranges: []LineRange{{1, 5}}, Added: true},
 		"internal/z/new_name.go": {},
 		"internal/w/moved.go":    {Ranges: []LineRange{{7, 9}}},
 	}

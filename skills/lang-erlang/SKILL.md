@@ -19,7 +19,7 @@ The project's own config wins over this skill: `rebar.config`, `elvis.config`, `
 |---|---|---|
 | compile (required) | `rebar3 compile` | `warnings_as_errors` comes from `rebar.config` (`ERL-TOOL-03`) |
 | fmt (optional) | `rebar3 fmt --check` | erlfmt plugin; skipped with a hint if absent (`ERL-TOOL-02`) |
-| xref (required, arch) | `rebar3 xref` | undefined and deprecated calls, app direction (`ERL-TOOL-04`, `ERL-ARCH-02`) |
+| xref (required, arch) | `rebar3 xref` | undefined and deprecated calls; app direction only with project `xref_queries` (`ERL-TOOL-04`, `ERL-ARCH-02`) |
 | elvis (optional) | `rebar3 lint` | runs only when `elvis.config` exists; exits 1 without one (`ERL-TOOL-05`) |
 | dialyzer (required) | `rebar3 dialyzer` | first run builds the PLT; keep `REBAR_CACHE_DIR` shared (`ERL-TOOL-06`) |
 | eunit (required) | `rebar3 eunit --cover` | race check, once per `+S` variant |
@@ -55,7 +55,7 @@ apps/ms_http/      inbound adapter: Cowboy handlers decode, call a use case, enc
 apps/ms_pg/        outbound adapter: epgsql/pgo implementing an ms_app behaviour
 apps/ms_release/   composition root: sup tree, adapter modules injected via application env, sys.config.src
 ```
-Direction is the `.app.src` `applications` list plus `rebar3 xref`; modules are flat atoms, so use a per-app prefix (`ERL-ARCH-01/02`). There is no import parser; `loops arch` defers to the `xref` check.
+Direction is the `.app.src` `applications` list plus project `xref_queries` (plain `rebar3 xref` does not check direction); modules are flat atoms, so use a per-app prefix (`ERL-ARCH-01/02`). There is no import parser; `loops arch` defers to the `xref` check, and reviewers check direction.
 
 ## Ten footguns
 

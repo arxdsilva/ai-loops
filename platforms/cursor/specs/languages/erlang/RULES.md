@@ -7,7 +7,7 @@ Project rules win: follow the project's own config (`rebar.config`, `elvis.confi
 Race policy: the BEAM shares nothing between processes, so `race.mode = none`. The gate enforces the substitute: `eunit` and `ct` run once per `race.variants` entry (`ERL_FLAGS="+S 1:1"`, then `"+S 8:8"`), see `ERL-CONC-04`. Concuerror is dropped (D21): its last Hex release is 2020.
 
 
-Arch: the pack has no import parser (`module:function(` matches atoms and maps); direction is enforced by `rebar3 xref` (the `xref` arch check) and the `.app.src` `applications` list (`ERL-ARCH-01/02`).
+Arch: the pack has no import parser (`module:function(` matches atoms and maps); `rebar3 xref` (the `xref` arch check) catches undefined and deprecated calls but does **not** enforce layer direction on its own (verified end to end, 2026-11): declare forbidden app-to-app calls as project `xref_queries` in `rebar.config`, keep the `.app.src` `applications` list inward-only, and review direction (`ERL-ARCH-01/02`).
 
 ## REPO
 

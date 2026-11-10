@@ -190,6 +190,30 @@ func overlayCheck(b, o Check) Check {
 	if o.Note != "" {
 		b.Note = o.Note
 	}
+	if o.Internal != "" {
+		b.Internal = o.Internal
+	}
+	if o.Default != "" {
+		b.Default = o.Default
+	}
+	if o.Skippable != nil {
+		b.Skippable = o.Skippable
+	}
+	if o.SkipOn != nil {
+		b.SkipOn = o.SkipOn
+	}
+	if o.SignalRegex != "" {
+		b.SignalRegex = o.SignalRegex
+	}
+	if o.FailsOn != "" {
+		b.FailsOn = o.FailsOn
+	}
+	if o.OutputExclude != nil {
+		b.OutputExclude = o.OutputExclude
+	}
+	if o.EnvRequired != nil {
+		b.EnvRequired = o.EnvRequired
+	}
 	return b
 }
 

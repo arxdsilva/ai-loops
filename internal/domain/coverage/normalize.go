@@ -7,7 +7,18 @@ import (
 
 // Normalizer says how to make a report's file names pack-relative.
 type Normalizer struct {
-	PackRoot    string   // absolute pack root (slash, backslash or drive form)
+	PackRoot string // absolute pack root (slash, backslash or drive form)
+	// RealRoot is PackRoot with its symlinks resolved ("" = PackRoot): a
+	// tool may write the physical path (/private/tmp/x for /tmp/x), so
+	// absolute names are matched against both.
+	RealRoot string
+	// ReportDir is the pack-relative dir of the report being normalized
+	// ("" = the pack root). In a multi-module build each module writes its
+	// own report, so relative names first try every ancestor of ReportDir,
+	// nearest first (module-a/target/site/jacoco/jacoco.xml tries
+	// module-a/src/main/java before src/main/java); an ancestor candidate
+	// is taken only when Exists confirms it.
+	ReportDir   string
 	Module      string   // gocover module path; "" for other formats
 	SourceRoots []string // pack-relative source dirs JaCoCo package paths resolve against
 	// Exists reports whether a pack-relative file exists; it picks among
@@ -25,13 +36,15 @@ func Normalize(p Profile, n Normalizer) Profile {
 	if p.Normalized {
 		return p
 	}
-	root := ""
-	if strings.TrimSpace(n.PackRoot) != "" {
-		root = path.Clean(slash(n.PackRoot))
+	var roots packRoots
+	for _, r := range []string{n.PackRoot, n.RealRoot} {
+		if strings.TrimSpace(r) != "" {
+			roots = append(roots, path.Clean(slash(r)))
+		}
 	}
 	acc := map[blockKey]Block{}
 	for f, bs := range p.Files {
-		rel, ok := n.resolve(p, root, f)
+		rel, ok := n.resolve(p, roots, f)
 		if !ok {
 			continue
 		}
@@ -42,21 +55,21 @@ func Normalize(p Profile, n Normalizer) Profile {
 	return Profile{Mode: p.Mode, Format: p.Format, Sources: p.Sources, Files: collect(acc), Normalized: true}
 }
 
-func (n Normalizer) resolve(p Profile, root, f string) (string, bool) {
+func (n Normalizer) resolve(p Profile, root packRoots, f string) (string, bool) {
 	s := slash(strings.TrimSpace(f))
 	if isAbs(s) {
-		return local(s, root)
+		return root.local(s)
 	}
 	switch p.Format {
 	case "", FormatGocover:
 		if n.Module == "" {
-			return local(s, root)
+			return root.local(s)
 		}
 		rel, ok := strings.CutPrefix(s, n.Module+"/")
 		if !ok {
 			return "", false
 		}
-		return local(rel, root)
+		return root.local(rel)
 	case FormatCobertura:
 		var abs, rel []string
 		for _, src := range p.Sources {
@@ -67,34 +80,102 @@ func (n Normalizer) resolve(p Profile, root, f string) (string, bool) {
 				rel = append(rel, path.Join(src, s))
 			}
 		}
-		return n.pick(root, append(append(abs, rel...), s))
+		var roots []string
+		for _, src := range p.Sources {
+			if src = slash(src); !isAbs(src) {
+				roots = append(roots, src)
+			}
+		}
+		roots = append(roots, n.slashRoots()...)
+		near := n.nearer(roots, s)
+		legacy := append(append(abs, rel...), s)
+		return n.pick(root, append(append(append([]string{}, abs...), near...), legacy...), legacy)
 	case FormatJacoco:
 		var cands []string
-		for _, sr := range n.SourceRoots {
-			cands = append(cands, path.Join(slash(sr), s))
+		for _, sr := range n.slashRoots() {
+			cands = append(cands, path.Join(sr, s))
 		}
-		return n.pick(root, append(cands, s))
+		legacy := append(cands, s)
+		return n.pick(root, append(n.nearer(n.slashRoots(), s), legacy...), legacy)
 	}
-	return local(s, root)
+	// lcov and the rest: names are relative to the tool's working dir,
+	// which in a multi-module build is the module.
+	legacy := []string{s}
+	return n.pick(root, append(n.nearer([]string{"."}, s), legacy...), legacy)
+}
+
+func (n Normalizer) slashRoots() []string {
+	out := make([]string, 0, len(n.SourceRoots))
+	for _, sr := range n.SourceRoots {
+		out = append(out, slash(sr))
+	}
+	return out
+}
+
+// nearer returns name joined under each of srcRoots under every proper
+// ancestor of ReportDir, nearest first (the pack root itself is left to
+// the caller's legacy candidates).
+func (n Normalizer) nearer(srcRoots []string, name string) []string {
+	if n.Exists == nil {
+		return nil
+	}
+	var out []string
+	for _, dir := range ancestors(n.ReportDir) {
+		for _, sr := range srcRoots {
+			out = append(out, path.Join(dir, sr, name))
+		}
+	}
+	return out
+}
+
+// ancestors lists dir and its parents, nearest first, without the root
+// (".") itself; "" or a path leaving the pack yields nothing.
+func ancestors(dir string) []string {
+	dir = path.Clean(slash(strings.TrimSpace(dir)))
+	if dir == "." || dir == ".." || strings.HasPrefix(dir, "../") || isAbs(dir) {
+		return nil
+	}
+	var out []string
+	for dir != "." && dir != "/" {
+		out = append(out, dir)
+		dir = path.Dir(dir)
+	}
+	return out
 }
 
 // pick returns the first candidate inside the pack that Exists, else the
-// first candidate inside the pack.
-func (n Normalizer) pick(root string, cands []string) (string, bool) {
-	first := ""
-	for _, c := range cands {
-		rel, ok := local(c, root)
-		if !ok {
-			continue
-		}
-		if n.Exists != nil && n.Exists(rel) {
-			return rel, true
-		}
-		if first == "" {
-			first = rel
+// first fallback candidate inside the pack.
+func (n Normalizer) pick(root packRoots, cands, fallback []string) (string, bool) {
+	if n.Exists != nil {
+		for _, c := range cands {
+			if rel, ok := root.local(c); ok && n.Exists(rel) {
+				return rel, true
+			}
 		}
 	}
-	return first, first != ""
+	for _, c := range fallback {
+		if rel, ok := root.local(c); ok {
+			return rel, true
+		}
+	}
+	return "", false
+}
+
+// packRoots are the slash forms of the pack root (as given, then with its
+// symlinks resolved).
+type packRoots []string
+
+// local makes s pack-relative against the first root it lies under.
+func (rs packRoots) local(s string) (string, bool) {
+	if !isAbs(s) || len(rs) == 0 {
+		return local(s, "")
+	}
+	for _, r := range rs {
+		if rel, ok := local(s, r); ok {
+			return rel, true
+		}
+	}
+	return "", false
 }
 
 // local makes a slash path pack-relative: an absolute one must lie under

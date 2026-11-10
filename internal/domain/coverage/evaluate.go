@@ -27,6 +27,13 @@ type Options struct {
 	Exclude []string // extra globs (module-relative; "**" spans directories; no "/" = base name)
 	Module  string   // module path, stripped from profile file names
 	Pkgs    []string // package patterns limiting the files judged; empty = all
+	// FlagUnreported fails a changed source file that the report does not
+	// list at all: always for a new (added or untracked) file, and for a
+	// modified one when the report lists at least one file (an empty
+	// report says nothing about which files ran). Line-based formats only
+	// list files a test loaded; Go's coverprofile lists every package file,
+	// so the gate sets it for every pack but Go.
+	FlagUnreported bool
 	// SourceGlobs and TestGlobs select the judged files (a language pack's
 	// source_globs/test_globs); nil = Go: *.go, not *_test.go.
 	SourceGlobs, TestGlobs []string
@@ -94,8 +101,13 @@ func Evaluate(p Profile, ch Changes, pkgHasTests map[string]bool, o Options) Rep
 	o.Min = math.Max(o.Min, DefaultMin)
 	blocks := byRelPath(p, o.Module)
 	r := Report{Whole: o.Whole, Min: o.Min}
+	var unreported []Finding
 	for _, f := range Candidates(ch, o) {
 		if ch[f].Generated {
+			continue
+		}
+		if fd, ok := unreportedFinding(f, ch[f], blocks, o); ok {
+			unreported = append(unreported, fd)
 			continue
 		}
 		row := judge(f, blocks[f], ch[f].Ranges)
@@ -111,6 +123,7 @@ func Evaluate(p Profile, ch Changes, pkgHasTests map[string]bool, o Options) Rep
 			r.Findings = append(r.Findings, packageFindings(r.Rows, pkgHasTests)...)
 		}
 		r.Findings = append(r.Findings, fileFindings(r.Rows)...)
+		r.Findings = append(r.Findings, unreported...)
 	}
 	pct := floor1(r.Percent())
 	switch {
@@ -132,6 +145,28 @@ func Evaluate(p Profile, ch Changes, pkgHasTests map[string]bool, o Options) Rep
 	}
 	r.OK = len(r.Findings) == 0
 	return r
+}
+
+// unreportedFinding fails a changed file the report does not list
+// (Options.FlagUnreported). Line-based reports (lcov, Cobertura, JaCoCo)
+// list only the files tests loaded: a changed file missing from the report
+// is code no test exercises.
+func unreportedFinding(f string, fc FileChange, blocks map[string][]Block, o Options) (Finding, bool) {
+	if _, in := blocks[f]; in || !o.FlagUnreported || o.Whole {
+		return Finding{}, false
+	}
+	const hint = " is not in the coverage report: no test loads it (test it, or add it to gate.coverage_exclude)"
+	switch {
+	case fc.IsNew():
+		return Finding{File: f, Line: 1, Msg: "new file " + path.Base(f) + hint}, true
+	case len(blocks) > 0:
+		line := 1
+		if len(fc.Ranges) > 0 && fc.Ranges[0].Start > 0 {
+			line = fc.Ranges[0].Start
+		}
+		return Finding{File: f, Line: line, Msg: "changed file " + path.Base(f) + hint}, true
+	}
+	return Finding{}, false
 }
 
 // floor1 truncates to one decimal so a failing 69.96% never prints as 70.0%.

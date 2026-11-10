@@ -211,6 +211,14 @@ func (s *Service) runArgv(ctx context.Context, pr *packRun, c pack.Check, argv, 
 		if c.SkipOn != nil && c.SkipOn.Note != "" {
 			note = c.SkipOn.Note
 		}
+		if c.Required {
+			// A required check never skips silently (D12): a skip_on match
+			// (typically "plugin not installed") fails with its hint.
+			if c.Install != "" && !strings.Contains(note, c.Install) {
+				note += "\ninstall: " + c.Install
+			}
+			return CheckResult{Duration: s.clock.Now().Sub(start), Output: note, note: firstLine(note)}
+		}
 		return CheckResult{Skipped: true, Output: note}
 	}
 	if !ok && race && raceHostRe.MatchString(out) && !strings.HasPrefix(out, raceUnavailable) {
@@ -226,6 +234,12 @@ func (s *Service) runArgv(ctx context.Context, pr *packRun, c pack.Check, argv, 
 	}
 	if len(seeds) > 0 {
 		notes = append(notes, "seeds "+strings.Join(seeds, ","))
+	} else if race {
+		// The runner chose its own seed (pytest-randomly, ExUnit, RSpec…):
+		// record it, so a failing order can be replayed.
+		if m := runnerSeedRe.FindStringSubmatch(out); m != nil {
+			notes = append(notes, "seed "+m[1])
+		}
 	}
 	if len(variants) > 1 {
 		notes = append(notes, fmt.Sprintf("race variants %d", len(variants)))
@@ -300,6 +314,11 @@ func raceFlagsPresent(r pack.Race, argv, env []string) error {
 	}
 	return errors.New(raceUnavailable + "the race check runs without " + missing)
 }
+
+// runnerSeedRe finds the seed a test runner printed: pytest-randomly
+// "Using --randomly-seed=N", ExUnit "with seed: N", RSpec/Minitest
+// "Randomized with seed N", PHPUnit "Random Seed: N", Kaocha "--seed N".
+var runnerSeedRe = regexp.MustCompile(`(?i)(?:randomly-seed=|with seed:? |random seed:\s*|--seed[ =])(\d+)`)
 
 // judge reads one run's outcome from its output and error: exit_codes,
 // fails_on output (after output_exclude), fail_regex, skip_on.

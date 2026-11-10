@@ -34,7 +34,7 @@ Tools run through `npx --no-install` (or the manager's own exec), so versions co
 ## 4. Race policy
 JavaScript has no race detector, so the policy is `race.mode = none` (WORKFLOW §6, GENERIC §5.2). Two required checks carry it, and a skipped one fails the full gate:
 1. `test`: the whole suite, `--sequence.shuffle.files --sequence.shuffle.tests --sequence.concurrent`. vitest prints "Running tests with seed ..."; paste that seed in a failure report and replay with `--sequence.seed=N`.
-2. `test-repeat`: `vitest run --changed --repeats=3` with the same shuffle and concurrency, on the files you changed.
+2. `test-repeat`: `vitest run --repeats=2` with the same shuffle and concurrency, over the whole suite (`--changed` has no git base in the gate, so it would repeat nothing once changes are committed).
 
 Retries stay off: never `--retry.count` above 0, `retry:` in config, or `jest.retryTimes`; never `--no-randomize`, `--sequence.shuffle=false` or `--sequence.concurrent=false`. A flaky test is a shared-state bug: find the module state, the un-awaited promise, or the check-then-act across `await` (`concurrency.md`). Node's `node:test` needs `--test-randomize --test-concurrency` (Node 26.1+); jest 30 needs `--randomize`.
 

@@ -83,6 +83,26 @@ func TestFailOpen(t *testing.T) {
 	}
 }
 
+// panicFiles blows up mid-hook, after the guard may have written output.
+type panicFiles struct{ fakeFiles }
+
+func (panicFiles) Lines(string) (int, error) { panic("boom") }
+
+// A panic anywhere fails open: exit 0, nothing on stdout or stderr.
+func TestPanicFailsOpen(t *testing.T) {
+	e := setup("r")
+	e.h = New(Deps{Rec: e.rec, Files: panicFiles{}, Cmd: e.cmd, Env: func(k string) string { return e.vars[k] }})
+	read := `{"tool_name":"Read","tool_input":{"file_path":"/repo/big.go"},"cwd":"/repo","agent_id":"a1"}`
+	if c, o, er := e.run("read-guard", read); c != 0 || o != "" || er != "" {
+		t.Fatalf("%d %q %q", c, o, er)
+	}
+	// Without a panic the buffered output still reaches the writers.
+	e = setup("r")
+	if c, _, er := e.run("read-guard", read); c != 2 || !strings.Contains(er, "read_guard:") {
+		t.Fatalf("%d %q", c, er)
+	}
+}
+
 func TestSessionStart(t *testing.T) {
 	e := setup("")
 	if c, o, _ := e.run("session-start", "{}"); c != 0 || o != "" {

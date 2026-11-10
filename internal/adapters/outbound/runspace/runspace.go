@@ -270,8 +270,9 @@ func (s *Space) Clean(ctx context.Context, runDir string, dryRun bool) (workspac
 		r.Refused = append(r.Refused, fmt.Sprintf("project scan: baseline taken as %q, now %q", header, curHeader))
 		return r, nil
 	}
+	isGit := curHeader == headerGit
 	tracked := map[string]bool{}
-	if curHeader == headerGit {
+	if isGit {
 		if tracked, err = s.tracked(ctx); err != nil {
 			return r, err
 		}
@@ -281,7 +282,23 @@ func (s *Space) Clean(ctx context.Context, runDir string, dryRun bool) (workspac
 		return r, err
 	}
 	arts := s.artifacts()
-	gone := s.cleanArtifactDirs(realRoot, runDir, tracked, arts, dryRun, &r)
+	var gone []string
+	var gate *dirGate
+	if isGit { // without git nothing is known to be tracked: no directory goes
+		trackedList := make([]string, 0, len(tracked))
+		for t := range tracked {
+			trackedList = append(trackedList, t)
+		}
+		sort.Strings(trackedList)
+		dirHeader, baseDirs, _ := readLines(workspace.BaselineDirs(runDir))
+		dirSet := map[string]bool{}
+		for _, d := range baseDirs {
+			dirSet[d] = true
+		}
+		var kept []string
+		gone, kept = s.cleanArtifactDirs(realRoot, dirHeader, dirSet, trackedList, arts, dryRun, &r)
+		gate = &dirGate{realRoot: realRoot, tracked: trackedList, arts: arts, base: dirSet, kept: kept, memo: map[string]bool{}}
+	}
 	fresh, unsafe := workspace.NewPaths(base, cur)
 	r.Kept = append(r.Kept, unsafe...)
 	removed := append([]string(nil), gone...)
@@ -290,6 +307,7 @@ func (s *Space) Clean(ctx context.Context, runDir string, dryRun bool) (workspac
 			continue
 		}
 		e, fi := s.inspect(realRoot, rel)
+		e.InArtifactDir = gate.ok(rel)
 		if workspace.DecideFor(e, arts) != workspace.Remove {
 			r.Kept = append(r.Kept, rel)
 			continue

@@ -14,7 +14,11 @@ var (
 		TestCommands: []pack.TestCommand{{ArgvPrefix: []string{"swift", "test"}}},
 		Race:         pack.Race{Mode: pack.RaceFlag, Flags: []string{"--sanitize=thread"}},
 		Checks:       []pack.Check{{Name: "build", Argv: []string{"swift", "build"}, Tool: "swift"}},
-		CacheArgv:    map[string][]string{"swift": {"--scratch-path", "{run}/swift/build"}}}
+		// As specs/languages/swift: the flag goes after the subcommand
+		// (`swift --scratch-path X build` fails).
+		CacheArgv: map[string][]string{
+			"swift build": {"--scratch-path", "{run}/swift/build"}, "swift test": {"--scratch-path", "{run}/swift/build"},
+			"swift run": {"--scratch-path", "{run}/swift/build"}, "swift package": {"--scratch-path", "{run}/swift/build"}}}
 	envPack = pack.Pack{ID: "fake", Name: "Fake",
 		TestCommands: []pack.TestCommand{{ArgvPrefix: []string{"fk", "check"}}},
 		Race:         pack.Race{Mode: pack.RaceFlag, Env: map[string]string{"FK_FLAGS": "--race"}}}
@@ -118,19 +122,23 @@ func TestPackScope(t *testing.T) {
 	}
 
 	sw := guard.NewPackScope(swiftPack, "/r")
-	if len(sw.Env) != 0 || !reflect.DeepEqual(sw.Argv["swift"], []string{"--scratch-path", "/r/swift/build"}) {
+	if len(sw.Env) != 0 || !reflect.DeepEqual(sw.Argv["swift build"], []string{"--scratch-path", "/r/swift/build"}) || !reflect.DeepEqual(sw.Tools, []string{"swift"}) {
 		t.Fatalf("swift scope %+v", sw)
 	}
 	for in, want := range map[string]string{
-		"swift build":                            "swift '--scratch-path' '/r/swift/build' build",
-		"/usr/bin/swift test --sanitize=thread":  "/usr/bin/swift '--scratch-path' '/r/swift/build' test --sanitize=thread",
-		`FOO="a b" swift build`:                  `FOO="a b" swift '--scratch-path' '/r/swift/build' build`,
+		"swift build":                            "swift build '--scratch-path' '/r/swift/build'",
+		"/usr/bin/swift test --sanitize=thread":  "/usr/bin/swift test '--scratch-path' '/r/swift/build' --sanitize=thread",
+		`FOO="a b" swift build -c release`:       `FOO="a b" swift build '--scratch-path' '/r/swift/build' -c release`,
+		"swift package resolve":                  "swift package '--scratch-path' '/r/swift/build' resolve",
 		"swift build --scratch-path /mine":       "",
+		"swift format lint .":                    "", // no key: left alone
+		"swift":                                  "",
 		"swift build && swift test":              "", // no env to export; flags only on simple lines
-		"swift\tbuild":                           "swift '--scratch-path' '/r/swift/build'\tbuild",
-		`swi\ft build`:                           `swi\ft '--scratch-path' '/r/swift/build' build`,
+		"swift\tbuild":                           "swift\tbuild '--scratch-path' '/r/swift/build'",
+		`swi\ft build`:                           `swi\ft build '--scratch-path' '/r/swift/build'`,
 		"FOO=1":                                  "",
 		"echo hi | swift build >/dev/null; true": "",
+		"! swift build":                          "", // not simple, and no env to export
 	} {
 		got, ok := sw.Scope(in)
 		if ok != (want != "") || got != want {
@@ -138,9 +146,30 @@ func TestPackScope(t *testing.T) {
 		}
 	}
 
-	multi := guard.PackScope{Tools: []string{"swift"}, Argv: map[string][]string{"swift": {"-a"}, "swift build": {"-b"}}}
-	if got, _ := multi.Scope("swift build"); got != "swift build '-b'" {
-		t.Errorf("longest key first: %q", got)
+	multi := guard.PackScope{Tools: []string{"swift"}, Argv: map[string][]string{"swift": {"-a"}, "swift build": {"-b"}, "swift build x": {"-c"}}}
+	for in, want := range map[string]string{
+		"swift build":      "swift build '-b'",
+		"swift build x y":  "swift build x '-c' y",
+		"swift test":       "swift '-a' test",
+		"swift build -b":   "", // the longest key's flag is there: no shorter key applies
+		"swift build x -c": "",
+	} {
+		if got, ok := multi.Scope(in); got != want || ok != (want != "") {
+			t.Errorf("longest key first: %q -> %q %v, want %q", in, got, ok, want)
+		}
+	}
+	for _, in := range []string{"! cargo test", "time cargo test", "{ cargo test; }", "if cargo test; then :; fi", "FOO=1 ! cargo test"} {
+		got, ok := s.Scope(in)
+		if want := "export CARGO_TARGET_DIR='/r/rust/cache' TMPDIR='/r/rust/tmp' CARGO_INCREMENTAL='0'; " + in; !ok || got != want {
+			t.Errorf("reserved leader %q: got %q %v", in, got, ok)
+		}
+	}
+	empty := pack.Pack{ID: "e", CacheArgv: map[string][]string{"": {"-x"}, "  ": {"-y"}, "e run": {"-z"}}}
+	if tools := guard.PackTools(empty); !reflect.DeepEqual(tools, []string{"e"}) {
+		t.Errorf("empty cache_argv key: %v", tools)
+	}
+	if got, ok := guard.NewPackScope(empty, "/r").Scope("e run"); !ok || got != "e run '-z'" {
+		t.Errorf("empty key scope: %q %v", got, ok)
 	}
 	if got, ok := (guard.PackScope{Tools: []string{"x"}, Argv: map[string][]string{"x": {"{bad}"}}}).Scope("x"); !ok || got != "x '{bad}'" {
 		t.Errorf("raw argv: %q", got)
