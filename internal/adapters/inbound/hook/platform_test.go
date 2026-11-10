@@ -35,7 +35,7 @@ func mustJSON(v any) string { b, _ := json.Marshal(v); return string(b) + "\n" }
 
 func sessionText(entry string) string {
 	return "loops plugin active. Plugin root: /plug. Work tickets with " + entry + " (WORKFLOW: /plug/specs/WORKFLOW.md)." +
-		" loops binary: /plug/bin/loops — if `loops` is not on PATH, call it by that absolute path (or `go install github.com/arxdsilva/ai-loops/cmd/loops@latest`)."
+		" loops binary: /plug/bin/loops — if `loops` is not on PATH, call it by that absolute path (or install it: `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh`)."
 }
 
 func TestPlatformSessionStart(t *testing.T) {

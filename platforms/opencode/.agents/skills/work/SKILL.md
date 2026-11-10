@@ -10,7 +10,7 @@ argument-hint: "<ticket ref or text> [--approve] [--no-pr] [--models=cheap] [--m
 
 You are the **lead**. Spec: `specs/WORKFLOW.md` (cite `WORKFLOW §n`, do not restate). Roles: `ROLES.md`. Arguments: `$ARGUMENTS`.
 
-**The `loops` binary.** First check `loops version`. If `loops` is not on PATH, use the absolute path the session context gives (`<plugin root>/bin/loops`), or run `go install github.com/arxdsilva/ai-loops/cmd/loops@latest` once. Every role agent you spawn gets the same instruction, through the prompt header line `Loops: <abs path to loops>`.
+**The `loops` binary.** First check `loops version`. If `loops` is not on PATH, use the absolute path the session context gives (`<plugin root>/bin/loops`), or install it once with `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh` (prebuilt, no Go needed). Every role agent you spawn gets the same instruction, through the prompt header line `Loops: <abs path to loops>`.
 
 ## Discipline
 

@@ -40,7 +40,7 @@ Writes `.agents/skills/`; rules come from AGENTS.md. Needs `loops` on PATH (preb
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
 
 ## Update
-`go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target amp --force` (or run `loops update amp`).
+`curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target amp --force` (or run `loops update amp`).
 
 ## Model fallback
 Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).

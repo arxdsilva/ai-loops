@@ -224,7 +224,7 @@ func (h *Handler) sessionStart(ctx context.Context, d dialect, p payload, out io
 	}
 	if root != "" {
 		h.writePluginRoot(root, h.repo(p))
-		text += fmt.Sprintf(" loops binary: %s/bin/loops — if `loops` is not on PATH, call it by that absolute path (or `go install github.com/arxdsilva/ai-loops/cmd/loops@latest`).", strings.TrimRight(root, "/"))
+		text += fmt.Sprintf(" loops binary: %s/bin/loops — if `loops` is not on PATH, call it by that absolute path (or install it: `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh`).", strings.TrimRight(root, "/"))
 	}
 	msg := ""
 	if n := h.updateNotice(ctx); n != nil {

@@ -46,6 +46,8 @@ Each language is a pack (`specs/languages/<id>/pack.json`) with its gate checks,
 
 New-code coverage is computed by loops itself from these four formats ([specs/TESTING.md](specs/TESTING.md) §8). Your project's own tool configs win over the pack defaults.
 
+Every pack was verified end to end with the real `loops` binary in the language's official Docker image. Each run covered detection, a green gate, new tested code passing, new untested code failing coverage, layer violations reported, the race policy, and cleanup. The per-language results, and the sourced research behind the rules, are in [research/languages/](research/languages/README.md).
+
 ### Under the hood
 
 ```
@@ -162,10 +164,10 @@ When a newer release exists, the session context carries one line: `loops vX is 
 |---|---|
 | Claude Code | `claude plugin marketplace update ai-loops && claude plugin update loops@ai-loops` (in-app: `/plugin marketplace update ai-loops`, then `/plugin update loops@ai-loops`) |
 | Copilot | `copilot plugin marketplace update ai-loops && copilot plugin update loops` |
-| Codex | `codex plugin marketplace upgrade && go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target codex --force` (then update the plugin in the desktop app) |
+| Codex | `codex plugin marketplace upgrade && curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target codex --force` (then update the plugin in the desktop app) |
 | Cursor | Dashboard > Plugins & MCPs > marketplace > Refresh; start a new agent |
 | Gemini CLI | `git -C ai-loops pull && gemini extensions update loops` |
-| OpenCode / Amp / Windsurf / Cline | `go install github.com/arxdsilva/ai-loops/cmd/loops@latest && loops install --target <platform> --force` |
+| OpenCode / Amp / Windsurf / Cline | `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target <platform> --force` |
 
 ## What you see while it runs
 
