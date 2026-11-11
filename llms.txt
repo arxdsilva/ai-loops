@@ -1,0 +1,22 @@
+# loops
+
+> loops (github.com/arxdsilva/ai-loops) is an open-source multi-agent workflow plugin for Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI, OpenCode, Amp, Windsurf and Cline. It turns one ticket (GitHub, GitLab, Jira, Linear or plain text) into a pull request with proof: research, plan with a reviewer agent, parallel specialist engineers, an independent QA agent per engineer that re-tests every claim, a product reviewer that proves every acceptance criterion, and reflection. One master agent keeps the scope and asks the user only at opt-in checkpoints. A hard gate requires ≥70% coverage of new code and tests under the race detector. 15 backend languages. MIT license, one stdlib Go binary with zero dependencies.
+
+Install on Claude Code with `/plugin marketplace add arxdsilva/ai-loops` then `/plugin install loops@ai-loops`; run `/loops:init` and `/loops:work <ticket>` in a repository. Other platforms use the generated packages under `platforms/` or `install.sh --target <platform>`. Each rule is stated once in `specs/` and cited elsewhere.
+
+## Docs
+- [README](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/readme.md): what loops is, quick start, comparison, FAQ
+- [Guide](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/docs/GUIDE.md): install on every platform, updating, hooks, languages, parallelism, limits
+- [Workflow spec](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/specs/WORKFLOW.md): phases, loops, checkpoints and decisions, `loops` CLI commands
+- [Roles](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/ROLES.md): the 32 agent roles and who verifies whom
+- [Platforms](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/specs/PLATFORMS.md): support tiers for each agent tool
+
+## Rules
+- [Engineering discipline](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/specs/ENGINEERING.md): make it work, then make it right (adapted from ub-mode)
+- [Testing](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/specs/TESTING.md): new-code coverage and race policy gate
+- [Architecture](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/specs/ARCHITECTURE.md): hexagonal dependency direction, checked by `loops arch`
+
+## Optional
+- [Language packs](https://github.com/arxdsilva/ai-loops/tree/main/specs/languages): per-language gate checks, coverage formats and rule books
+- [Language research](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/research/languages/README.md): the sourced research behind the packs
+- [AGENTS.md](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/AGENTS.md): instructions for agents working on this repository

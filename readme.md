@@ -1,241 +1,148 @@
-# ai-loops: the `loops` plugin
+# loops: the multi-agent coding workflow that proves its work
 
-**Give an AI coding agent a ticket, get back a pull request with proof that it works.**
-`loops` is a plugin for Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI and other coding agents. It turns one request into a team of specialist AI agents that research, plan, build, check each other's work and prove the result, for backends in 15 languages.
+**Give your AI coding agent a ticket. Get back a pull request with proof that every acceptance criterion works.**
+
+[![CI](https://github.com/arxdsilva/ai-loops/actions/workflows/ci.yml/badge.svg)](https://github.com/arxdsilva/ai-loops/actions/workflows/ci.yml) [![release](https://img.shields.io/github/v/release/arxdsilva/ai-loops?sort=semver)](https://github.com/arxdsilva/ai-loops/releases) [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) ![dependencies: 0](https://img.shields.io/badge/dependencies-0-blue)
+
+**loops** is an open-source, multi-agent workflow plugin for **Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI, OpenCode, Amp, Windsurf and Cline**. One ticket (GitHub, GitLab, Jira, Linear or plain text) becomes a team of specialist AI agents: they research, plan, build in parallel, re-test each other's work, prove each requirement by hand and open the PR. It is built to be the best multi-agent workflow for one job: shipping backend changes you can trust without re-checking them yourself. It supports 15 backend languages.
 
 <p align="center">
-  <img src="docs/media/loops-workflow.svg" alt="How loops works: a ticket goes through Research, Plan, Build, Verify, Prove and Reflect, with review loops, ending in a pull request with proofs" width="100%">
+  <img src="docs/media/loops-demo.svg" alt="Sample loops run in a terminal: /loops:work #42 goes through intake, research, plan (reviewer sends round 1 back, approves round 2), parallel build, QA catches a failing claim and sends it back until verified, the gate passes with the race detector and 84% new-code coverage, all four acceptance criteria are proven, and PR #43 opens with proofs after 31 minutes and zero questions" width="100%">
 </p>
+<p align="center"><sub>A sample run. Video: <a href="docs/media/loops-demo.mp4">MP4</a> · <a href="docs/media/loops-demo.webm">WebM</a></sub></p>
 
-<p align="center"><a href="docs/media/loops-workflow.mp4">▶ Watch the 15-second walkthrough</a> · <a href="docs/media/loops-workflow.png">Static image (PNG)</a></p>
+## Quick start (Claude Code)
 
-### In plain words
-
-1. **Research.** Before anything is decided, agents read the web, best practices, your existing code, and what your machine can handle.
-2. **Plan.** One agent writes the plan and another challenges it until it holds up. You can ask to approve it first.
-3. **Build.** An architect agrees the shared pieces first. Then specialist engineers work side by side, each in its own area.
-4. **Verify.** A separate checker re-tests everything each engineer claims and sends back anything that doesn't hold, with proof of what broke. Then one quality pass scores the changed code for complexity, duplication and tests that don't really test (crapper, dryer, mutator).
-5. **Prove.** A product reviewer tries every requirement by hand and opens the pull request with the evidence attached.
-6. **Reflect.** Lessons are saved for next time. Where your project's own rules overrode the plugin's defaults, a note is posted on the pull request.
-
-**One master agent, no babysitting:** the main session is the run's master agent. It runs every phase from the ticket to the pull request, keeps the scope in a charter, and decides where the workflow used to stop and ask: a plan that won't converge, a claim that keeps failing, the push and PR. Every decision is recorded and listed in the PR. It re-anchors on the run's recorded state at each phase and after a context compaction, so it doesn't lose the thread on long runs. You are asked only at the phases you opt into: `--ask plan,pr` (or `all`), `"ask"` in `.loops/config.json`, or just say "let me approve the plan" in the request ([WORKFLOW §2.7](specs/WORKFLOW.md)).
-
-**Make it work, then make it right:** every phase follows [specs/ENGINEERING.md](specs/ENGINEERING.md), adapted from Robert C. Martin's [ub-mode](https://github.com/unclebob/ub-mode):
-- the plan models the data first, removes before it adds, and redesigns instead of bolting on;
-- engineers write the failing test first and record why it failed;
-- after two failed fixes on one premise, the agent must name that premise and remove it rather than patch a third time;
-- the run is committed in small ordered commits that each say how they were proven.
-
-**Hard gate:** new code must ship with unit tests: ≥70% coverage of new code, and every test run under the language's race detector or its race substitute — enforced by `loops gate` and the test-guard hook.
-
-You can watch all of it live (status line, live pane, `loops watch`), and an HTML report records every step.
-
-### Languages
-
-Each language is a pack (`specs/languages/<id>/pack.json`) with its gate checks, race policy, coverage format, run-scoped caches and architecture rules, plus a `lang-<id>` skill and an `<id>-engineer` role. `loops lang detect` finds the packs that apply to your repo (several can, e.g. a Go service with a TypeScript front end); `"languages"` in `.loops/config.json` pins them.
-
-| id | Race policy | Coverage format |
-|---|---|---|
-| python | substitute: random order, xdist, dev mode | cobertura |
-| typescript | substitute: shuffle, concurrent, repeats | lcov |
-| java | substitute: JUnit parallel + random order, two seeds | jacoco |
-| cpp | race build: TSan preset | lcov |
-| csharp | substitute: parallel collections, repeats, analyzers | cobertura |
-| php | substitute: random order, two seeds, paratest | cobertura |
-| go | flag: `-race` | gocover |
-| ruby | substitute: random order, parallel_tests, repeats | lcov |
-| swift | flag: `--sanitize=thread` | lcov |
-| kotlin | substitute: JUnit parallel + random order | jacoco |
-| rust | substitute (static): `unsafe_code=forbid`, clippy | lcov |
-| scala | substitute: parallel suites, 3 runs | cobertura |
-| elixir | substitute: async, repeat until failure | lcov |
-| erlang | substitute: two scheduler variants, repeats | cobertura |
-| clojure | substitute: 3 seeded runs | lcov |
-
-New-code coverage is computed by loops itself from these four formats ([specs/TESTING.md](specs/TESTING.md) §8). Your project's own tool configs win over the pack defaults.
-
-Every pack was verified end to end with the real `loops` binary in the language's official Docker image. Each run covered detection, a green gate, new tested code passing, new untested code failing coverage, layer violations reported, the race policy, and cleanup. The per-language results, and the sourced research behind the rules, are in [research/languages/](research/languages/README.md).
-
-### Under the hood
-
-```
-/loops:work #123
-  0 intake    ticket → ticket.md (GitHub · GitLab · Jira · Linear · free text) → charter.md (scope) + checkpoints
-  1 research  web ∥ practices ∥ code ∥ hardware researchers   (ai-memory first; loops lang detect)
-  2 plan      planner (opus) ⇄ plan-reviewer (opus)   [+ your approval with --ask plan]
-  3 implement architect + <lang>-engineer (contract, toolchain, wave 0) → role engineers in parallel waves
-  4 qa        a qa-verifier per engineer checks every claim ⇄ sends failures back with a repro
-  5 product   product-reviewer tests every acceptance criterion by hand → proofs → PR/MR
-  6 reflect   reflector → reflection.md + ai-memory pages
-  the lead (master agent) runs all seven, decides instead of asking, re-anchors with `loops run brief`
-```
-
-## Install
-
-Nothing to install up front. On first use the plugin downloads the prebuilt `loops` binary for your OS (macOS, Linux and Windows, on amd64 and arm64) from the GitHub release and verifies its checksum. Go is needed only for building from source.
-
-You'll also want:
-- **`gh`** or **`glab`** for tickets and PRs/MRs.
-- Your project's language toolchain. The optional tools a pack names (for Go `staticcheck`, `govulncheck`) are skipped with an install hint when missing.
-- Optional: [ai-memory](https://github.com/akitaonrails/ai-memory), Jira or Linear MCP connectors.
-
-Platforms marked *installer* take one line in your project:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target <platform>
-```
-
-That installs `loops` into `~/.local/bin` and places the platform's files. Tiers: A resumable subagents, B subagents without resume, C generic subagents, D solo mode ([specs/PLATFORMS.md](specs/PLATFORMS.md) §4).
-
-### Claude Code (tier A)
 ```sh
 /plugin marketplace add arxdsilva/ai-loops
 /plugin install loops@ai-loops
 ```
 
-### GitHub Copilot (tier B)
-```sh
-copilot plugin install arxdsilva/ai-loops
-```
-Or in VS Code run *Chat: Install Plugin from Source*. Copilot reads the Claude layout directly.
-
-### Codex (tier B)
-```sh
-codex plugin marketplace add arxdsilva/ai-loops
-# install `loops` from the ChatGPT/Codex desktop app (no CLI install command), then in your project:
-curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target codex   # role agents into .codex/agents/
-```
-Commands are `$work`, `$init`. Trust the plugin hooks with `/hooks`.
-
-### Cursor (tier A)
-Import `arxdsilva/ai-loops` from the Cursor (team) marketplace; the package is `platforms/cursor`. For local development copy it to `~/.cursor/plugins/local/loops`.
-
-### Gemini CLI (tier B)
-```sh
-git clone https://github.com/arxdsilva/ai-loops
-gemini extensions install ./ai-loops/platforms/gemini   # or `gemini extensions link` for development
-```
-Gemini cannot install a repository subdirectory directly. Commands are `/loops:work` and friends.
-
-### OpenCode (tier B, installer)
-```sh
-curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target opencode
-```
-
-### Amp (tier C, installer)
-```sh
-curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target amp
-```
-
-### Windsurf / Devin (tier D, installer)
-```sh
-curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target windsurf
-```
-
-### Cline (tier D, installer)
-```sh
-curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target cline
-```
-
-### Capability matrix (condensed)
-
-Full table and notes: [specs/PLATFORMS.md](specs/PLATFORMS.md) §2. Per-platform run mechanics: `skills/work/platforms/<platform>.md`.
-
-| | Claude | Copilot | Codex | Cursor | Gemini | OpenCode | Amp | Windsurf | Cline |
-|---|---|---|---|---|---|---|---|---|---|
-| Role subagents | yes | yes | yes | yes | yes | yes | generic | solo | solo |
-| Resume same agent | yes | no | no | yes | no | no | partial | no | no |
-| Tool deny / post-edit hooks | yes | yes | yes | yes | yes | shim | no | yes | no |
-| Subagent lanes | yes | yes | yes | yes | labels | labels | labels | labels | labels |
-| Stop gate | yes | yes | yes | yes | yes | no | no | maybe | no |
-| Status line / pane | yes | no | no | no | no | no | no | no | no |
-| `loops watch` / `loops report` | yes | yes | yes | yes | yes | yes | yes | yes | yes |
-
-Use `loops watch` in a side terminal for the live view on any platform.
-
-Then, in your repo (Claude Code shown; other platforms use their own command syntax):
+Then, in your repository:
 
 ```sh
-/loops:init      # .loops/config.json, AGENTS.md rules, .gitignore, dependency check
-/loops:status    # optional: install the live status line
-/loops:work #42  # or a GitLab URL, a Jira or Linear key, or plain text
+/loops:init       # writes .loops/config.json, adds rules to AGENTS.md, checks dependencies
+/loops:work #42   # or a Jira/Linear key, a GitLab URL, or plain text: "add partial refunds"
 ```
 
-## Updating
+That's it. Nothing else to install: the plugin downloads one checksummed `loops` binary on first use. You need `gh` or `glab` for tickets and PRs.
 
-When a newer release exists, the session context carries one line: `loops vX is available - update with: <command>`. The check asks the Go module proxy for `@latest`, runs at most once per 24h, and announces each version once.
+<details>
+<summary><b>Copilot, Codex, Cursor, Gemini CLI, OpenCode, Amp, Windsurf, Cline</b></summary>
 
-- Opt out with `LOOPS_NO_UPDATE_CHECK=1` or `"update_check": false` in `.loops/config.json`. It is also skipped when `CI=true`.
-- `loops version --check` checks on demand; `loops update [platform]` prints the command for your platform.
-- Releases are produced automatically: each push to main bumps the version from its conventional commits (`loops release`), regenerates the packages and tags `vX.Y.Z`.
-
-| Platform | Update command |
-|---|---|
-| Claude Code | `claude plugin marketplace update ai-loops && claude plugin update loops@ai-loops` (in-app: `/plugin marketplace update ai-loops`, then `/plugin update loops@ai-loops`) |
-| Copilot | `copilot plugin marketplace update ai-loops && copilot plugin update loops` |
-| Codex | `codex plugin marketplace upgrade && curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target codex --force` (then update the plugin in the desktop app) |
-| Cursor | Dashboard > Plugins & MCPs > marketplace > Refresh; start a new agent |
-| Gemini CLI | `git -C ai-loops pull && gemini extensions update loops` |
-| OpenCode / Amp / Windsurf / Cline | `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target <platform> --force` |
-
-## What you see while it runs
-
-- **Status line.** For example: `▶ #42 add-orders · Implement W1 · 4/5 lanes · QA 2✓ 1↺ · plan r2 · gates build✓ vet✓ · 87 steps · 12m`.
-- **Live pane.** Shown beside the chat in VS Code and in the terminal. It lists the phase strip with loop counters, one lane per role agent with its QA state, the latest steps, and the gates.
-- **HTML report.** `loops report` writes `.loops/runs/<id>/report.html`, which works offline. It holds:
-  - the phase timeline;
-  - the role and QA lanes, with arrows for each loop-back;
-  - every tool call;
-  - gate results;
-  - the matrix from acceptance criteria to proofs;
-  - the PR and the reflection.
-
-- **Runs leave no trace.** Agents build with run-scoped build caches and tmp dirs (per language pack) that are deleted at the end, along with any binaries or test artifacts they left behind; download caches stay shared and your global caches are untouched.
-
-Everything is recorded in `.loops/runs/<id>/events.jsonl`, written by the skills (`loops run …`) and by the plugin's hooks.
-
-## Parallelism & hardware
-
-Waves are sized to an effective cap: the smallest of `parallel.max_agents` in `.loops/config.json` (default **100**), what `loops hw` recommends for this machine (CPU, RAM, load; the hardware-researcher runs it in the research phase), and any opt-in limit. The same role can run as several agents when their file scopes are disjoint, and a wave over the cap is split into sub-waves. `loops plan check` rejects plans that break the cap or overlap. Tune it with `parallel`: `{"max_agents": 100, "agent_ram_gib": 1, "cpu_slots_per_core": 4, "max_test_runs": 0}`.
-
-## Optional limits
-
-Off by default: nothing is limited and nothing asks. Opt in per run with `/loops:work` flags, or persistently with `limits` in `.loops/config.json`:
-
-```
---max-agents 12   --budget research=200k,implement=2M   --agents implement=12   --roles implement=domain-engineer,api-engineer
+```sh
+copilot plugin install arxdsilva/ai-loops                         # GitHub Copilot CLI (VS Code: "Chat: Install Plugin from Source")
+codex plugin marketplace add arxdsilva/ai-loops                   # Codex, then install loops in the desktop app
+curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target codex
+gemini extensions install ./ai-loops/platforms/gemini             # Gemini CLI, after cloning this repo
+curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target opencode   # or amp, windsurf, cline
 ```
 
-Before each spawn the lead runs `loops budget check`. If a limit would be exceeded, the lead stops spawning: over a concurrency cap it waits for a slot, otherwise it ends the run where it stopped, since the limit is yours. With a checkpoint on that phase it asks you instead: raise it, continue once, or stop. `loops budget show` prints usage. Token budgets are measured on Claude Code, Codex and Copilot, and advisory elsewhere.
+Cursor: import `arxdsilva/ai-loops` from the marketplace. Every platform, its capabilities and how to update: [docs/GUIDE.md](docs/GUIDE.md#install).
+</details>
 
-## Project rules win
+## How it works
 
-Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs, existing layout) always beat loops' defaults. Whenever an agent follows one instead of a loops rule it logs it (`loops run override`). At the end the reflector writes `overrides.md` and posts it as a comment on the PR/MR (never in the description), so you see exactly where your rules were applied.
+<p align="center">
+  <img src="docs/media/loops-workflow.svg" alt="The loops workflow: Research, Plan, Build, Verify, Prove and Reflect, with review loops between plan and reviewer and between engineers and QA, ending in a pull request with proofs" width="100%">
+</p>
 
-## Guardrails (hooks)
+1. **Research.** Agents read the web, best practices, your code and your machine's limits before anything is decided.
+2. **Plan.** A planner writes the plan and a second agent challenges it until it holds up.
+3. **Build.** An architect fixes the shared contracts, then specialist engineers work in parallel, each in its own files.
+4. **Verify.** A separate QA agent per engineer re-runs every claim and sends failures back with a reproduction. Then the gate runs: build, lint, architecture rules, tests under the race detector, ≥70% coverage of new code.
+5. **Prove.** A product reviewer tries every acceptance criterion by hand and opens the PR with the evidence attached.
+6. **Reflect.** Lessons are saved for the next run.
 
-| Hook | What it does |
-|---|---|
-| session-start | Tells Claude where the plugin lives and which run is active. |
-| read-guard | Denies a whole-file Read of a file over 500 lines, and shell views over 150 lines of repo files. Read in ranges instead. Tune it with `READ_GUARD_MIN_LINES` and `READ_GUARD_MAX_VIEW_LINES`, or turn it off with `READ_GUARD=off`. |
-| test-guard (was race-guard) | For flag-mode languages, denies a test run without the race flag (`go test` without `-race`, `swift test` without `--sanitize=thread`). No opt-out. Other languages are never denied here; `loops gate` enforces their race build or substitute checks. |
-| toolchain-env (was go-env) | Scopes agents' toolchain commands to the run's caches. Go commands are rewritten, or denied with a hint to use `loops go …` where the platform can't rewrite. Other languages are rewritten on Claude Code, Gemini CLI and Windsurf and never denied; elsewhere use `loops exec -- <cmd>`. |
-| model-guard | Untyped or general-purpose agents must name a model. |
-| post-edit (was go-post-edit) | Runs the language's single-file formatter and lint on every edited source file (Go: `goimports` or `gofmt`, then `go vet`). It sends the failure back to Claude when either one fails. |
-| trace, trace-agent | Records every tool call, and every agent start and stop, in the right agent's lane. |
-| stop-gate | The lead can't finish while a source file of any detected language has changed since the last green `loops gate`. This doesn't apply when no run is active, while agents are still running, or with `LOOPS_GATE=off`. |
+One **master agent** (your main session) runs all six. It keeps the scope in a charter, re-reads the run's recorded state at every phase, and decides instead of asking. Each decision is recorded and listed in the PR. You are asked only where you opt in, for example `--ask plan,pr`.
 
-`loops arch` enforces the hexagonal dependency direction and the SOLID rules (`specs/`), with the pack's native tool where one exists. Size limits are reported as warnings only. The old hook names keep working as aliases.
+## What you get
 
-## Layout
+**A PR you can review in minutes.** Each acceptance criterion links to its proof, each engineer's claims show who verified them and in which round, and every decision the agents took is listed.
 
-- `agents/`: the 32 roles (17 workflow and layer roles, 15 language roles), summarised in `ROLES.md`.
-- `skills/`: the `work` orchestrator, `init`, `status`, `report`, the reference skills, and one `lang-<id>` skill per language.
-- `specs/`: the workflow spec, the engineering discipline (`ENGINEERING.md`), the language-neutral rules (architecture, SOLID, testing, repository practices), and `specs/languages/<id>/` (pack and rules) per language.
-- `templates/`: what the agents fill in.
-- `cmd/loops` and `internal/`: the Go tool, stdlib only.
+<p align="center">
+  <img src="docs/media/loops-report-proof.png" alt="loops run report: verdict table where a claim FAILED in round 1 and was VERIFIED in round 2, acceptance criteria AC-1 to AC-4 each linked to a proof file, and the gate table with build, format, vet, lint, arch, test and coverage all passing with 84.2% new-code coverage" width="85%">
+</p>
 
-The rules and skills are extracted, game-agnostic, from the rimworld-go agent system.
+**A run you can follow.** A status line, a live pane and `loops watch` show the phase, the agents running and their QA state. `loops report` writes one offline HTML file with the whole timeline.
+
+<p align="center">
+  <img src="docs/media/loops-report-lanes.png" alt="loops run report: phase durations from intake to reflect, and one swim lane per agent (researchers, planner, plan reviewer, architect, domain and persistence engineers) with model, tokens and QA status" width="85%">
+</p>
+
+<sub>Screenshots of a sample run's report (`loops report`).</sub>
+
+## Why engineers trust it
+
+AI code that is "almost right" is the top frustration of 66% of developers, and 45% say debugging AI code takes longer than writing it ([Stack Overflow 2025](https://survey.stackoverflow.co/2025/ai)). Google's DORA 2025 report finds AI raises throughput and instability together, so checks on what comes out matter more ([InfoQ summary](https://www.infoq.com/news/2025/09/dora-state-of-ai-in-dev-2025)). loops is designed around that:
+
+- **Claims are re-tested, not trusted.** The engineer who wrote the code never verifies it. [ROLES.md](ROLES.md)
+- **The gate cannot be talked past.** New code needs unit tests with ≥70% coverage, every test runs under the language's race detector or its substitute, and the session cannot end while sources changed since the last green gate. [specs/TESTING.md](specs/TESTING.md)
+- **Make it work, then make it right.** Failing test first, data modelled before code, small ordered commits. After two failed fixes on one premise, the agent must name and drop that premise, adapted from Robert C. Martin's [ub-mode](https://github.com/unclebob/ub-mode). [specs/ENGINEERING.md](specs/ENGINEERING.md)
+- **Your rules win.** AGENTS.md, CLAUDE.md, linter configs and your existing layout beat loops' defaults, and every override is reported on the PR.
+- **Nothing hidden.** Every tool call, verdict, loop-back and decision lands in `.loops/runs/<id>/events.jsonl`.
+
+## For product managers and leads
+
+- **Acceptance criteria are the contract.** Each one is proven by hand before the PR opens. Unclear tickets get the narrowest reading, written down as an assumption you can see.
+- **Predictable phases, visible progress.** The same phases every time, with a live status and a shareable HTML report.
+- **Less back-and-forth.** No questions mid-run unless you ask for a checkpoint (`--ask plan` to approve the plan, `--ask pr` before the PR).
+- **Cost under control when you want it.** Optional caps on tokens, agents and roles per phase (`--budget implement=2M`).
+
+## What is the best multi-agent coding workflow? How loops compares
+
+The right tool depends on the job. For turning tickets into PRs you can merge with confidence, these are the differences that matter (built in by default, as of November 2026, from each project's own docs; [corrections welcome](https://github.com/arxdsilva/ai-loops/issues)):
+
+| | **loops** | One agent session (Claude Code, Copilot coding agent) | Spec and persona frameworks (Spec Kit, BMAD-METHOD) | Orchestrators (claude-flow, oh-my-claudecode) |
+|---|---|---|---|---|
+| Ticket in, PR out, end to end | ✅ | partial | — | partial |
+| Plan challenged by a second agent | ✅ | — | partial | partial |
+| Separate agent re-tests every claim, with repro | ✅ | — | add-on | partial |
+| Each acceptance criterion proven, proof in the PR | ✅ | — | — | — |
+| Hard gate: new-code coverage + race detector | ✅ ≥70% | — | — | — |
+| One master agent holds scope; asks only where you opt in | ✅ | — | — | partial |
+| Parallel specialists with disjoint file scopes | ✅ | — | — | ✅ |
+| Agent tools supported | 9 | 1 | many | 1–2 |
+
+## Languages
+
+Python, TypeScript/JavaScript, Java, C++, C#, PHP, Go, Ruby, Swift, Kotlin, Rust, Scala, Elixir, Erlang and Clojure. Each has its own engineer role, rule book, gate checks, coverage format and race policy, detected automatically (polyglot repos work). Every language was verified end to end in its official Docker image. [Details](docs/GUIDE.md#languages)
+
+## Good to know
+
+- **It spends more tokens than a single agent.** Several agents research, review and re-test. Set budgets if that matters to you.
+- **It is built for backend services.** The proof step drives your service (HTTP, CLI, tests), not a browser UI.
+- **Some tools get less.** Resumable subagents, hooks and the live pane depend on the platform; Windsurf and Cline run in solo mode. [Capability matrix](docs/GUIDE.md#capability-matrix-condensed)
+- **It never pushes to main, force-pushes or merges.** It works on a branch and opens a PR (a draft when something is left open).
+
+## FAQ
+
+### Is loops free?
+Yes. MIT licensed. You pay only for your own agent's model usage.
+
+### How is it different from Claude Code subagents?
+Subagents are a building block. loops is the workflow on top: the roles, the order, the review loops, the gate, the proofs and the record of each run.
+
+### Does it work without GitHub?
+Yes. Tickets can come from GitLab, Jira, Linear or plain text, and PRs can be GitLab merge requests.
+
+### Can I approve the plan or the PR myself?
+Yes. Add `--ask plan`, `--ask pr` or `--ask all`, put `"ask"` in `.loops/config.json`, or just say so in the request.
+
+### Does it follow my team's conventions?
+Yes. Project rules always win, and each time one overrides a loops rule it is logged and posted as a PR comment.
+
+### Which models does it use?
+Planning, plan review, architecture and product review run on the strongest model your tool offers; engineers and QA on a faster one. An engineer whose work fails twice is relaunched one model tier up. [specs/WORKFLOW.md](specs/WORKFLOW.md)
+
+## Learn more
+
+- [docs/GUIDE.md](docs/GUIDE.md): install on every platform, updating, hooks, parallelism, limits, layout.
+- [specs/WORKFLOW.md](specs/WORKFLOW.md): the full workflow spec. [ROLES.md](ROLES.md): the 32 agent roles.
+- [specs/PLATFORMS.md](specs/PLATFORMS.md): how each agent tool is supported.
+- [llms.txt](llms.txt): a map of this repo for AI assistants.
+
+Contributions and issues are welcome. If loops saved you a review, a ⭐ helps others find it.
 
 ## License
 

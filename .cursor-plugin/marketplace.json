@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "description": "Agent-driven Go backend workflow: research → plan (+review loop) → role-based parallel implementation → QA verification loop → product proof + PR → reflection into ai-memory. Every step is traced live (status line, pane) and in an HTML report.",
+    "description": "Multi-agent workflow that turns a ticket into a pull request with proof: research, plan with a reviewer agent, parallel specialist engineers, an independent QA agent per engineer, every acceptance criterion proven, reflection. One master agent, opt-in checkpoints, a ≥70% new-code coverage and race-detector gate, 15 backend languages, live status and HTML report.",
     "version": "0.7.0"
   },
   "name": "ai-loops",
@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "description": "Agent-driven Go backend workflow: research → plan (+review loop) → role-based parallel implementation → QA verification loop → product proof + PR → reflection into ai-memory. Every step is traced live (status line, pane) and in an HTML report.",
+      "description": "Multi-agent workflow that turns a ticket into a pull request with proof: research, plan with a reviewer agent, parallel specialist engineers, an independent QA agent per engineer, every acceptance criterion proven, reflection. One master agent, opt-in checkpoints, a ≥70% new-code coverage and race-detector gate, 15 backend languages, live status and HTML report.",
       "name": "loops",
       "source": "platforms/cursor",
       "version": "0.7.0"

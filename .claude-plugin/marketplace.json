@@ -1,11 +1,13 @@
 {
   "name": "ai-loops",
-  "owner": { "name": "Arthur Silva" },
+  "owner": {
+    "name": "Arthur Silva"
+  },
   "plugins": [
     {
       "name": "loops",
       "source": "./",
-      "description": "Agent-driven Go backend workflow with visible phases, role agents, QA loops, proof-backed PRs and ai-memory reflection."
+      "description": "Multi-agent workflow: a ticket becomes a pull request with proof. Planner and reviewer, parallel engineers, an independent QA agent per engineer, every acceptance criterion proven, coverage and race gate, 15 backend languages."
     }
   ]
 }

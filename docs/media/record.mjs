@@ -5,7 +5,11 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 const [svgPath, outDir, secs = '15', fpsArg = '30'] = process.argv.slice(2);
 const fps = Number(fpsArg), frames = Math.round(Number(secs) * fps);
 mkdirSync(outDir, { recursive: true });
-const svg = readFileSync(svgPath, 'utf8').replace(/width="\d+" height="\d+"/, 'width="1760" height="1023"');
+// scale the SVG to fit 1760x1023 inside the 1920x1080 frame, keeping its aspect ratio
+const raw = readFileSync(svgPath, 'utf8');
+const [, sw, sh] = raw.match(/width="(\d+)" height="(\d+)"/).map(Number);
+const k = Math.min(1760 / sw, 1023 / sh);
+const svg = raw.replace(/width="\d+" height="\d+"/, `width="${Math.round(sw * k)}" height="${Math.round(sh * k)}"`);
 const html = `<!doctype html><html><head><meta charset="utf-8"><style>
 html,body{margin:0;width:1920px;height:1080px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
 </style></head><body>${svg}</body></html>`;

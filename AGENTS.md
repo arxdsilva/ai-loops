@@ -26,7 +26,7 @@ This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and 
 - **Cite, don't duplicate.** Say each rule once, in its spec, and cite it elsewhere (`WORKFLOW §4`). Skill bodies stay under ~220 lines and agent bodies under ~90.
 - **No game content.** This was extracted from rimworld-go, and nothing game-specific belongs here.
 
-- `docs/media/`: the readme's workflow graphic. Regenerate it with `python3 docs/media/make_svg.py docs/media`. For the video, run `node docs/media/record.mjs docs/media/loops-workflow.svg <tmp>/frames 15 30`, then encode with ffmpeg into `loops-workflow.mp4` and `loops-workflow.webm`.
+- `docs/media/`: the readme's media. Workflow graphic: `python3 docs/media/make_svg.py docs/media`. Terminal demo: `python3 docs/media/make_demo.py docs/media`. Videos: `node docs/media/record.mjs docs/media/<name>.svg <tmp>/frames <secs> 30` (15 for the workflow, 16 for the demo), then encode with ffmpeg into `<name>.mp4` and `<name>.webm`. Report screenshots and the social preview: `node docs/media/shot.mjs <page> <out.png> [w h scale]` (the social card is `social.html` at 1280×640). Keep `llms.txt` and `.claude-plugin/plugin.json`'s description in step with the readme's first paragraph.
 
 ## Gates before committing
 `gofmt -l .` (must print nothing) · `go vet ./...` · `go test -race -count=1 ./...` · `go run ./cmd/loops arch` · `go run ./cmd/loops port check` · `jq . hooks/hooks.json .claude-plugin/*.json settings.json`
