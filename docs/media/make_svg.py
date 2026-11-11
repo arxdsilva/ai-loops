@@ -31,7 +31,7 @@ PHASES = [
      ["Independent QA re-checks every", "claim and sends failures back", "with proof of what broke."],
      ["qa per engineer", "quality gates"], "#16a34a", (COLS[2], ROW2), "shield"),
     ("prove", 5, "Prove", "Show that it works",
-     ["Tests every acceptance criterion", "by hand, then opens the pull", "request with the evidence."],
+     ["Tests every acceptance criteria", "by hand, then opens the pull", "request with the evidence."],
      ["product reviewer", "PR + proofs"], "#ea580c", (COLS[1], ROW2), "target"),
     ("reflect", 6, "Reflect", "Learn for next time",
      ["Saves lessons for future runs and", "reports where your project's", "rules overrode ours."],

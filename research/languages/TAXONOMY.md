@@ -152,7 +152,7 @@ Plus a **Top 10 footguns** list, the **LOOPS** json block, and the "Gaps vs loop
 
 ## 7. PERF: performance and profiling
 
-- **PERF-01 Benchmarks:** the harness (JMH, BenchmarkDotNet, criterion, pytest-benchmark, Benchee, vitest bench, …) and how to compare results statistically.
+- **PERF-01 Benchmarks:** the harness (JMH, BenchmarkDotNet, criteria, pytest-benchmark, Benchee, vitest bench, …) and how to compare results statistically.
 - **PERF-02 Profiling:** CPU, memory and allocation profilers; continuous profiling.
 - **PERF-03 Memory and runtime tuning:** GC settings, pooling, and startup (JIT warm-up, AOT).
 - **PERF-04 Hot-path mistakes:** the common performance anti-patterns in this language.

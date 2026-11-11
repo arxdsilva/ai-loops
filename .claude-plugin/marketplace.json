@@ -7,7 +7,7 @@
     {
       "name": "loops",
       "source": "./",
-      "description": "Multi-agent workflow: a ticket becomes a pull request with proof. Planner and reviewer, parallel engineers, an independent QA agent per engineer, every acceptance criterion proven, coverage and race gate, 15 backend languages."
+      "description": "Multi-agent workflow: a ticket becomes a pull request with proof. Planner and reviewer, parallel engineers, an independent QA agent per engineer, every acceptance criteria proven, coverage and race gate, 15 backend languages."
     }
   ]
 }

@@ -85,7 +85,7 @@ def main(out):
     css.append("@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}")
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-labelledby="t d">
 <title id="t">loops demo: one ticket in, a verified pull request out</title>
-<desc id="d">A sample terminal session. /loops:work #42 runs intake, research, plan with a reviewer round, parallel build, QA that catches a failure and sends it back until it is verified, the gate with race detector and 84% new-code coverage, every acceptance criterion proven, and a pull request opened with proofs after 31 minutes and zero questions.</desc>
+<desc id="d">A sample terminal session. /loops:work #42 runs intake, research, plan with a reviewer round, parallel build, QA that catches a failure and sends it back until it is verified, the gate with race detector and 84% new-code coverage, every acceptance criteria proven, and a pull request opened with proofs after 31 minutes and zero questions.</desc>
 <style>{"".join(css)}</style>
 <rect width="{W}" height="{H}" rx="14" fill="{BG}"/>
 <rect width="{W}" height="52" rx="14" fill="{BAR}"/><rect y="38" width="{W}" height="14" fill="{BAR}"/>

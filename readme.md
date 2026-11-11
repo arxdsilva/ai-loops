@@ -1,6 +1,6 @@
 # loops: the multi-agent coding workflow that proves its work
 
-**Give your AI coding agent a ticket. Get back a pull request with proof that every acceptance criterion works.**
+**Give your AI coding agent a ticket. Get back a pull request with proof that every acceptance criteria works.**
 
 [![CI](https://github.com/arxdsilva/ai-loops/actions/workflows/ci.yml/badge.svg)](https://github.com/arxdsilva/ai-loops/actions/workflows/ci.yml) [![release](https://img.shields.io/github/v/release/arxdsilva/ai-loops?sort=semver)](https://github.com/arxdsilva/ai-loops/releases) [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) ![dependencies: 0](https://img.shields.io/badge/dependencies-0-blue)
 
@@ -53,14 +53,14 @@ Cursor: import `arxdsilva/ai-loops` from the marketplace. Every platform, its ca
 2. **Plan.** A planner writes the plan and a second agent challenges it until it holds up.
 3. **Build.** An architect fixes the shared contracts, then specialist engineers work in parallel, each in its own files.
 4. **Verify.** A separate QA agent per engineer re-runs every claim and sends failures back with a reproduction. Then the gate runs: build, lint, architecture rules, tests under the race detector, ≥70% coverage of new code.
-5. **Prove.** A product reviewer tries every acceptance criterion by hand and opens the PR with the evidence attached.
+5. **Prove.** A product reviewer tries every acceptance criteria by hand and opens the PR with the evidence attached.
 6. **Reflect.** Lessons are saved for the next run.
 
 One **master agent** (your main session) runs all six. It keeps the scope in a charter, re-reads the run's recorded state at every phase, and decides instead of asking. Each decision is recorded and listed in the PR. You are asked only where you opt in, for example `--ask plan,pr`.
 
 ## What you get
 
-**A PR you can review in minutes.** Each acceptance criterion links to its proof, each engineer's claims show who verified them and in which round, and every decision the agents took is listed.
+**A PR you can review in minutes.** Each acceptance criteria links to its proof, each engineer's claims show who verified them and in which round, and every decision the agents took is listed.
 
 <p align="center">
   <img src="docs/media/loops-report-proof.png" alt="loops run report: verdict table where a claim FAILED in round 1 and was VERIFIED in round 2, acceptance criteria AC-1 to AC-4 each linked to a proof file, and the gate table with build, format, vet, lint, arch, test and coverage all passing with 84.2% new-code coverage" width="85%">
@@ -100,7 +100,7 @@ The right tool depends on the job. For turning tickets into PRs you can merge wi
 | Ticket in, PR out, end to end | ✅ | partial | — | partial |
 | Plan challenged by a second agent | ✅ | — | partial | partial |
 | Separate agent re-tests every claim, with repro | ✅ | — | add-on | partial |
-| Each acceptance criterion proven, proof in the PR | ✅ | — | — | — |
+| Each acceptance criteria proven, proof in the PR | ✅ | — | — | — |
 | Hard gate: new-code coverage + race detector | ✅ ≥70% | — | — | — |
 | One master agent holds scope; asks only where you opt in | ✅ | — | — | partial |
 | Parallel specialists with disjoint file scopes | ✅ | — | — | ✅ |

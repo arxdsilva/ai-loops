@@ -23,7 +23,7 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 
 ## 2. Phases
 
-| # | Phase (`run.Phase`) | Agents | Output in the run dir | Exit criterion |
+| # | Phase (`run.Phase`) | Agents | Output in the run dir | Exit criteria |
 |---|---|---|---|---|
 | 0 | `intake` | lead | `ticket.md`, `charter.md` | The ticket is normalised and has a source; the charter and the checkpoints are recorded |
 | 1 | `research` | `web-researcher`, `practices-researcher`, `code-researcher`, `hardware-researcher` (parallel) | `research/web.md`, `research/practices.md`, `research/code.md`, `research/hardware.{json,md}` | All four outputs are written |

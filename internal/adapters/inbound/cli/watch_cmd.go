@@ -268,7 +268,7 @@ func qaCell(l run.Lane, color bool) string {
 	return "-"
 }
 
-// acStatuses returns the latest verdict per acceptance criterion (product
+// acStatuses returns the latest verdict per acceptance criteria (product
 // phase verdicts and AC-named ones), in first-seen order.
 func acStatuses(s run.State) []run.VerdictInfo {
 	idx := map[string]int{}

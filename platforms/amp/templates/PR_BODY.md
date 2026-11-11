@@ -8,8 +8,8 @@ Written by `product-reviewer` as `pr.md`: at most about 40 lines before the `<de
 - <...2-4 bullets>
 
 ## Acceptance criteria
-- [x] AC-1 <criterion> - proof: <one-line result, command>
-- [x] AC-2 <criterion> - proof: <...>
+- [x] AC-1 <criteria> - proof: <one-line result, command>
+- [x] AC-2 <criteria> - proof: <...>
 
 ## How to verify
 <commands a reviewer can run>
@@ -25,7 +25,7 @@ New-code coverage: <X>% (min 70%), tests run under each pack's race policy
 ## Open follow-ups
 - <item or "none"; an unmet AC of a draft PR goes here with its proof>
 
-<details><summary>Proof AC-1 <criterion></summary>
+<details><summary>Proof AC-1 <criteria></summary>
 
 <trimmed command, output and log excerpt>
 

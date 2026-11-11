@@ -106,7 +106,7 @@ type GateResult struct {
 	Note       string    `json:"note,omitempty"`
 }
 
-// VerdictInfo is one verdict on a plan, claim or acceptance criterion.
+// VerdictInfo is one verdict on a plan, claim or acceptance criteria.
 type VerdictInfo struct {
 	Name   string    `json:"name"`
 	Status string    `json:"status"`

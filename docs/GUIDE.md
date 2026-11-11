@@ -214,7 +214,7 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
   2 plan      planner (opus) ⇄ plan-reviewer (opus)   [+ your approval with --ask plan]
   3 implement architect + <lang>-engineer (contract, toolchain, wave 0) → role engineers in parallel waves
   4 qa        a qa-verifier per engineer checks every claim ⇄ sends failures back with a repro
-  5 product   product-reviewer tests every acceptance criterion by hand → proofs → PR/MR
+  5 product   product-reviewer tests every acceptance criteria by hand → proofs → PR/MR
   6 reflect   reflector → reflection.md + ai-memory pages
   the lead (master agent) runs all seven, decides instead of asking, re-anchors with `loops run brief`
 ```
