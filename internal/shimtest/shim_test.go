@@ -198,7 +198,7 @@ func TestGeneratedShimNoReleaseNoGo(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected failure")
 	}
-	for _, want := range []string{"no prebuilt binary for " + runtime.GOOS + "/" + runtime.GOARCH + " v9.9.9 and no Go toolchain", "https://github.com/arxdsilva/ai-loops#install"} {
+	for _, want := range []string{"no prebuilt binary for " + runtime.GOOS + "/" + runtime.GOARCH + " v9.9.9 and no Go toolchain", "https://github.com/arxdsilva/ai-loops/blob/main/docs/GUIDE.md#install"} {
 		if !strings.Contains(errOut, want) {
 			t.Errorf("stderr lacks %q: %s", want, errOut)
 		}

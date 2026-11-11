@@ -151,7 +151,7 @@ func TestShim(t *testing.T) {
 		`mv -f "$tmp/loops" "$cache/loops-$V"`,
 		"command -v go",
 		"no prebuilt binary for",
-		"and no Go toolchain; see https://github.com/arxdsilva/ai-loops#install",
+		"and no Go toolchain; see https://github.com/arxdsilva/ai-loops/blob/main/docs/GUIDE.md#install",
 		`exec "$bin" "$@"`,
 	} {
 		if !strings.Contains(s, want) {

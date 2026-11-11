@@ -152,7 +152,7 @@ if command -v go >/dev/null 2>&1; then
   loops_prune
   exec "$cache/loops-$V" "$@"
 fi
-echo "loops: no prebuilt binary for ${os:-$(uname -s)}/${arch:-$(uname -m)} v$V and no Go toolchain; see https://github.com/arxdsilva/ai-loops#install" >&2
+echo "loops: no prebuilt binary for ${os:-$(uname -s)}/${arch:-$(uname -m)} v$V and no Go toolchain; see https://github.com/arxdsilva/ai-loops/blob/main/docs/GUIDE.md#install" >&2
 exit 1
 `
 	return plugin.File{Path: "bin/loops", Data: []byte(script), Exec: true}
