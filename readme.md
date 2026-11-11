@@ -9,7 +9,9 @@
 <p align="center">
   <img src="docs/media/loops-demo.svg" alt="Sample loops run in a terminal: /loops:work #42 goes through intake, research, plan (reviewer sends round 1 back, approves round 2), parallel build, QA catches a failing claim and sends it back until verified, the gate passes with the race detector and 84% new-code coverage, all four acceptance criteria are proven, and PR #43 opens with proofs after 31 minutes and zero questions" width="100%">
 </p>
-<p align="center"><sub>A sample run. Video: <a href="docs/media/loops-demo.mp4">MP4</a> · <a href="docs/media/loops-demo.webm">WebM</a></sub></p>
+<p align="center"><sub>A sample run.</sub></p>
+
+https://github.com/user-attachments/assets/59ddd321-4561-44fb-afa1-a606ee473c51
 
 ## Quick start (Claude Code)
 
