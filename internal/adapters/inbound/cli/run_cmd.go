@@ -39,12 +39,12 @@ func parseFlagsAnywhere(fs *flag.FlagSet, args []string) ([]string, error) {
 }
 
 // cmdRun implements `loops run <sub>`: start, phase, event, label, loopback,
-// verdict, override, end, dir, env, clean. Every sub-command except start
+// verdict, override, ask, checkpoint, decide, brief, end, dir, env, clean. Every sub-command except start
 // and env needs an active run and otherwise prints a message on stderr and
 // exits 1 (env prints nothing and exits 0).
 func (a *App) cmdRun(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(a.Err, "usage: loops run start|phase|event|label|loopback|verdict|override|end|dir|env|clean …")
+		fmt.Fprintln(a.Err, "usage: loops run start|phase|event|label|loopback|verdict|override|ask|checkpoint|decide|brief|end|dir|env|clean …")
 		return 2
 	}
 	sub, rest := args[0], args[1:]
@@ -63,6 +63,14 @@ func (a *App) cmdRun(ctx context.Context, args []string) int {
 		return a.runVerdict(ctx, rest)
 	case "override":
 		return a.runOverride(ctx, rest)
+	case "ask":
+		return leadCmd{a}.ask(ctx, rest)
+	case "checkpoint":
+		return leadCmd{a}.checkpoint(ctx, rest)
+	case "decide":
+		return leadCmd{a}.decide(ctx, rest)
+	case "brief":
+		return leadCmd{a}.brief(ctx, rest)
 	case "end":
 		return a.runEnd(ctx, rest)
 	case "dir":
@@ -136,7 +144,8 @@ func (a *App) runPhase(ctx context.Context, args []string) int {
 	if err := a.Tracker.Record(ctx, run.Event{Kind: run.KindPhase, Phase: p, Note: *note}); err != nil {
 		return a.fail("run phase", err)
 	}
-	return 0
+	// Every phase change re-anchors the lead on the run (WORKFLOW §2.7).
+	return leadCmd{a}.brief(ctx, nil)
 }
 
 func (a *App) runEvent(ctx context.Context, args []string) int {

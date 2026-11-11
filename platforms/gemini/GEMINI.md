@@ -11,6 +11,7 @@
 - **Project rules win:** the repo's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs) take precedence over loops' defaults. When you follow one instead of a loops rule, record it: `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"`.
 - **Context discipline:** search first, read ranges, never paste whole files (`specs/CONTEXT_DISCIPLINE.md`).
 - **Live view:** run `loops watch` in a side terminal; `loops report` writes an HTML report.
-- **Never** commit or push unless you are the product-reviewer and the user confirmed.
+- **The lead is the master agent:** it owns every phase, the scope (`charter.md` in the run dir) and every decision, and asks the user only at the checkpoints they opted into (WORKFLOW §2.7). After a compaction or a resumed session, re-anchor with `loops run brief` before acting.
+- **Never** commit or push unless you are the product-reviewer and the lead sent you the go.
 
 Run the loops workflow with `/loops:work <task>` or by activating the `work` skill (skills/work/SKILL.md).

@@ -19,8 +19,11 @@ New-code coverage: <X>% (min 70%), tests run under each pack's race policy
 ## Risk / rollback
 <what could go wrong; how to revert; migrations and their direction>
 
+## Decisions and assumptions
+- <each `loops run decide` the lead or user took, and each charter assumption, one line: what and why; or "none">
+
 ## Open follow-ups
-- <item or "none">
+- <item or "none"; an unmet AC of a draft PR goes here with its proof>
 
 <details><summary>Proof AC-1 <criterion></summary>
 

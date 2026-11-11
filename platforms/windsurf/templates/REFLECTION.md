@@ -14,6 +14,9 @@ Written by the `reflector` as `reflection.md` from `loops status --json` and the
 ## Premises attacked
 - <round, check: the premise in one sentence, and what replaced it | or: none>
 
+## Decisions
+- <checkpoints in force; each decision the lead took in the user's place (topic: decision) and whether it held up | or: none>
+
 ## Quality pass
 - <findings fixed by metric (CRAP, duplication, mutation); tools not run and why; pre-existing debt noted>
 

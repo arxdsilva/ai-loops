@@ -12,11 +12,13 @@
 ### In plain words
 
 1. **Research.** Before anything is decided, agents read the web, best practices, your existing code, and what your machine can handle.
-2. **Plan.** One agent writes the plan and another challenges it until it holds up. You can approve it first if you want.
+2. **Plan.** One agent writes the plan and another challenges it until it holds up. You can ask to approve it first.
 3. **Build.** An architect agrees the shared pieces first. Then specialist engineers work side by side, each in its own area.
 4. **Verify.** A separate checker re-tests everything each engineer claims and sends back anything that doesn't hold, with proof of what broke. Then one quality pass scores the changed code for complexity, duplication and tests that don't really test (crapper, dryer, mutator).
 5. **Prove.** A product reviewer tries every requirement by hand and opens the pull request with the evidence attached.
 6. **Reflect.** Lessons are saved for next time. Where your project's own rules overrode the plugin's defaults, a note is posted on the pull request.
+
+**One master agent, no babysitting:** the main session is the run's master agent. It runs every phase from the ticket to the pull request, keeps the scope in a charter, and decides where the workflow used to stop and ask: a plan that won't converge, a claim that keeps failing, the push and PR. Every decision is recorded and listed in the PR. It re-anchors on the run's recorded state at each phase and after a context compaction, so it doesn't lose the thread on long runs. You are asked only at the phases you opt into: `--ask plan,pr` (or `all`), `"ask"` in `.loops/config.json`, or just say "let me approve the plan" in the request ([WORKFLOW §2.7](specs/WORKFLOW.md)).
 
 **Make it work, then make it right:** every phase follows [specs/ENGINEERING.md](specs/ENGINEERING.md), adapted from Robert C. Martin's [ub-mode](https://github.com/unclebob/ub-mode):
 - the plan models the data first, removes before it adds, and redesigns instead of bolting on;
@@ -58,13 +60,14 @@ Every pack was verified end to end with the real `loops` binary in the language'
 
 ```
 /loops:work #123
-  0 intake    ticket → ticket.md (GitHub · GitLab · Jira · Linear · free text)
+  0 intake    ticket → ticket.md (GitHub · GitLab · Jira · Linear · free text) → charter.md (scope) + checkpoints
   1 research  web ∥ practices ∥ code ∥ hardware researchers   (ai-memory first; loops lang detect)
-  2 plan      planner (opus) ⇄ plan-reviewer (opus)   [+ your approval with --approve]
+  2 plan      planner (opus) ⇄ plan-reviewer (opus)   [+ your approval with --ask plan]
   3 implement architect + <lang>-engineer (contract, toolchain, wave 0) → role engineers in parallel waves
   4 qa        a qa-verifier per engineer checks every claim ⇄ sends failures back with a repro
   5 product   product-reviewer tests every acceptance criterion by hand → proofs → PR/MR
   6 reflect   reflector → reflection.md + ai-memory pages
+  the lead (master agent) runs all seven, decides instead of asking, re-anchors with `loops run brief`
 ```
 
 ## Install
@@ -203,7 +206,7 @@ Off by default: nothing is limited and nothing asks. Opt in per run with `/loops
 --max-agents 12   --budget research=200k,implement=2M   --agents implement=12   --roles implement=domain-engineer,api-engineer
 ```
 
-Before each spawn the lead runs `loops budget check`. If a limit would be exceeded, the run pauses and asks you to raise it, continue once, or stop. `loops budget show` prints usage. Token budgets are measured on Claude Code, Codex and Copilot, and advisory elsewhere.
+Before each spawn the lead runs `loops budget check`. If a limit would be exceeded, the lead stops spawning: over a concurrency cap it waits for a slot, otherwise it ends the run where it stopped, since the limit is yours. With a checkpoint on that phase it asks you instead: raise it, continue once, or stop. `loops budget show` prints usage. Token budgets are measured on Claude Code, Codex and Copilot, and advisory elsewhere.
 
 ## Project rules win
 

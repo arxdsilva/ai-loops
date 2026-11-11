@@ -53,6 +53,12 @@ type State struct {
 	// Budgets lists blocked spawns (KindBudget), in order.
 	Budgets []BudgetInfo `json:"budgets,omitempty"`
 
+	// Ask are the phases where the lead stops for the user (KindAsk, last
+	// wins); empty = the lead decides every phase (WORKFLOW §2.7).
+	Ask []Phase `json:"ask,omitempty"`
+	// Decisions are the lead's and the user's recorded decisions, in order.
+	Decisions []DecisionInfo `json:"decisions,omitempty"`
+
 	PR      string `json:"pr,omitempty"`
 	Ended   bool   `json:"ended"`
 	Outcome string `json:"outcome,omitempty"`

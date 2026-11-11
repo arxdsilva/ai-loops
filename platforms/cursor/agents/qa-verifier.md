@@ -15,7 +15,7 @@ Verify one implementer's claims independently. Do not trust the report; do not f
 
 ## Inputs
 The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: <id> (root <dir>)` (the implementer's language pack), and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
-Read: the implementer's `reports/<id>.md`, the `git diff` of its owned paths, the contract, the ACs it serves. On round N>1 the lead sends you back (resumed, or re-spawned with the prior QA file): re-verify the previously FAILED claims and spot-check the rest.
+Read: `charter.md` (scope: a change outside it is an unclaimed problem), the implementer's `reports/<id>.md`, the `git diff` of its owned paths, the contract, the ACs it serves. On round N>1 the lead sends you back (resumed, or re-spawned with the prior QA file): re-verify the previously FAILED claims and spot-check the rest.
 
 ## Can
 Read code; run tests with the pack's commands; `loops gate --only <checks> --pkgs <owned>`; `loops arch`; `loops lang show <id>`. Write exactly one file: `<Run dir>/qa/<Agent id>.r<N>.md`.

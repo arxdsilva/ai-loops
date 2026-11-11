@@ -280,10 +280,32 @@ func TestRenderOverridesAndLimits(t *testing.T) {
 func TestRenderNoOverridesNoLimitsUnchanged(t *testing.T) {
 	s, ev := fixture()
 	out := render(t, s, ev, "testdata/run1")
-	for _, bad := range []string{`id="overrides"`, `id="limits"`, "Project-rule overrides", " tok"} {
+	for _, bad := range []string{`id="overrides"`, `id="limits"`, "Project-rule overrides", " tok", `id="decisions"`} {
 		if strings.Contains(out, bad) {
 			t.Errorf("unexpected %q", bad)
 		}
+	}
+}
+
+func TestRenderDecisions(t *testing.T) {
+	s, ev := fixture()
+	s.Ask = []run.Phase{run.PhasePlan, run.PhaseProduct}
+	s.Decisions = []run.DecisionInfo{
+		{Phase: run.PhaseQA, By: run.ByLead, Topic: "W1:C2", Note: "moved to <Open>", Ref: "qa/W1.r3.md", At: at(60)},
+		{Phase: run.PhasePlan, By: run.ByUser, Topic: "plan", Note: "approved"},
+	}
+	out := render(t, s, ev, "testdata/run1")
+	for _, want := range []string{`id="decisions"`, "Checkpoints: plan, product", "<td>lead</td>", "<td>user</td>", "moved to &lt;Open&gt;", "qa/W1.r3.md"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if err := checkBalanced(out); err != nil {
+		t.Error(err)
+	}
+	s.Ask = nil
+	if out := render(t, s, ev, "testdata/run1"); !strings.Contains(out, "Checkpoints: none (the lead decided every phase)") {
+		t.Error("no checkpoints line")
 	}
 }
 

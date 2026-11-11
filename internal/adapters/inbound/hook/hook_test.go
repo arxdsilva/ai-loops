@@ -3,6 +3,7 @@ package hook
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -118,6 +119,26 @@ func TestSessionStart(t *testing.T) {
 	_, o, _ = e.run("session-start", "{}")
 	if !strings.Contains(o, "Active run r1: phase plan, 1 lanes running, run dir /d/r1.") {
 		t.Fatalf("%q", o)
+	}
+	// The lead gets its re-anchor brief with the active run.
+	for _, want := range []string{"lead (master agent) of loops run", "/d/r1/charter.md", "Next: wait for the 1 running agent(s)", "do not restart finished phases"} {
+		if !strings.Contains(o, want) {
+			t.Errorf("session-start lacks %q: %q", want, o)
+		}
+	}
+	// A huge brief is capped.
+	for i := 0; i < 400; i++ {
+		e.rec.state.Decisions = append(e.rec.state.Decisions, run.DecisionInfo{Topic: "t", Note: strings.Repeat("x", 100)})
+	}
+	e.rec.state.Lanes = nil
+	_, o, _ = e.run("session-start", "{}")
+	var v struct {
+		H struct {
+			C string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal([]byte(o), &v); err != nil || len(v.H.C) > 600+maxBrief+200 || !strings.Contains(v.H.C, "do not restart") {
+		t.Fatalf("cap: %d %v", len(v.H.C), err)
 	}
 }
 

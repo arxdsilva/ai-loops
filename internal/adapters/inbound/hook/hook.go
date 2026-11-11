@@ -194,6 +194,9 @@ var projectEnv = map[string][]string{
 
 func roleName(agentType string) string { return strings.TrimPrefix(agentType, "loops:") }
 
+// maxBrief caps the run brief the session-start hook adds.
+const maxBrief = 2400
+
 var entryPoint = map[string]string{
 	"claude": "/loops:work", "copilot": "/loops:work", "gemini": "/loops:work",
 	"codex": "$work", "cursor": "/work", "opencode": "/loops/work", "windsurf": "the work skill",
@@ -205,22 +208,26 @@ func (h *Handler) sessionStart(ctx context.Context, d dialect, p payload, out io
 	if root != "" {
 		text = fmt.Sprintf("loops plugin active. Plugin root: %s. Work tickets with %s (WORKFLOW: %s/specs/WORKFLOW.md).", root, entryPoint[h.platform], strings.TrimRight(root, "/"))
 	}
+	brief := ""
 	if id, err := h.d.Rec.Current(ctx); err == nil && id != "" {
 		if st, err := h.d.Rec.State(ctx, id); err == nil {
-			n := 0
-			for _, l := range st.Lanes {
-				if l.Running {
-					n++
-				}
-			}
 			dir, _ := h.d.Rec.Dir(ctx, id)
-			text += fmt.Sprintf(" Active run %s: phase %s, %d lanes running, run dir %s.", id, st.Phase, n, dir)
+			text += fmt.Sprintf(" Active run %s: phase %s, %d lanes running, run dir %s.", id, st.Phase, len(run.Running(st)), dir)
+			// After a compaction or a resumed session the lead re-anchors
+			// on the run instead of its memory (WORKFLOW §2.7).
+			brief = run.Brief(st, dir)
+			if len(brief) > maxBrief {
+				brief = brief[:maxBrief]
+			}
 		}
 	} else if root == "" {
 		text = ""
 	}
 	if len(text) > 600 {
 		text = text[:600]
+	}
+	if brief != "" {
+		text += "\n" + brief + "Continue this run from that state: do not restart finished phases. `loops run brief` prints it again."
 	}
 	if root != "" {
 		h.writePluginRoot(root, h.repo(p))

@@ -63,6 +63,9 @@ type App struct {
 	HW       HWProbe    // hardware probe (loops hw)
 	Parallel hw.Knobs   // .loops/config.json "parallel"
 	Limits   run.Limits // .loops/config.json "limits" (opt-in; zero = none)
+	// Checkpoints is the configured checkpoint list (.loops/config.json
+	// "ask", plus "approval": "always"); `loops run ask` without a list uses it.
+	Checkpoints string
 
 	Root       string          // project root
 	PluginRoot string          // plugin root ("" when unknown)
@@ -88,7 +91,7 @@ type command struct {
 }
 
 var commands = map[string]command{
-	"run":     {(*App).cmdRun, "run start|phase|event|label|loopback|verdict|override|end [--no-clean]|dir|env [--shell s]|clean [--dry-run] [--json] …  record the workflow; env/clean: run-scoped caches (go and detected packs) and artifact cleanup"},
+	"run":     {(*App).cmdRun, "run start|phase|event|label|loopback|verdict|override|ask [list]|checkpoint <phase>|decide --topic --note [--by lead|user]|brief [--json]|end [--no-clean]|dir|env [--shell s]|clean [--dry-run] [--json] …  record the workflow; ask/checkpoint/decide/brief: the lead's checkpoints, decisions and re-anchor; env/clean: run-scoped caches and artifact cleanup"},
 	"go":      {cmdGo, "go <args…>   go with the active run's GOCACHE/GOTMPDIR (plain go without a run)"},
 	"exec":    {cmdExec, "exec [--pack id] -- <cmd…>   a command with the active run's cache env and cache_argv for its language pack (plain without a run)"},
 	"gate":    {(*App).cmdGate, "gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--fail-fast]   every detected language pack's checks (loops lang show <id>): build, format, lint, arch, tests under the race policy, coverage of new code (≥70%), vuln when enabled"},

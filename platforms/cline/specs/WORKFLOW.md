@@ -4,7 +4,9 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 
 ## 1. Principles
 
-- **Lead orchestrates, roles work.** The main session (the *lead*) routes, relays and records. It reads reports, not code dumps. It does one-fact lookups, edits under ~30 lines and single test runs itself; everything else goes to a role agent.
+- **One master agent owns the run.** The main session, the *lead*, is the run's master agent. It runs every phase from intake to `loops run end` and is the only one that moves the run between phases, spawns and stops agents, records decisions and talks to the user. It holds the scope in `charter.md` and re-anchors on the run's recorded state at every phase change, after a compaction and in a resumed session, never on its memory (§2.7).
+- **Lead orchestrates, roles work.** The lead routes, relays and records. It reads reports, not code dumps. It does one-fact lookups, edits under ~30 lines and single test runs itself; everything else goes to a role agent.
+- **Autonomous by default.** The lead decides; it does not ask. The user is asked only at the checkpoints they opt into, per phase (§2.7). Every decision the lead takes in the user's place is recorded and shows in the report and the PR.
 - **Parallel by default.** Every run is planned as waves of role agents with disjoint file ownership. A one-file fix is still a wave with one agent.
 - **Contract first.** No implementer starts until the architect has written the interfaces, typed commands, DTOs and stubs the wave depends on, and the build is green.
 - **Claims need evidence.** Every implementer reports claims, and each claim names the evidence that proves it. Nothing counts as done until a different agent has verified it.
@@ -23,9 +25,9 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 
 | # | Phase (`run.Phase`) | Agents | Output in the run dir | Exit criterion |
 |---|---|---|---|---|
-| 0 | `intake` | lead | `ticket.md` | The ticket is normalised and has a source |
+| 0 | `intake` | lead | `ticket.md`, `charter.md` | The ticket is normalised and has a source; the charter and the checkpoints are recorded |
 | 1 | `research` | `web-researcher`, `practices-researcher`, `code-researcher`, `hardware-researcher` (parallel) | `research/web.md`, `research/practices.md`, `research/code.md`, `research/hardware.{json,md}` | All four outputs are written |
-| 2 | `plan` | `planner` ↔ `plan-reviewer` (+ the user when approval is required) | `plan.v<N>.md`, `plan-review.r<N>.md` | The latest review is `APPROVE` (and the user approved, if required) |
+| 2 | `plan` | `planner` ↔ `plan-reviewer` (+ the user at a `plan` checkpoint) | `plan.v<N>.md`, `plan-review.r<N>.md` | The latest review is `APPROVE` (and the user approved, at a checkpoint) |
 | 3 | `implement` | `architect` (wave 0), then role engineers in waves 1…n | `reports/<agent-id>.md` (claims reports) | Every lane has reported |
 | 4 | `qa` | one `qa-verifier` per implementer (pipelined), one `qa-quality` pass, then the lead runs the gates | `qa/<agent-id>.r<N>.md`, `qa/quality.r<N>.md` | Every claim is `VERIFIED`, the quality pass is `VERIFIED`, and `loops gate` is green |
 | 5 | `product` | `product-reviewer` | `proofs/AC-<n>.md`, `pr.md`, `report.html` | Every AC is `VERIFIED` with a proof, and the PR/MR is opened (or the PR body is written under `--no-pr`) |
@@ -41,9 +43,12 @@ QA starts pipelined: a verifier launches as soon as its implementer reports, eve
    - Jira (`ABC-123`) or Linear (a linear.app URL or key): fetch through the connected MCP tool, then pipe the text into `loops ticket fetch <ref> --source jira|linear --body-file -`. If the connector is not authenticated, tell the user and ask them to paste the ticket.
    - Free text: `loops ticket fetch --source text --body-file -`.
 3. If ai-memory is connected (§7), call `memory_briefing` and one `memory_query` with the ticket's key terms. Save the hits to `research/memory.md` and record `loops run event --kind memory --name briefing`.
+4. Record the checkpoints: `loops run ask [<list>]` (§2.7). With no list it applies `.loops/config.json`.
+5. Write `charter.md` from `templates/CHARTER.md` (§2.7): the goal, the ACs as the ticket states them, what is in and out of scope, constraints, and the assumptions taken where the ticket is unclear. The ACs are final when the plan is approved.
 
 Flags on `/loops:work`:
-- `--approve`: the user approves the plan.
+- `--ask <phases>`: the phases where the lead stops for the user (§2.7), e.g. `--ask plan,pr` or `--ask all`.
+- `--approve`: the older spelling of `--ask plan`.
 - `--no-pr`: write `pr.md` but do not push.
 - `--models=cheap`: run every role one tier lower, except planner and plan-reviewer.
 
@@ -79,8 +84,9 @@ Flags on `/loops:work`:
   1. Record `loops run loopback --from plan-reviewer --to planner --round N --note "<one line>"`.
   2. Send the review file back to the same planner (resume or re-spawn per platform tier). It writes `plan.v<N+1>.md`.
   3. Review again.
-- Escalate to the user after `MaxPlanRounds` (3) rounds with the blocking items still open.
-- User approval is required when `--approve` is set or `.loops/config.json` has `"approval": "always"`. The lead then shows a ≤25-line plan summary (ask the user: Approve / Request changes / Stop). "Request changes" sends the user's notes to the planner as a new round.
+- After `MaxPlanRounds` (3) rounds with blocking items still open, the lead rules on each one (§2.7), or asks the user when `plan` is a checkpoint.
+- **Scope check.** Before it accepts an approved plan, the lead checks it against `charter.md`: every AC is served by at least one lane, no lane serves nothing in scope, and every out-of-scope item stays out. A gap goes back to the planner as a new round. The lead then adds the plan version and the final ACs to the charter.
+- At a `plan` checkpoint the lead shows a ≤25-line plan summary (ask the user: Approve / Request changes / Stop). "Request changes" sends the user's notes to the planner as a new round. The answer is recorded with `loops run decide --by user`.
 
 ### 2.3 Implement
 
@@ -123,7 +129,7 @@ Flags on `/loops:work`:
   2. Send the QA file back to the same implementer (resume or re-spawn per platform tier).
   3. When it reports again, re-verify with the same verifier (resume or re-spawn).
 - After `EscalateAfter` (2) failed rounds, relaunch the implementer one model tier up (haiku → sonnet → opus), with a summary of the history.
-- After `MaxQARounds` (3) failed rounds, escalate to the user.
+- After `MaxQARounds` (3) failed rounds, the lead decides (§2.7), or asks the user when `qa` is a checkpoint.
 - **Attack the premise.** When the same claim fails a second round, the implementer does not try a third fix on the same premise. Its next report states that premise under `## Premise`, and the lead records it (`specs/ENGINEERING.md §11`, §4).
 - **Quality pass.** When every lane is verified, one `qa-verifier` with Agent id `qa-quality` runs `skills/quality` on the run's changed code.
   - It measures CRAP, structural duplication and mutation survivors (`specs/ENGINEERING.md §13`) and writes `qa/quality.r<N>.md` (`templates/QUALITY.md`).
@@ -145,11 +151,11 @@ The `product-reviewer` does the following, in order:
    - downstream failure, where it can be simulated.
 3. Saves each check as `proofs/AC-<n>[-<case>].md` (`templates/PROOF.md`): the command, the trimmed output, and log excerpts. Records `loops run event --kind proof --name AC-<n> --ref proofs/...`.
 4. Records `loops run verdict --name AC-<n> --status VERIFIED|FAILED`.
-5. On FAILED: records a loopback to the owning role and gives the lead the proof that shows the gap. The run returns to `implement` (`MaxProductRounds` = 2, then the user).
+5. On FAILED: records a loopback to the owning role and gives the lead the proof that shows the gap. The run returns to `implement` (`MaxProductRounds` = 2, then the lead decides, §2.7).
 6. When every AC is VERIFIED:
    1. Runs `loops report`.
    2. Writes `pr.md` (`templates/PR_BODY.md`, at most ~40 lines plus `<details>` proof blocks).
-   3. Stops and reports to the lead (proof summary + `pr.md` path). Unless `--no-pr` is set, the lead asks the user to confirm the push and PR (skipped when `auto_pr: true`), then sends the same product-reviewer "user confirmed" (resume or re-spawn per platform tier). Only then it:
+   3. Stops and reports to the lead (proof summary + `pr.md` path). Unless `--no-pr` is set, the lead sends the same product-reviewer "open the PR" (resume or re-spawn per platform tier). When `product` is a checkpoint, the lead first shows the user `pr.md` and asks. Only then it:
       - creates the branch `loops/<ticket>-<slug>`;
       - commits in small ordered commits, wave 0 first and then each wave's lanes. Each is `git commit -m … -- <paths>`, with a conventional subject and a body saying why, what changed and how it was proven (claim ids, QA file, AC proofs) (`specs/ENGINEERING.md §18`);
       - pushes;
@@ -179,11 +185,79 @@ The `reflector`:
    2. If a PR or MR exists (`State.PR`) and there is at least one override, post the file as a **comment**: `gh pr comment <url> --body-file <Run dir>/overrides.md`, or `glab mr note <id> --message "$(cat <Run dir>/overrides.md)"`, using the absolute run-dir path. Never edit the PR description.
    3. Record `loops run event --kind note --name overrides-comment --ref overrides.md`.
 
-   The user's PR confirmation (§2.5) covers this comment. With no PR, or under `--no-pr`, only the file is written.
+   The PR step (§2.5) covers this comment. With no PR, or under `--no-pr`, only the file is written.
 
 5. **Cleanup** (last step). Record what the end-of-run cleanup will free: `loops run clean --dry-run` shows the run's caches and tmp dirs and the build leftovers (each pack's `artifacts`, e.g. Go's `*.test`, binaries, coverprofiles, pprof files, compared against the intake baseline). Add a line to `reflection.md`: `Cleanup: N files, X MB freed; kept for review: <paths>`. Unknown new files are listed for review, never deleted; tracked and pre-existing files are never touched. Artifact directories are removed only inside a git work tree, only when new since the baseline, and only when they hold nothing authored: a directory with a tracked path, a nested `.git`, an unreadable entry, a script (shebang), a document (`*.md`, `*.rst`, `*.adoc`) or a non-generated source or test file is kept for review. A directory glob without a parent (`build/`) matches only at the pack root; packs write `**/target/` to match deeper. Files under `testdata/`, `fixtures/`, `test/`, `tests/` or `spec/` are never removed by an artifact glob. The actual deletion happens in `loops run end` (below) and is recorded as a `cleanup` note event.
 
 Finally, the lead runs `loops run end --outcome done` and gives the user a ≤10-line summary with the PR link and `report.html`.
+
+### 2.7 The lead: one master agent
+
+One agent, the lead, controls the run from intake to end. Role agents work inside one phase and one scope; only the lead sees the whole run. This section is how it keeps the scope and the context across phases, and how little it needs the user.
+
+**What only the lead does.**
+- Moves the run between phases (`loops run phase`), and re-enters a phase when work comes back (§2).
+- Spawns, resumes, labels and stops every agent, and relays facts between them.
+- Holds the scope: writes `charter.md` and is its only writer.
+- Takes the decisions the run turns on and records each one.
+- Talks to the user. Role agents never ask the user anything; a question goes to the lead, which answers it from the charter, the plan or its own decision.
+
+**Scope: `charter.md`.** Written at intake from `templates/CHARTER.md`, in the run dir:
+- the goal in one or two sentences;
+- the ACs as the ticket states them, final once the plan is approved;
+- in scope and out of scope;
+- constraints: project rules, deadlines, compatibility promises, the `--no-pr` choice;
+- assumptions taken where the ticket is unclear, each also recorded as a decision.
+
+Every spawn passes `Charter: <abs path>` (§3), and every role reads it first. An agent that finds work outside the scope puts it in its report's `Out` section and never does it. The lead checks each phase's output against the charter before it moves on:
+- the plan covers every AC and nothing outside the scope (§2.2);
+- QA findings and gate failures are routed only to lanes in the plan;
+- product proves every AC in the charter, and `pr.md` lists the assumptions and the lead's decisions under Open follow-ups.
+
+**Context: re-anchor, never recall.** The run's state lives in `events.jsonl` and the run dir, not in the lead's context:
+- `loops run phase <p>` records the phase and prints the brief: the run, the charter path, the phase path, the checkpoints, running agents, open failures, the gate, the latest decisions and the next step. `loops run brief [--json]` prints it at any time.
+- After a compaction or in a resumed session, the `session-start` hook adds the same brief to the lead's context. The lead continues from it and does not restart finished phases.
+- When the brief and the lead's memory disagree, the brief wins. The lead opens a file the brief names only when a decision needs it (§1).
+
+**Checkpoints: the user is opt-in, per phase.** By default there are none: the lead runs every phase without asking. The user opts in to any phase, or `all`:
+
+| Checkpoint | When the lead stops | What it shows; the choices |
+|---|---|---|
+| `intake` | after the charter is written | the charter; Continue / Edit scope / Stop |
+| `research` | when the four briefs exist | their `## Open questions`; the user answers or says Continue |
+| `plan` (alias `approve`) | after `APPROVE`, and when plan rounds run out | a ≤25-line plan summary or the open blocking items; Approve / Request changes / Stop |
+| `implement` | after wave 0 and after each wave reports | the lanes and their claims; Continue / Stop |
+| `qa` | when the gate is green, and when QA rounds run out | the verdicts and the quality pass, or the failing claim; Continue / a decision / Stop |
+| `product` (alias `pr`) | before the push and PR, and when product rounds run out | `pr.md`, or the unmet AC; Open the PR / Hold / Stop |
+| `reflect` | before `loops run end` | `reflection.md` and the memory pages to write; End / Edit |
+
+Where they come from, strongest first:
+1. the user's own words in the request ("let me approve the plan", "ask me before the PR", "check with me at every phase");
+2. `--ask <phases>` (and `--approve`) on `/loops:work`;
+3. `.loops/config.json` `ask` (a list or a string), plus the older `"approval": "always"`.
+
+An explicit list (1 or 2) replaces the config's for the run, so `--ask none` turns a configured checkpoint off once.
+
+The lead records them once at intake with `loops run ask [<list>]`; with no list, the config applies. At each boundary `loops run checkpoint <phase>` prints `ask` or `auto`. When the user later says "ask me from now on" or "stop asking", the lead records a new `loops run ask`. Each answer at a checkpoint is recorded: `loops run decide --by user --topic <phase> --note "<answer>"`.
+
+**Decisions instead of questions.** Where the workflow used to stop for the user, the lead decides, unless that phase is a checkpoint:
+
+| Situation | The lead's default |
+|---|---|
+| The ticket is unclear | Take the narrowest reading that meets the stated goal, write it under the charter's `## Assumptions`, and record it. |
+| No language pack detected | Continue; the gate checks nothing. Note it in the charter's constraints. |
+| Plan rounds run out (§4) | Rule on each open blocking item, accepting or rejecting it with a reason. The planner writes the final version with the rulings; the reviewer does not re-open a ruled item. |
+| QA rounds run out (§4) | Do one of three things. If the premise (ENGINEERING §11) shows the design is wrong, go back to `plan` for that lane. If no AC needs the claim, move it to Open follow-ups. If an AC cannot be met, end the run `failed` with the evidence. Never weaken a test, the gate or the race policy. |
+| Product rounds run out (§4) | Open the PR as a draft (`gh pr create --draft`), with the unmet AC and its proof under Open follow-ups. Or end the run `failed` when nothing useful would ship. |
+| An opt-in limit blocks a spawn (§4a) | Over a concurrency cap, wait for a slot. Over a token, agent or role limit, the limit is the user's constraint: let running agents finish, then end the run `abandoned` and say where it stopped. |
+| A model is unavailable | Fall back (§3a). |
+| The ticket cannot be read (a connector is unauthenticated, and there is no text) | The one stop that cannot be decided away: tell the user what is missing, and wait. |
+
+Each decision is recorded: `loops run decide --topic <what> --note "<decision; reason>" [--ref <file>]`. Decisions show in the brief, the report and the PR's Open follow-ups, and the reflector reviews them.
+
+**Messages to the user.** One line per phase transition (`plan: approved v2, 3 waves`), and the ≤10-line summary at the end. Outside a checkpoint, never a question.
+
+**What the lead never decides away.** The pushes and PRs go to a branch, never to the main line, unless a project rule says so (§1). No force-push, no merge, no history rewrite. No weakened test, gate or race policy. No step outside the charter's scope.
 
 ## 3. Roles
 
@@ -204,6 +278,7 @@ The prompt is the agent's block from the plan plus these lines:
 - `Agent id: <W1-domain>`
 - `Wave: <n>`
 - `Language: <id>` (implementers and QA; from `research/language.json`)
+- `Charter: <abs path to charter.md>` (§2.7)
 
 ### 3a. Model fallback
 
@@ -222,10 +297,10 @@ Right after each spawn, the lead names the lane: `loops run label --agent <platf
 
 | Loop | Limit | Then |
 |---|---|---|
-| planner ↔ plan-reviewer | `MaxPlanRounds` = 3 | The user decides on the open blocking items |
+| planner ↔ plan-reviewer | `MaxPlanRounds` = 3 | The lead rules on the open blocking items (the user, at a `plan` checkpoint) |
 | implementer ↔ qa-verifier | `EscalateAfter` = 2 | Relaunch the implementer one model tier up |
-| implementer ↔ qa-verifier | `MaxQARounds` = 3 | The user decides |
-| product → implementer | `MaxProductRounds` = 2 | The user decides |
+| implementer ↔ qa-verifier | `MaxQARounds` = 3 | The lead decides (the user, at a `qa` checkpoint) |
+| product → implementer | `MaxProductRounds` = 2 | The lead decides (the user, at a `product` checkpoint) |
 
 Every pass around any loop is recorded with `loops run loopback`, which feeds the status line counters and the report's arrows.
 
@@ -238,17 +313,17 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 - At intake the lead builds the limits JSON with `loops budget parse …` from the user's flags, then records it: `loops run event --kind limits --note '<json>'`.
 - Before every spawn the lead runs `loops budget check --phase <p> --spawn <n> --role <r>`.
   - Exit 0: the spawn fits.
-  - Exit 3: a limit would be exceeded. The command records a `budget` event and prints the reason. The lead stops spawning in that phase, lets running agents finish, and **asks the user** to raise the limit, continue past it once, or stop the run.
+  - Exit 3: a limit would be exceeded. The command records a `budget` event and prints the reason. The lead stops spawning in that phase and lets running agents finish. It then decides as §2.7 says, or, when that phase is a checkpoint, asks the user to raise the limit, continue past it once, or stop the run.
 - Tokens are measured from each agent's own transcript (`agent_transcript_path`) when it stops. A resumed agent counts only its growth. Claude Code provides that transcript. On platforms that don't send a per-agent transcript, token budgets are advisory, while agent and role limits still apply everywhere (`specs/PLATFORMS.md` §8).
 - `loops budget show` prints usage against the limits.
 
 ## 5. Events
 
-`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
+`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `ask`, `decision`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
 
 | Source | Emits |
 |---|---|
-| Skills (lead), through `loops run …` | `phase`, `loop_back`, `verdict`, `proof`, `memory`, `note`, `pr`, `end` |
+| Skills (lead), through `loops run …` | `phase`, `loop_back`, `verdict`, `proof`, `memory`, `note`, `pr`, `ask`, `decision`, `end` |
 | Hook `trace` (PostToolUse, PostToolUseFailure) | `step`, with `agent_id`/`agent_type`, so steps land in their lane |
 | Hook `post-edit` (PostToolUse on Edit/Write/MultiEdit; alias `go-post-edit`) | `step` with the pack's single-file format and lint result (Go: gofmt/goimports + go vet) |
 | Hook `trace-agent` (SubagentStart, SubagentStop) | `agent_start`, `agent_stop` |
@@ -257,7 +332,11 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 | `loops gate` | `gate`, one per check (with `pack` when several packs are detected) plus `all` |
 
 The CLI commands that write these events:
-- `loops run phase <phase> [--note]`
+- `loops run phase <phase> [--note]`: records the phase, then prints the brief (§2.7).
+- `loops run ask [<list>]`: records the checkpoints (phase names, `approve`, `pr`, `all` or `none`; no list = `.loops/config.json` `ask`) and prints them.
+- `loops run checkpoint <phase>`: prints `ask` when the lead stops for the user at that phase, else `auto`. Writes nothing.
+- `loops run decide --topic T --note text [--by lead|user] [--ref f] [--phase P]`: records a decision.
+- `loops run brief [--json]`: prints the lead's re-anchor: the run, the charter, the phase path, checkpoints, running agents, open failures, the gate, the latest decisions and the next step. Writes nothing.
 - `loops run event --kind K [--name --target --from --to --status --ok --round --wave --role --agent --model --ref --note --phase --ms]`
 - `loops run loopback --from R --to A --round N [--note] [--phase]`
 - `loops run verdict --name X --status S [--round N] [--ref f] [--agent A] [--role R]`
@@ -348,3 +427,4 @@ A run is done when every item below holds. (Adapted from the rimworld-go MASTER_
 9. The behaviour is observable: errors are explicit, logs and metrics exist where operators need them.
 10. There are no untracked TODOs. Each one is either done or listed under Open in `pr.md`.
 11. The PR is opened with proofs, `report.html` is generated, and `reflection.md` is written.
+12. The work stayed inside `charter.md`'s scope, and every decision the lead took in the user's place is recorded (`loops run decide`) and listed in `pr.md`.

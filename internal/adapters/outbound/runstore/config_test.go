@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/hw"
@@ -96,5 +97,28 @@ func TestLoadConfigGateCoverage(t *testing.T) {
 	}
 	if c, _ := LoadConfig(writeConfig(t, `{"gate": {}}`)); c.Gate.CoverageMin != 0 || c.Gate.Base != "" {
 		t.Fatalf("defaults: %+v", c.Gate)
+	}
+}
+
+func TestConfigAsk(t *testing.T) {
+	cases := []struct{ body, want string }{
+		{`{}`, ""},
+		{`{"ask": "plan,product"}`, "plan,product"},
+		{`{"ask": ["research", "pr"]}`, "research,pr"},
+		{`{"approval": "always"}`, "plan"},
+		{`{"ask": ["qa"], "approval": "always"}`, "qa,plan"},
+		{`{"ask": "all", "auto_pr": true}`, "all"},
+	}
+	for _, c := range cases {
+		cfg, err := LoadConfig(writeConfig(t, c.body))
+		if err != nil {
+			t.Fatalf("%s: %v", c.body, err)
+		}
+		if got := cfg.Checkpoints(); got != c.want {
+			t.Errorf("%s: Checkpoints() = %q, want %q", c.body, got, c.want)
+		}
+	}
+	if _, err := LoadConfig(writeConfig(t, `{"ask": 3}`)); err == nil || !strings.Contains(err.Error(), `"ask" must be`) {
+		t.Fatalf("a number must fail with a clear message: %v", err)
 	}
 }

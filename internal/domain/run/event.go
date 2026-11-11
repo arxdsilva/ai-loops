@@ -33,6 +33,8 @@ const (
 	KindLimits     Kind = "limits"      // limits in force for the run (opt-in): Note=JSON of run.Limits
 	KindBudget     Kind = "budget"      // a spawn was blocked by a limit: Phase, Role, Name=limit ("tokens","agents","roles"), Note=reason
 	KindEnd        Kind = "end"         // run finished: Status=outcome ("done","abandoned","failed")
+	KindAsk        Kind = "ask"         // the phases where the lead stops for the user (WORKFLOW §2.7): Note=comma-separated phases, "" = none; the last one wins
+	KindDecision   Kind = "decision"    // a decision the run turned on: Phase, From=who decided ("lead"|"user"), Name=topic, Note=the decision and its reason, Ref
 )
 
 // Verdict statuses (Event.Status for KindVerdict).

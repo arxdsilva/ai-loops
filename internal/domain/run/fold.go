@@ -88,6 +88,10 @@ func Fold(events []Event) State {
 			}
 		case KindBudget:
 			s.Budgets = append(s.Budgets, BudgetInfo{Phase: vphase(&s, e), Role: e.Role, Limit: e.Name, Reason: e.Note, At: e.Time})
+		case KindAsk:
+			s.Ask, _ = ParseAsk(e.Note) // recorded by `loops run ask`, which validates; unknown names are dropped
+		case KindDecision:
+			s.Decisions = append(s.Decisions, DecisionInfo{Phase: vphase(&s, e), By: e.From, Topic: e.Name, Note: e.Note, Ref: e.Ref, At: e.Time})
 		case KindPR:
 			s.PR = e.Ref
 		case KindEnd:

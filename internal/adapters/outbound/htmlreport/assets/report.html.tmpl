@@ -62,6 +62,16 @@
 {{end}}</tbody></table></div>
 </section>{{end}}
 
+{{if or .S.Decisions .S.Ask}}<section id="decisions">
+<h2>Decisions</h2>
+<p>Checkpoints: {{if .S.Ask}}{{range $i, $p := .S.Ask}}{{if $i}}, {{end}}{{$p}}{{end}}{{else}}none (the lead decided every phase){{end}}</p>
+{{if .S.Decisions}}<div class="tablewrap"><table>
+<thead><tr><th>Phase</th><th>By</th><th>Topic</th><th>Decision</th></tr></thead>
+<tbody>
+{{range .S.Decisions}}<tr><td>{{.Phase}}</td><td>{{.By}}</td><td class="wrap">{{.Topic}}</td><td class="wrap">{{.Note}}{{if .Ref}} <span class="mut">{{.Ref}}</span>{{end}}</td></tr>
+{{end}}</tbody></table></div>{{end}}
+</section>{{end}}
+
 {{if or .Limits .GlobalMaxAgents .Budgets}}<section id="limits">
 <h2>Limits &amp; tokens</h2>
 {{if .GlobalMaxAgents}}<p>Concurrent agents capped at <b>{{.GlobalMaxAgents}}</b>.</p>{{end}}

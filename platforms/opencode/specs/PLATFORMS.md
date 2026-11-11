@@ -135,7 +135,7 @@ Every path the package needs comes from its root variable, so no package hard-co
 | **C: generic subagents** | Amp | A generic subagent (Task) whose prompt starts with the role file's body (`loops path agents` → `<role>.md`) | Send a follow-up to the Task while it is still running; once it has finished, re-spawn as in B |
 | **D: no subagents** | Windsurf, Cline | **Solo mode.** The lead plays each role in turn, in phase order. It writes the same run-dir files and records the same events (`loops run label --agent solo-<n> …`, then `agent_start`/`agent_stop` through `loops run event`). Before each QA or review pass it re-reads only the files that role is given, to approximate a fresh context | Same files and limits; the lead re-enters the author role |
 
-Every tier records the same phases, verdicts and loop-backs. Only the parallelism and context isolation differ. Each platform's mechanics (tool names, how to spawn, wait, ask the user, stop agents) live in `skills/work/platforms/<platform>.md`. The work skill tells the lead to read the one for its platform.
+Every tier records the same phases, verdicts and loop-backs. Only the parallelism and context isolation differ. On every tier the lead stays the master agent (WORKFLOW §2.7): it re-anchors with the brief that `loops run phase` prints, and with `loops run brief` after a compaction or a resumed session. Where the platform delivers SessionStart after a compaction (Claude Code's `compact` source), the `session-start` hook adds the brief to the lead's context itself. Each platform's mechanics (tool names, how to spawn, wait, ask the user, stop agents) live in `skills/work/platforms/<platform>.md`. The work skill tells the lead to read the one for its platform.
 
 ## 5. Hook dialects
 

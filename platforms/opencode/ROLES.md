@@ -36,7 +36,7 @@ The "Owns (default)" column is the default scope, written for the layer homes of
 | clojure-engineer | implement (wave 0, language lanes) | sonnet | yes | `deps.edn` or `project.clj`, `tests.edn`, `:cov`/`:test` aliases, `.cljfmt.edn`, `.clj-kondo/config.edn`; CI for its pack; test and coverage prerequisites | Frozen installs and lock updates, toolchain pins and upgrades, dependency bumps, build migrations; idiom review when the lead asks (`loops:lang-clojure`) | Implement layer behaviour; edit another pack's files |
 | docs-writer | implement | haiku | docs only | Package `AGENTS.md`, `README.md` sections, `docs/adr/**` | Write docs from facts the lead supplies | Edit code; invent facts |
 | qa-verifier | qa | sonnet | no | `qa/<agent-id>.r<N>.md`; as `qa-quality`, `qa/quality.r<N>.md` | Read; run tests, `loops gate --only <test checks>,coverage --pkgs <owned>`, `loops arch`; check test honesty (`specs/ENGINEERING.md §12`); as `qa-quality`, run crapper, dryer and mutator over the run's changed code (`loops:quality`); put counterexample test snippets in its QA file (never in the repo). Runs tools hook-scoped or through `loops exec` (Go: `loops go`), never sets cache variables, leaves no binaries | Edit repo code (it reports; the owner fixes). It FAILS a claim set when new-code coverage is below 70% or new code lacks tests, and puts the uncovered `file:line` list in the repro |
-| product-reviewer | product | opus | no | `proofs/**`, `pr.md`, `report.html` | Run the service; curl, grpcurl, CLI; `loops report`; branch, commit, push; `gh` or `glab` PR only after the lead resumes it with the user's confirmation (or `auto_pr`) | Edit code (unmet ACs go back) |
+| product-reviewer | product | opus | no | `proofs/**`, `pr.md`, `report.html` | Run the service; curl, grpcurl, CLI; `loops report`; branch, commit, push; `gh` or `glab` PR when the lead's `PR:` line is `open` or `draft` | Edit code (unmet ACs go back); push to the main line, force-push, merge |
 | reflector | reflect | sonnet | no | `reflection.md` | Read the run dir; ai-memory query and write | Edit code; store secrets in memory |
 
 ## Language × layer
@@ -44,6 +44,13 @@ The "Owns (default)" column is the default scope, written for the layer homes of
 There are two kinds of implementer. **Layer roles** (architect, domain, application, api, persistence, integration, test, docs) own a hexagonal layer in any language. **Language roles** (`<id>-engineer`, one per pack in `specs/languages/`) own their pack's toolchain and repo files (`specs/REPO_PRACTICES.md`): with the architect in wave 0, and as language lanes later (version upgrades, dependency bumps, build migrations).
 
 Every implementer lane is a layer role plus a language pack. The lead adds `Language: <id>` to the spawn prompt (WORKFLOW §3), from `research/language.json`, and the agent loads `loops:lang-<id>` first for the toolchain, race policy, coverage recipe, layout and idioms. In a repo with several packs, each lane has one language; its owned globs stay inside that pack's root.
+
+## The lead and the charter (every role)
+
+The lead is the main session, not a plugin agent: the run's master agent, which owns every phase, the scope and every decision (WORKFLOW §2.7). Every role:
+- reads `charter.md` (the `Charter:` header line) first: the goal, the ACs, what is in and out of scope;
+- puts anything it finds outside the scope in its report's `Out` section, and never does it;
+- never asks the user. When it needs a decision, it takes the safest option inside the scope and names it in its report with the alternatives; the lead confirms or reverses it (`loops run decide`).
 
 ## Project rules first (every role)
 
@@ -60,7 +67,7 @@ These come from rimworld-go PARALLEL_WORK §3.
   - Never edit outside your owned globs.
   - Report failures you see in other agents' files instead of fixing them.
   - Never touch manifests, lockfiles (Go: `go.mod`/`go.sum`) or shared config. Only the architect and the `<id>-engineer` do; everyone else reports missing deps.
-  - No `git add`/`commit`/`push`. Only product-reviewer commits, after the lead confirms.
+  - No `git add`/`commit`/`push`. Only product-reviewer commits, when the lead sends the go.
 - **Producers not done?** Develop against the contract and stubs, then report what is still stubbed.
 - **Paths.** Use absolute paths; cwd may change between calls.
 - **Report.** Finish with a claims report (`templates/CLAIMS_REPORT.md`, at most 400 words). Every claim names its evidence.

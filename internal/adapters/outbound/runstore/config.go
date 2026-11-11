@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
@@ -17,9 +18,15 @@ import (
 type Config struct {
 	// Layers overrides the arch checker's layer prefixes (zero fields keep defaults).
 	Layers archrule.Layers `json:"layers"`
-	// Approval is "always" to ask the user to approve every plan; "" = only with --approve.
+	// Ask lists the phases where the lead stops for the user (WORKFLOW
+	// §2.7): a list of phase names or one string ("plan,product", "all",
+	// "none"). Empty = the lead decides every phase.
+	Ask AskList `json:"ask,omitempty"`
+	// Approval "always" is the older spelling of ask ["plan"]; it still adds
+	// the plan checkpoint.
 	Approval string `json:"approval,omitempty"`
-	// AutoPR lets product-reviewer push and open the PR/MR without asking.
+	// AutoPR is kept so older configs still parse. The PR now opens without
+	// asking unless "product" is a checkpoint, so it changes nothing.
 	AutoPR bool `json:"auto_pr,omitempty"`
 	// Gate tunes `loops gate`.
 	Gate GateConfig `json:"gate"`
@@ -35,6 +42,35 @@ type Config struct {
 	Languages []langpack.Override `json:"languages,omitempty"`
 	// UpdateCheck false turns off the new-release check; nil = on.
 	UpdateCheck *bool `json:"update_check,omitempty"`
+}
+
+// AskList is the "ask" setting: a JSON string or an array of strings,
+// held as one comma-separated list for run.ParseAsk.
+type AskList string
+
+// UnmarshalJSON accepts "plan,product" as well as ["plan", "product"].
+func (a *AskList) UnmarshalJSON(b []byte) error {
+	var one string
+	if err := json.Unmarshal(b, &one); err == nil {
+		*a = AskList(one)
+		return nil
+	}
+	var many []string
+	if err := json.Unmarshal(b, &many); err != nil {
+		return errors.New(`"ask" must be a string or a list of phase names`)
+	}
+	*a = AskList(strings.Join(many, ","))
+	return nil
+}
+
+// Checkpoints returns the configured checkpoint list for run.ParseAsk:
+// "ask", plus the plan when the older "approval": "always" is set.
+func (c Config) Checkpoints() string {
+	s := string(c.Ask)
+	if c.Approval == "always" {
+		s += ",plan"
+	}
+	return strings.TrimPrefix(s, ",")
 }
 
 // GateConfig tunes the gate pipeline.

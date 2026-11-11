@@ -137,6 +137,7 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		HW:          hwprobe.New(),
 		Parallel:    cfg.Parallel,
 		Limits:      cfg.Limits,
+		Checkpoints: cfg.Checkpoints(),
 		Source:      ailoops.Source,
 		Packages:    pkgs,
 		Root:        root,

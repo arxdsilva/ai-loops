@@ -126,7 +126,7 @@ A refactor lane's claims cite the pinning tests. A lane that changes structure a
 
 ### 15. Keep a log
 
-Every action of the run lands in `events.jsonl` (WORKFLOW §5): phases, lanes, verdicts, loop-backs, gates, proofs. A decision and its reason is a `loops run event --kind note`. The report (`loops report`) and `reflection.md` are the log reported at the end.
+Every action of the run lands in `events.jsonl` (WORKFLOW §5): phases, lanes, verdicts, loop-backs, gates, proofs. A decision and its reason is a `loops run decide` (WORKFLOW §2.7); any other fact worth keeping is a `loops run event --kind note`. The report (`loops report`) and `reflection.md` are the log reported at the end.
 
 ### 16. Guard the context window
 

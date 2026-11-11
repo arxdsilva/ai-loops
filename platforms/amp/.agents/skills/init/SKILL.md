@@ -17,8 +17,7 @@ Idempotent setup for the current repo. **Never overwrite an existing file withou
 {
   "layers": {},
   "languages": [],
-  "approval": "never",
-  "auto_pr": false,
+  "ask": [],
   "gate": { "skip": [], "vuln": false },
   "memory": { "workspace": "", "project": "" },
   "parallel": { "max_agents": 100, "agent_ram_gib": 1, "cpu_slots_per_core": 4, "max_test_runs": 0 }
@@ -26,8 +25,7 @@ Idempotent setup for the current repo. **Never overwrite an existing file withou
 ```
    - `languages`: pinned packs (step 1a); `[]` means detect.
    - `layers`: object mapping layer keys (domain, application, ports, adapters, inbound, outbound, platform, compose, cmd, pkg) to lists of module-relative dir prefixes; omitted keys keep defaults. Example: `{"domain":["internal/core"]}`. Leave `{}` unless the repo uses non-standard dirs.
-   - `approval`: `"never"` or `"always"` (`always` makes the lead ask before implementing; `--approve` does the same per run).
-   - `auto_pr`: `true` skips the confirmation before push/PR. Keep `false` unless the user wants it.
+   - `ask`: the phases where the lead stops for the user (WORKFLOW §2.7): `[]` (the default) means it decides every phase and opens the PR itself; e.g. `["plan", "pr"]` to approve the plan and the push, or `"all"`. `--ask` on `/loops:work`, or the user's own words, override it per run. Older configs: `"approval": "always"` still adds `plan`; `auto_pr` is ignored (the PR opens unless `pr` is a checkpoint).
    - `gate.skip`: check names to skip, taken from the detected packs (`loops lang show <id>`; Go: `build`, `gofmt`, `vet`, `staticcheck`, `arch`, `test`, `govulncheck`). `coverage` and the race checks cannot be skipped. `gate.vuln`: include the packs' vulnerability checks (off by default).
    - `memory`: ai-memory scope; leave empty to derive from `.ai-memory.toml` or the git remote `owner/repo`.
    - `parallel`: concurrency. `max_agents` is the configured agent cap (default 100; the effective cap is also bounded by `loops hw`); `agent_ram_gib` and `cpu_slots_per_core` feed the hardware estimate; `max_test_runs` 0 means derive from the CPU count.
