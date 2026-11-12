@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 	"io"
 	"os"
 	"path/filepath"
@@ -101,7 +102,8 @@ func (a *App) cmdGate(ctx context.Context, args []string) int {
 	env := wsCmd{a}.gateEnv(ctx)
 	runDir := ""
 	if env != nil {
-		runDir, _, _, _ = wsCmd{a}.runEnv(ctx) // the run dir scopes each pack's caches
+		runDir, _, _, _ = wsCmd{a}.runEnv(ctx)
+		runDir = scratch.Dir(runDir) // each pack's caches live in the run's scratch dir
 	}
 	res, err := a.Gate.Run(ctx, gate.Options{
 		Root:         a.Root,

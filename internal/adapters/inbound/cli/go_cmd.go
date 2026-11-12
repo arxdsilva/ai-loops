@@ -13,6 +13,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 	"github.com/arxdsilva/ai-loops/internal/domain/workspace"
+	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 )
 
 // Workspace is a run's scratch space (runspace adapter): the run-scoped Go
@@ -106,7 +107,8 @@ func (a wsCmd) env(ctx context.Context, args []string) int {
 	// The GOCACHE/GOTMPDIR line: for a Go project, or when nothing is
 	// detected (the pre-pack behaviour), never for a project without Go.
 	if len(packs) == 0 || slices.ContainsFunc(packs, func(p pack.Pack) bool { return p.ID == workspace.GoPack }) {
-		line, _ := workspace.Exports(*shell, workspace.GoCache(dir), workspace.GoTmp(dir))
+		sd := scratch.Dir(dir)
+		line, _ := workspace.Exports(*shell, workspace.GoCache(sd), workspace.GoTmp(sd))
 		fmt.Fprintln(a.Out, line)
 	}
 	for _, p := range packs {

@@ -10,6 +10,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 	"github.com/arxdsilva/ai-loops/internal/domain/workspace"
+	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 )
 
 // Packs returns the detected language packs (none without WithPacks).
@@ -36,12 +37,13 @@ func (s *Space) PackEnv(runDir string, p pack.Pack) ([]string, error) {
 	if !workspace.ValidPackID(p.ID) {
 		return nil, errors.New("pack id " + p.ID + ": not a valid directory name")
 	}
-	for _, d := range []string{workspace.PackCache(runDir, p.ID), workspace.PackTmp(runDir, p.ID)} {
+	sd := scratch.Dir(runDir)
+	for _, d := range []string{workspace.PackCache(sd, p.ID), workspace.PackTmp(sd, p.ID)} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			return nil, err
 		}
 	}
-	return workspace.RunEnv(runDir, p), nil
+	return workspace.RunEnv(sd, p), nil
 }
 
 // cleanPacks removes <run>/<id> of every detected pack other than Go (whose
@@ -51,7 +53,8 @@ func (s *Space) cleanPacks(runDir string, dryRun bool, r *workspace.Report) {
 		if p.ID == workspace.GoPack {
 			continue
 		}
-		if files, size, ok := cleanRunSub(runDir, workspace.PackDir(runDir, p.ID), dryRun, r); ok {
+		sd := scratch.Dir(runDir)
+		if files, size, ok := cleanRunSub(sd, workspace.PackDir(sd, p.ID), dryRun, r); ok {
 			r.PackCaches = append(r.PackCaches, workspace.DirItem{Path: p.ID, Files: files, Bytes: size})
 		}
 	}

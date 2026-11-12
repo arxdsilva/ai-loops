@@ -3,6 +3,7 @@ package runspace
 import (
 	"bytes"
 	"context"
+	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -49,7 +50,8 @@ func TestPackEndToEnd(t *testing.T) {
 	if err := s.Prepare(ctx, rd); err != nil {
 		t.Fatal(err)
 	}
-	for _, d := range []string{workspace.GoCache(rd), workspace.GoTmp(rd), workspace.PackCache(rd, "foo"), workspace.PackTmp(rd, "foo")} {
+	sd := scratch.Dir(rd) // caches live outside the project
+	for _, d := range []string{workspace.GoCache(sd), workspace.GoTmp(sd), workspace.PackCache(sd, "foo"), workspace.PackTmp(sd, "foo")} {
 		if fi, err := os.Stat(d); err != nil || !fi.IsDir() {
 			t.Fatal(d, err)
 		}
@@ -59,13 +61,13 @@ func TestPackEndToEnd(t *testing.T) {
 	}
 
 	env, err := s.PackEnv(rd, fooPack())
-	if err != nil || !slices.Equal(env, []string{"FOO_CACHE=" + workspace.PackCache(rd, "foo"), "FOO_MODE=ci"}) {
+	if err != nil || !slices.Equal(env, []string{"FOO_CACHE=" + workspace.PackCache(sd, "foo"), "FOO_MODE=ci"}) {
 		t.Fatal(env, err)
 	}
 	if runtime.GOOS != "windows" {
 		var out bytes.Buffer
 		argv := workspace.PackArgv(rd, fooPack(), []string{"sh", "-c", `echo "$FOO_CACHE $FOO_MODE $-"`})
-		if code := s.Exec(ctx, root, env, argv, nil, &out, &out); code != 0 || !strings.HasPrefix(out.String(), workspace.PackCache(rd, "foo")+" ci ") || !strings.Contains(strings.TrimSpace(out.String())[len(workspace.PackCache(rd, "foo"))+4:], "e") {
+		if code := s.Exec(ctx, root, env, argv, nil, &out, &out); code != 0 || !strings.HasPrefix(out.String(), workspace.PackCache(sd, "foo")+" ci ") || !strings.Contains(strings.TrimSpace(out.String())[len(workspace.PackCache(sd, "foo"))+4:], "e") {
 			t.Fatalf("%d %q", code, out.String())
 		}
 	}
@@ -85,13 +87,13 @@ func TestPackEndToEnd(t *testing.T) {
 	if err := os.Symlink(filepath.Join(outside, "precious"), filepath.Join(root, "linked")); err != nil {
 		t.Fatal(err)
 	}
-	write(t, workspace.PackCache(rd, "foo"), "ro/entry", "cached", 0o444)
-	if err := os.Chmod(filepath.Join(workspace.PackCache(rd, "foo"), "ro"), 0o555); err != nil {
+	write(t, workspace.PackCache(sd, "foo"), "ro/entry", "cached", 0o444)
+	if err := os.Chmod(filepath.Join(workspace.PackCache(sd, "foo"), "ro"), 0o555); err != nil {
 		t.Fatal(err)
 	}
 
 	dry, err := s.Clean(ctx, rd, true)
-	if err != nil || len(dry.ArtifactDirs) != 2 || !exists(filepath.Join(root, "out")) || !exists(workspace.PackDir(rd, "foo")) {
+	if err != nil || len(dry.ArtifactDirs) != 2 || !exists(filepath.Join(root, "out")) || !exists(workspace.PackDir(sd, "foo")) {
 		t.Fatalf("dry %+v %v", dry, err)
 	}
 	r, err := s.Clean(ctx, rd, false)
@@ -108,7 +110,7 @@ func TestPackEndToEnd(t *testing.T) {
 	if len(r.Removed) != 1 || r.Removed[0].Path != "x.tmpx" {
 		t.Fatalf("removed %+v", r.Removed)
 	}
-	if len(r.PackCaches) != 1 || r.PackCaches[0].Path != "foo" || r.PackCaches[0].Files != 1 || exists(workspace.PackDir(rd, "foo")) || exists(workspace.GoDir(rd)) {
+	if len(r.PackCaches) != 1 || r.PackCaches[0].Path != "foo" || r.PackCaches[0].Files != 1 || exists(workspace.PackDir(sd, "foo")) || exists(workspace.GoDir(sd)) {
 		t.Fatalf("pack caches %+v", r.PackCaches)
 	}
 	if !slices.Contains(r.DirsRemoved, "pkg") {

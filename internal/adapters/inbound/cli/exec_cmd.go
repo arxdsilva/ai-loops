@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 
 	"github.com/arxdsilva/ai-loops/internal/application/tracker"
 	"github.com/arxdsilva/ai-loops/internal/domain/pack"
@@ -54,7 +55,7 @@ func cmdExec(a *App, ctx context.Context, args []string) int {
 	if err != nil {
 		return a.fail("exec", err)
 	}
-	return pw.Exec(ctx, "", env, workspace.PackArgv(dir, p, argv), a.In, a.Out, a.Err)
+	return pw.Exec(ctx, "", env, workspace.PackArgv(scratch.Dir(dir), p, argv), a.In, a.Out, a.Err)
 }
 
 // namedPack loads pack id when --pack names a pack that was not detected.

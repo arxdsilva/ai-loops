@@ -3,6 +3,7 @@ package hook
 import (
 	"context"
 	"encoding/json"
+	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 	"io"
 	"os"
 	"path/filepath"
@@ -70,6 +71,7 @@ func (h *Handler) toolchainEnv(ctx context.Context, d dialect, p payload, out, e
 	if err != nil || dir == "" {
 		return 0
 	}
+	dir = scratch.Dir(dir) // the run's caches live in its scratch dir
 	if code, handled := h.goEnv(ctx, d, p, in, cmd, dir, out, errw); handled {
 		return code
 	}

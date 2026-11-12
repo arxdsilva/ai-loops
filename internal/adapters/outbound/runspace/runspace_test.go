@@ -3,6 +3,7 @@ package runspace
 import (
 	"bytes"
 	"context"
+	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -62,6 +63,7 @@ func project(t *testing.T) string {
 
 func runDir(t *testing.T, root string) string {
 	t.Helper()
+	t.Setenv("TMPDIR", t.TempDir()) // the run's scratch dir (caches) goes here
 	d := filepath.Join(root, ".loops", "runs", "r1")
 	if err := os.MkdirAll(d, 0o755); err != nil {
 		t.Fatal(err)
@@ -85,7 +87,11 @@ func TestPrepareAndEnv(t *testing.T) {
 	if err := s.Prepare(context.Background(), rd); err != nil {
 		t.Fatal(err)
 	}
-	for _, d := range []string{workspace.GoCache(rd), workspace.GoTmp(rd)} {
+	sd := scratch.Dir(rd) // caches live outside the project
+	if sd == rd || strings.HasPrefix(sd, root) {
+		t.Fatalf("caches inside the project: %q", sd)
+	}
+	for _, d := range []string{workspace.GoCache(sd), workspace.GoTmp(sd)} {
 		if fi, err := os.Stat(d); err != nil || !fi.IsDir() {
 			t.Fatal(d, err)
 		}
@@ -105,12 +111,12 @@ func TestPrepareAndEnv(t *testing.T) {
 	if err != nil || !strings.Contains(string(dirs), "ign\n") || strings.Contains(string(dirs), ".git\n") || strings.Contains(string(dirs), ".loops") {
 		t.Fatalf("dirs %q %v", dirs, err)
 	}
-	os.RemoveAll(workspace.GoDir(rd))
+	os.RemoveAll(workspace.GoDir(sd))
 	env, err := s.Env(rd)
-	if err != nil || !slices.Equal(env, workspace.Env(rd)) {
+	if err != nil || !slices.Equal(env, workspace.Env(sd)) {
 		t.Fatal(env, err)
 	}
-	if !exists(workspace.GoTmp(rd)) || !exists(workspace.GoCache(rd)) {
+	if !exists(workspace.GoTmp(sd)) || !exists(workspace.GoCache(sd)) {
 		t.Fatal("Env must create the go dirs")
 	}
 }
@@ -137,6 +143,7 @@ func TestCleanGitRepo(t *testing.T) {
 	if err := s.Prepare(ctx, rd); err != nil {
 		t.Fatal(err)
 	}
+	sd := scratch.Dir(rd) // caches live outside the project
 
 	// what the agents leave behind
 	write(t, root, "pkg/pkg.test", elf, 0o755)
@@ -156,17 +163,17 @@ func TestCleanGitRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 	// go cache with read-only entries
-	write(t, workspace.GoCache(rd), "ab/abcdef-d", "cachedata", 0o444)
-	if err := os.Chmod(filepath.Join(workspace.GoCache(rd), "ab"), 0o555); err != nil {
+	write(t, workspace.GoCache(sd), "ab/abcdef-d", "cachedata", 0o444)
+	if err := os.Chmod(filepath.Join(workspace.GoCache(sd), "ab"), 0o555); err != nil {
 		t.Fatal(err)
 	}
-	write(t, workspace.GoTmp(rd), "go-build1/b001/x", "tmp", 0o644)
+	write(t, workspace.GoTmp(sd), "go-build1/b001/x", "tmp", 0o644)
 
 	dry, err := s.Clean(ctx, rd, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !dry.DryRun || len(dry.Removed) != 5 || dry.CacheFiles != 2 || !exists(filepath.Join(root, "pkg/pkg.test")) || !exists(workspace.GoDir(rd)) {
+	if !dry.DryRun || len(dry.Removed) != 5 || dry.CacheFiles != 2 || !exists(filepath.Join(root, "pkg/pkg.test")) || !exists(workspace.GoDir(sd)) {
 		t.Fatalf("dry run %+v", dry)
 	}
 
@@ -187,7 +194,7 @@ func TestCleanGitRepo(t *testing.T) {
 			t.Errorf("kept %v lacks %s", r.Kept, k)
 		}
 	}
-	if r.CacheFiles != 2 || r.CacheBytes != int64(len("cachedata")+len("tmp")) || exists(workspace.GoDir(rd)) {
+	if r.CacheFiles != 2 || r.CacheBytes != int64(len("cachedata")+len("tmp")) || exists(workspace.GoDir(sd)) || exists(sd) {
 		t.Fatalf("cache %+v", r)
 	}
 	for _, p := range []string{"tracked.go", "tool.exe", "old.test", "keepdir/old.out", "keepdir", "pkg", "run.test", "notes.md", "debug.log", "link.test", ".loops/runs/r1/proof.test", ".loops/runs/r1/baseline-untracked.txt"} {

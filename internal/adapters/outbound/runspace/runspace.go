@@ -31,6 +31,7 @@ import (
 
 	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/domain/workspace"
+	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 )
 
 // Baseline headers record how the snapshot was taken; a cleanup that cannot
@@ -68,6 +69,9 @@ func (s *Space) WithPacks(detect func() []langpack.Detected) *Space {
 // <run>/<id>/{cache,tmp}, and writes the baseline snapshots (untracked files
 // incl. ignored ones, and the directory list).
 func (s *Space) Prepare(ctx context.Context, runDir string) error {
+	// Caches go to a private folder outside the project; when the temp dir
+	// is unusable they stay in the run dir, as before (scratch.Dir).
+	_, _ = scratch.Create(runDir)
 	if _, err := s.Env(runDir); err != nil {
 		return err
 	}
@@ -93,12 +97,13 @@ func (s *Space) Prepare(ctx context.Context, runDir string) error {
 // Env creates the run's GOCACHE and GOTMPDIR (go refuses a missing
 // GOTMPDIR) and returns the environment entries that select them.
 func (s *Space) Env(runDir string) ([]string, error) {
-	for _, d := range []string{workspace.GoCache(runDir), workspace.GoTmp(runDir)} {
+	sd := scratch.Dir(runDir)
+	for _, d := range []string{workspace.GoCache(sd), workspace.GoTmp(sd)} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			return nil, err
 		}
 	}
-	return workspace.Env(runDir), nil
+	return workspace.Env(sd), nil
 }
 
 func writeLines(path, header string, lines []string) error {
@@ -253,6 +258,11 @@ func (s *Space) Clean(ctx context.Context, runDir string, dryRun bool) (workspac
 	r := workspace.Report{DryRun: dryRun, Removed: []workspace.Item{}, Kept: []string{}}
 	s.cleanGo(runDir, dryRun, &r)
 	s.cleanPacks(runDir, dryRun, &r)
+	if !dryRun {
+		if err := scratch.Remove(runDir); err != nil {
+			r.Refused = append(r.Refused, err.Error())
+		}
+	}
 	header, base, err := readLines(workspace.Baseline(runDir))
 	if errors.Is(err, fs.ErrNotExist) {
 		r.NoBaseline = true
@@ -444,11 +454,12 @@ func unchanged(a, b os.FileInfo) bool {
 	return os.SameFile(a, b) && a.Size() == b.Size() && a.ModTime().Equal(b.ModTime())
 }
 
-// cleanGo removes <run dir>/go after making its directories writable (go
+// cleanGo removes the run's go dir (in its scratch dir, scratch.Dir) after making its directories writable (go
 // cache entries can be read-only). It never follows symlinks and refuses a
 // go dir that is a symlink or resolves outside the run dir.
 func (s *Space) cleanGo(runDir string, dryRun bool, r *workspace.Report) {
-	files, size, _ := cleanRunSub(runDir, workspace.GoDir(runDir), dryRun, r)
+	sd := scratch.Dir(runDir)
+	files, size, _ := cleanRunSub(sd, workspace.GoDir(sd), dryRun, r)
 	r.CacheFiles += files
 	r.CacheBytes += size
 }
