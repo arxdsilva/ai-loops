@@ -3,6 +3,9 @@
   "owner": {
     "name": "Arthur Silva"
   },
+  "metadata": {
+    "description": "loops: the multi-agent coding workflow that turns a ticket into a pull request with proof."
+  },
   "plugins": [
     {
       "name": "loops",

@@ -110,7 +110,8 @@ MIT license.
 }
 
 // claudeShim is bin/loops for the directory package. The directory
-// validator reads it line by line, so it names the one program it runs
+// validator reads it line by line, so it names the plugin root only as
+// ${CLAUDE_PLUGIN_ROOT}/bin, names the one program it runs
 // (loops, found on PATH with this script's own bin/ removed, plus
 // ~/.local/bin), keeps every command substitution on a line of its own, and
 // never names a package launcher. It downloads and builds nothing. Without
@@ -124,15 +125,13 @@ func claudeShim(o Options) plugin.File {
 # build - do not edit; specs/PLATFORMS.md §3.1). It downloads nothing: it
 # runs the loops program installed on this machine (see README.md, Install).
 set -e
-if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-  root=$CLAUDE_PLUGIN_ROOT
-else
+self="${CLAUDE_PLUGIN_ROOT}/bin"
+if [ "$self" = "/bin" ]; then
   here=$(dirname -- "$0")
-  root=$(CDPATH= cd -- "$here/.." && pwd)
+  self=$(CDPATH= cd -- "$here" && pwd)
 fi
-LOOPS_PLUGIN_ROOT=$root
+LOOPS_PLUGIN_ROOT=${self%/bin}
 export LOOPS_PLUGIN_ROOT
-self="$root/bin"
 found=
 if [ -z "${LOOPS_DIRECTORY_SHIM:-}" ]; then
   kept=

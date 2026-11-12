@@ -373,7 +373,7 @@ func claudeDirectoryShim(t *testing.T) string {
 	}
 	for _, f := range files {
 		if f.Path == "bin/loops" {
-			for _, banned := range []string{"curl", "wget", "go install", "go build", "npx", "uvx", "exec \"$"} {
+			for _, banned := range []string{"curl", "wget", "go install", "go build", "npx", "uvx", "exec \"$", "CLAUDE_PLUGIN_ROOT:-", "${CLAUDE_PLUGIN_ROOT}\""} {
 				if strings.Contains(string(f.Data), banned) {
 					t.Fatalf("directory shim mentions %q; it must download and build nothing", banned)
 				}

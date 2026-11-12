@@ -132,20 +132,24 @@ Python, TypeScript/JavaScript, Java, C++, C#, PHP, Go, Ruby, Swift, Kotlin, Rust
 
 Everything goes through one file, `bin/loops`. It runs the `loops` binary that matches the plugin version: one on your PATH, a cached copy (`$CLAUDE_PLUGIN_DATA`, else `~/.cache/loops`), or one it downloads once from this repo's GitHub releases and checks against the release's `checksums.txt` before running. In a git checkout of this repo it builds `cmd/loops` with Go instead.
 
-- **Hooks** (`hooks/hooks.json`). Each one runs `"${CLAUDE_PLUGIN_ROOT}/bin/loops" hook <name>`, fails open (no run, bad input or an error means no effect), and changes only what the table says. The full table is in the [guide](docs/GUIDE.md#guardrails-hooks).
+- **Hooks** (`hooks/hooks.json`). Each one runs `"${CLAUDE_PLUGIN_ROOT}/bin/loops" hook <name>` and fails open: no active run, bad input or an internal error means no effect. None of them sends anything off your machine. The [guide](docs/GUIDE.md#guardrails-hooks) has the details and the switches.
 
-  | Hook | When | What it does or changes |
-  |---|---|---|
-  | session-start | session start | Adds context: where the plugin lives, the active run, an update notice |
-  | read-guard | before Read, Bash | Denies whole-file reads of very large files; read in ranges |
-  | test-guard | before Bash | Denies a Go or Swift test run without its race flag |
-  | toolchain-env | before Bash | Rewrites toolchain commands to use the run's cache directories |
-  | model-guard | before Agent | Denies a general subagent launched without a model |
-  | post-edit | after Edit, Write | Runs the language's formatter and linter on the edited file |
-  | trace, trace-agent | after each tool, agent start and stop | Appends one line to `.loops/runs/<id>/events.jsonl` |
-  | stop-gate | Stop | Blocks finishing while sources changed since the last green gate |
+  | Hook | Event (matcher) | What it does | What it changes |
+  |---|---|---|---|
+  | session-start | SessionStart | Tells Claude where the plugin lives, which run is active, and when an update exists | Adds text to the session's context; no files |
+  | read-guard | PreToolUse (Read, Bash) | Denies a whole-file read of a very large file; Claude reads it in ranges | Nothing; it can only deny the call |
+  | test-guard | PreToolUse (Bash) | Denies a Go or Swift test run without its race flag | Nothing; it can only deny the call |
+  | toolchain-env | PreToolUse (Bash) | Points the language toolchain at the run's own cache directories | Rewrites that command's environment variables |
+  | model-guard | PreToolUse (Agent, Task) | Denies a general subagent launched without a model | Nothing; it can only deny the call |
+  | post-edit | PostToolUse (Edit, Write, MultiEdit) | Runs the language's formatter and linter on the edited file | Formats that file in place; sends lint failures back to Claude |
+  | trace | PostToolUse, PostToolUseFailure (every tool) | Records the tool call in the run's log | Appends one line to `.loops/runs/<id>/events.jsonl` |
+  | trace-agent | SubagentStart, SubagentStop | Records each agent's start and stop | Appends one line to the same log |
+  | stop-gate | Stop | Keeps Claude working while sources changed since the last green gate | Nothing; it can only block the stop |
 
-- **Live pane (mod, `mod/`)**. It adds the `/loops` command, runs `bin/loops status --json` every 3 seconds and after tool and agent events, and draws the result. It sends nothing anywhere.
+- **Live pane (mod, `mod/`)**. It adds the `/loops-pane` command and shows the active run beside the chat.
+  - *What it runs:* one program, `${CLAUDE_PLUGIN_ROOT}/bin/loops status --json`, through `process.run`, every 2 seconds and when you type `/loops-pane`. That command reads the active run's state from `.loops/runs/` in your repository.
+  - *What it reads from Claude Code:* only that `/loops-pane` was typed (`command.run`). It reads no conversation text and no tool calls.
+  - *What it sends, and where:* nothing leaves your machine. The command's output is drawn in the pane and kept nowhere else.
 - **Status line** (`settings.json`): `bin/loops status --subagent`.
 - **Programs**: `git`; `gh` or `glab` for tickets and PRs; your language's formatter, linter and test runner during `loops gate` and post-edit.
 - **Network**: the one-time binary download from github.com; an update check against proxy.golang.org at most once a day (turn it off with `"update_check": false` in `.loops/config.json` or `LOOPS_NO_UPDATE_CHECK=1`); and whatever your agents do in a run (ticket and PR APIs, web research). Run records stay in `.loops/runs/` in your repository.

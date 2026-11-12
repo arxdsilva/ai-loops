@@ -5,7 +5,6 @@ const TITLE = 'loops'
 
 let status = null // parsed status, or {error}
 let inFlight = false
-let lastKick = 0
 let wasActive = false
 let timer = null
 
@@ -28,32 +27,27 @@ async function refresh($) {
   try { $.ui.invalidate('ui.render') } catch {}
 }
 
-async function debounced($) {
-  const now = Date.now()
-  if (now - lastKick < 500) return
-  lastKick = now
-  await refresh($)
-}
-
 export const register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'loops', description: 'Show the live loops run pane' })
+    try {
+      await $.command.register({ name: 'loops-pane', description: 'Show the live loops run pane' })
+    } catch {} // the pane still opens by itself when a run starts
     if (timer) timer.cancel()
-    timer = $.clock.every(3000, () => { void refresh($) })
+    timer = $.clock.every(2000, () => { void refresh($) })
     void refresh($)
     return next(e)
   })
 
-  on('command.run', { command: 'loops' }, async $ => {
-    await refresh($)
-    const r = await $.ui.open({ id: PANE, title: TITLE })
-    if (!(status && status.active)) return { text: 'No active loops run — start one with /loops:work <ticket>' }
-    return { text: r && r.isPlaced === false ? 'loops pane could not be placed (terminal too narrow?).' : 'loops pane opened.' }
+  on('command.run', { command: 'loops-pane' }, async $ => { // '/loops' is a name Claude Code ships
+    try {
+      await refresh($)
+      const r = await $.ui.open({ id: PANE, title: TITLE })
+      if (!(status && status.active)) return { text: 'No active loops run — start one with /loops:work <ticket>' }
+      return { text: r && r.isPlaced === false ? 'loops pane could not be placed (terminal too narrow?).' : 'loops pane opened.' }
+    } catch (err) {
+      return { text: 'loops pane unavailable: ' + String((err && err.message) || err).split('\n')[0] }
+    }
   })
-
-  on('classic.PostToolUse', async ($, e, next) => { void debounced($); return next(e) })
-  on('classic.SubagentStart', async ($, e, next) => { void debounced($); return next(e) })
-  on('classic.SubagentStop', async ($, e, next) => { void debounced($); return next(e) })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
