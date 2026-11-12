@@ -246,7 +246,19 @@ The `hardware-researcher` is a normal haiku subagent on tiers A-C. On tier D the
 
 ## 9. Updates
 
-Mechanism: the hook asks the Go module proxy for `@latest` of `github.com/arxdsilva/ai-loops`, at most once per 24h, and announces each version once. State lives in `~/.local/state/loops/update.json`. Opt-outs: `LOOPS_NO_UPDATE_CHECK=1`, `"update_check": false` in `.loops/config.json`, and `CI=true`. The notice carries the command below; `loops update [platform]` prints it.
+Mechanism: the hook asks the Go module proxy for `@latest` of `github.com/arxdsilva/ai-loops`, at most once per 24h, and announces each version once. State lives in `~/.local/state/loops/update.json`. Opt-outs: `LOOPS_NO_UPDATE_CHECK=1`, `"update_check": false` in `.loops/config.json`, and `CI=true`. The notice carries the command below; `loops update [--platform p]` prints it.
+
+### Auto-update at work start
+
+`<plugin root>/bin/loops update --apply [--platform p]` (WORKFLOW §2.0 step 0) updates the installed plugin without asking.
+- **Version:** the plugin's, read from `<root>/.claude-plugin/plugin.json`. The root comes from `LOOPS_PLUGIN_ROOT`, then `.loops/plugin-root`, then `~/.local/state/loops/plugin-root`. With none, it falls back to the binary's version and the line says so.
+- **Check:** fresh. It ignores the 24h interval and the announce-once state, and does not change `last_notified`.
+- **Routes:** only Claude Code and Copilot CLI run automatically, as the argv of the table above (no shell). It never runs `install.sh`, `curl | sh` or `loops install`. Every other platform gets a `manual` line with its route.
+- **Budget and exit:** 60s for the route, always exit 0, exactly one line starting `loops update:`. Kinds: `skipped`, `up to date`, `updated`, `pending`, `failed`, `backoff`, `manual`, `check failed`. Two optional suffixes: `[version of this loops binary: <why>]` when no plugin root resolved, and `[this loops binary is <v>; call <root>/bin/loops]` when the binary differs from the plugin. The code in `internal/application/updatecheck/apply.go` and `internal/adapters/inbound/cli/update_cmd.go` has the exact wording.
+- **Skips:** the opt-outs above, a `<root>/.git` checkout, and a `*-dev` version.
+- **Attempts:** recorded in `update.json` as `applied`, `applied_at` and `apply_err`. The same version is not retried within 24h (`backoff`, or `pending` after a success); a newer version runs at once.
+- **Binary:** this session keeps the old plugin, skills and shim binary alike. The new plugin's `bin/loops` resolves `loops-<V>` on first use. A `loops` on PATH at another version is not the plugin's; the line says to call the shim.
+- **Reload:** Claude Code `/reload-plugins` or a new session; Copilot `/restart` or a new session. The lead relays the line once and continues on the current version (a non-zero exit, such as `unknown flag` from an older binary, also means continue).
 
 Verified 2026-11-09:
 

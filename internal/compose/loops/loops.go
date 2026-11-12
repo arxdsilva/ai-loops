@@ -28,6 +28,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/portfs"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runspace"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runstore"
+	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/updaterun"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/updatestate"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/vcs"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/versionfile"
@@ -107,7 +108,8 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 	tickets := ticket.New(vcs.New(root))
 
 	upState := updatestate.New()
-	updates := updatecheck.New(goproxy.New("github.com/arxdsilva/ai-loops"), upState, clock)
+	updates := updatecheck.New(goproxy.New("github.com/arxdsilva/ai-loops"), upState, clock).
+		WithRunner(updaterun.New())
 	updateOff := cfg.UpdateCheck != nil && !*cfg.UpdateCheck
 
 	version := embeddedVersion()
@@ -132,6 +134,8 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Update:      updates,
 		UpdateState: upState,
 		UpdateOff:   updateOff,
+		Applier:     updates,
+		Plugins:     versionfile.PluginVersions{},
 		Langs:       langs,
 		Languages:   cfg.Languages,
 		HW:          hwprobe.New(),

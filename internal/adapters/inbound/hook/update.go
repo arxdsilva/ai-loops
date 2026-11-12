@@ -2,10 +2,10 @@ package hook
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/arxdsilva/ai-loops/internal/application/updatecheck"
+	"github.com/arxdsilva/ai-loops/internal/domain/update"
 )
 
 // updateBudget bounds the whole update check inside session-start.
@@ -14,13 +14,10 @@ const updateBudget = 1600 * time.Millisecond
 // updateNotice returns the notice to show, or nil. It is silent and fails
 // open: opt-outs, errors and slow networks all yield nil.
 func (h *Handler) updateNotice(ctx context.Context) *updatecheck.Notice {
-	if h.d.Update == nil || h.d.UpdateOff || h.d.Version == "" {
+	if h.d.Update == nil || h.d.Version == "" {
 		return nil
 	}
-	if h.d.Env("LOOPS_NO_UPDATE_CHECK") != "" {
-		return nil
-	}
-	if ci := strings.ToLower(h.d.Env("CI")); ci == "true" || ci == "1" {
+	if update.OptOut(h.d.Env("LOOPS_NO_UPDATE_CHECK"), h.d.Env("CI"), h.d.UpdateOff) != "" {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, updateBudget)
@@ -40,9 +37,4 @@ func (h *Handler) updateNotice(ctx context.Context) *updatecheck.Notice {
 }
 
 // vtag renders a version with a leading "v".
-func vtag(v string) string {
-	if v == "" || strings.HasPrefix(v, "v") {
-		return v
-	}
-	return "v" + v
-}
+func vtag(v string) string { return update.Tag(v) }

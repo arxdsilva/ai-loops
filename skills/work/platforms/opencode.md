@@ -41,6 +41,7 @@ Writes `.opencode/agents/loops/`, `.opencode/commands/loops/`, `.opencode/plugin
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
 
 ## Update
+Not automatic: `<plugin root>/bin/loops update --apply --platform opencode` prints this manual route (PLATFORMS §9).
 `npx ai-loops --target opencode --force` (`loops update --platform opencode` prints the other ways).
 
 ## Model fallback

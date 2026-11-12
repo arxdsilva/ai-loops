@@ -39,6 +39,7 @@ Writes `.agents/skills/` and `.cline/skills/`. Needs `loops` on PATH (prebuilt; 
 Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
 
 ## Update
+Not automatic: `<plugin root>/bin/loops update --apply --platform cline` prints this manual route (PLATFORMS §9).
 `npx ai-loops --target cline --force` (`loops update --platform cline` prints the other ways).
 
 ## Model fallback

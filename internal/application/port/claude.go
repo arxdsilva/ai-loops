@@ -103,7 +103,7 @@ Prefer automatic setup? `+"`/plugin marketplace add arxdsilva/ai-loops`"+` and `
 
 Everything goes through `+"`bin/loops`"+`, a shell script that runs the `+"`loops`"+` program installed on your PATH or in `+"`~/.local/bin`"+` (step 2 above; keep it at this package's version, %[3]s, by re-running that step after an update). It downloads nothing. Without it every hook does nothing, and session start tells Claude to ask you to install it.
 
-%[5]s- **Network**: none from this package. During a run, your agents use your ticket and PR tools (`+"`gh`"+`, `+"`glab`"+`, connectors) and web research; the `+"`loops`"+` binary checks proxy.golang.org for a newer version at most once a day (turn it off with `+"`\"update_check\": false`"+` in `+"`.loops/config.json`"+` or `+"`LOOPS_NO_UPDATE_CHECK=1`"+`). Run records stay in `+"`.loops/runs/`"+` in your repository.
+%[5]s- **Network**: none from this package. During a run, your agents use your ticket and PR tools (`+"`gh`"+`, `+"`glab`"+`, connectors) and web research; the `+"`loops`"+` binary checks proxy.golang.org for a newer version at most once a day, plus a fresh check and `+"`claude plugin update`"+` at the start of `+"`/loops:work`"+` (turn both off with `+"`\"update_check\": false`"+` in `+"`.loops/config.json`"+` or `+"`LOOPS_NO_UPDATE_CHECK=1`"+`). Run records stay in `+"`.loops/runs/`"+` in your repository.
 
 MIT license.
 `, p.Name, p.Description, o.Version, repoBlob, disclosure), nil

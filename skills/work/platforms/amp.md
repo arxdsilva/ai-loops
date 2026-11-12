@@ -40,6 +40,7 @@ Writes `.agents/skills/`; rules come from AGENTS.md. Needs `loops` on PATH (preb
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
 
 ## Update
+Not automatic: `<plugin root>/bin/loops update --apply --platform amp` prints this manual route (PLATFORMS §9).
 `npx ai-loops --target amp --force` (`loops update --platform amp` prints the other ways).
 
 ## Model fallback

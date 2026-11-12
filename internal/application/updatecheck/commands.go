@@ -10,8 +10,8 @@ func installer(platform string) string {
 }
 
 var commands = map[string]string{
-	"claude":   "claude plugin marketplace update ai-loops && claude plugin update loops@ai-loops",
-	"copilot":  "copilot plugin marketplace update ai-loops && copilot plugin update loops",
+	"claude":   joinRoute(routes["claude"]),
+	"copilot":  joinRoute(routes["copilot"]),
 	"codex":    "codex plugin marketplace upgrade && " + installer("codex"),
 	"cursor":   "Cursor: Dashboard > Plugins & MCPs > open the marketplace > Refresh, then start a new agent",
 	"gemini":   "git -C ai-loops pull && gemini extensions update loops",

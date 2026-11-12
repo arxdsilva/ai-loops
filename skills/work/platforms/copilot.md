@@ -41,7 +41,8 @@ or VS Code: *Chat: Install Plugin from Source*. Needs `loops` on PATH (prebuilt;
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are measured only if the SubagentStop payload carries `agent_transcript_path` *(unverified)*; otherwise they are advisory. Agent, role and concurrency limits always apply.
 
 ## Update
-`copilot plugin marketplace update ai-loops && copilot plugin update loops` (or run `loops update copilot`).
+`copilot plugin marketplace update ai-loops && copilot plugin update loops` (or run `loops update --platform copilot`).
+Applied automatically at work start: `<plugin root>/bin/loops update --apply --platform copilot` (PLATFORMS §9). Reload with `/restart` or a new session.
 
 ## Model fallback
 Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).

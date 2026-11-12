@@ -120,6 +120,7 @@ When a newer release exists, the session context carries one line: `loops vX is 
 
 - Opt out with `LOOPS_NO_UPDATE_CHECK=1` or `"update_check": false` in `.loops/config.json`. It is also skipped when `CI=true`.
 - `loops version --check` checks on demand; `loops update [--platform p]` prints the command for your platform.
+- `loops update --apply [--platform p]` checks now and, on Claude Code and Copilot CLI, updates the installed plugin with the platform's own commands (no shell, 60s budget, one `loops update:` line, always exit 0). `/loops:work` calls it first and tells you to reload (`/reload-plugins` or `/restart`, or start a new session); the same version is not retried within 24h. The opt-outs above also stop it, as do a git checkout and a `-dev` build. Details: `specs/PLATFORMS.md` §9.
 - Releases are produced automatically: each push to main bumps the version from its conventional commits (`loops release`), regenerates the packages and tags `vX.Y.Z`.
 
 | Platform | Update command |

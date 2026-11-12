@@ -37,6 +37,7 @@ QA starts pipelined: a verifier launches as soon as its implementer reports, eve
 
 ### 2.0 Intake
 
+0. Update: `<plugin root>/bin/loops update --apply --platform <p>` (PLATFORMS §9; the session context gives the path, use `loops` only when it does not). Relay its one line to the user; never block.
 1. `loops run start --title "<short title>" [--ticket <ref>] [--source <s>]` prints the run ID and the run directory. It also creates the run's scratch folder outside the project and prepares the run-scoped caches and tmp dirs in it (Go: `<scratch>/go/{cache,tmp}`) and records a baseline of the untracked files already present, so cleanup (§2.6) can tell what the run created.
 2. Fetch the ticket:
    - GitHub (`#123`, `owner/repo#123`, a github.com URL) or GitLab (a gitlab URL): `loops ticket fetch <ref>`. This writes `ticket.md`.
@@ -361,6 +362,10 @@ Language packs (`specs/languages/<id>/pack.json`):
 Gates:
 - `loops gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--fail-fast]`: runs every detected pack's checks (§6). `--only`/`--skip`/`--enable` take check names; `--enable` turns on `default: off` checks; `--vuln` enables the vuln checks.
 - `loops arch [--json] [--root dir]`: the architecture lint (`specs/ARCHITECTURE.md §25`).
+
+Updates:
+- `loops version [--check [--platform p]]`: the version; `--check` asks the module proxy now.
+- `loops update [--platform p] [--apply]`: prints the update command; `--apply` updates the installed plugin (PLATFORMS §9).
 
 `run.Fold(events)` gives `run.State`, which `loops status --json` prints. The status line, the mod pane and the HTML report all read that one source: every recorded event of the current run also rewrites `.loops/status.json` (`run.StatusDoc`, the same document; tool-call steps at most once a second), which the pane reads instead of starting a program, and the end of a run marks it inactive.
 

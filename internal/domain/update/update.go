@@ -17,6 +17,11 @@ type State struct {
 	LastCheck    time.Time `json:"last_check,omitzero"`
 	Latest       string    `json:"latest,omitempty"`        // latest version seen, "v0.3.0"
 	LastNotified string    `json:"last_notified,omitempty"` // version the user was last told about
+
+	// Apply attempts (`loops update --apply`); additive, omitted when unset.
+	Applied   string    `json:"applied,omitempty"`   // version the last automatic update attempted
+	AppliedAt time.Time `json:"applied_at,omitzero"` // when that attempt ran
+	ApplyErr  string    `json:"apply_err,omitempty"` // one-line failure; "" = the attempt succeeded
 }
 
 // Decision is what to do now.

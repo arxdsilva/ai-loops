@@ -16,7 +16,7 @@
 //	install_cmd.go install --target                                (place a platform package)
 //	watch_cmd.go   watch                                           (terminal live view)
 //	version_cmd.go version [--check]                               (release check)
-//	update_cmd.go  update [--platform p]                           (update commands)
+//	update_cmd.go  update [--platform p] [--apply]                 (update commands; --apply updates the installed plugin)
 //	cli.go         dispatch, hook, path, version, flag helpers
 package cli
 
@@ -79,6 +79,10 @@ type App struct {
 	Release     Releaser // loops release (nil = unavailable)
 	UpdateState UpdateStore
 	UpdateOff   bool // .loops/config.json "update_check": false
+	// Applier runs `loops update --apply` (nil = unavailable); Plugins reads
+	// the installed plugin's version (nil = unknown).
+	Applier Applier
+	Plugins PluginVersionReader
 
 	In  io.Reader
 	Out io.Writer
@@ -110,7 +114,7 @@ var commands = map[string]command{
 	"path":    {(*App).cmdPath, "path [root|specs|templates|skills|agents]"},
 	"release": {cmdRelease, "release [auto|patch|minor|major] [--dry-run] [--push]   bump the version from the commits, regenerate packages, commit and tag"},
 	"version": {(*App).cmdVersion, "version [--check [--platform p]]   print the version; --check asks the Go proxy for the latest release"},
-	"update":  {(*App).cmdUpdate, "update [--platform p]   print how to update loops (all platforms when unknown)"},
+	"update":  {(*App).cmdUpdate, "update [--platform p] [--apply]   print how to update loops (all platforms when unknown); --apply checks now and runs the platform's update of the installed plugin (specs/PLATFORMS.md §9)"},
 }
 
 // Run dispatches args (without the program name) and returns the exit code.

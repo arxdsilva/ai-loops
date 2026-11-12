@@ -45,6 +45,7 @@ Needs `loops` on PATH (prebuilt; `install.sh`). Verify: `loops version`; `ls .co
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are measured only if the SubagentStop payload carries `agent_transcript_path` *(unverified)*; otherwise they are advisory. Agent, role and concurrency limits always apply.
 
 ## Update
+Not automatic: `<plugin root>/bin/loops update --apply --platform codex` prints this manual route (PLATFORMS §9).
 `codex plugin marketplace upgrade && npx ai-loops --target codex --force`, then update the plugin in the desktop app (`loops update --platform codex` prints the other ways).
 
 ## Model fallback

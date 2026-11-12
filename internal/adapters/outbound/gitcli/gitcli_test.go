@@ -100,9 +100,22 @@ func TestGit(t *testing.T) {
 	if err := g.Push(ctx, "HEAD"); err == nil {
 		t.Fatal("push without origin succeeded")
 	}
-	if _, err := New(t.TempDir()).LastTag(ctx); err == nil {
+	if _, err := New(notInRepo(t)).LastTag(ctx); err == nil {
 		t.Fatal("non-repo accepted")
 	}
+}
+
+// notInRepo returns a fresh temp dir and stops git's upward discovery at its
+// parent, so the test holds even when TMPDIR lies inside a git work tree.
+func notInRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	parent := filepath.Dir(dir)
+	if r, err := filepath.EvalSymlinks(parent); err == nil {
+		parent = r
+	}
+	t.Setenv("GIT_CEILING_DIRECTORIES", parent)
+	return dir
 }
 
 // A release whose branch push is rejected (main moved on) must not leave its

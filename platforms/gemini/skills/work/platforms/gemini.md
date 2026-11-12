@@ -42,7 +42,8 @@ gemini extensions install ./ai-loops/platforms/gemini   # no subdirectory instal
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
 
 ## Update
-`git -C ai-loops pull && gemini extensions update loops` (or run `loops update gemini`).
+Not automatic: `<plugin root>/bin/loops update --apply --platform gemini` prints this manual route (PLATFORMS §9).
+`git -C ai-loops pull && gemini extensions update loops` (or run `loops update --platform gemini`).
 
 ## Model fallback
 Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).

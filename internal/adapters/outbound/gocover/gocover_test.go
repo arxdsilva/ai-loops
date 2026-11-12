@@ -156,13 +156,26 @@ func TestGateEndToEnd(t *testing.T) {
 	}
 }
 
+// notInRepo returns a fresh temp dir and stops git's upward discovery at its
+// parent, so the test holds even when TMPDIR lies inside a git work tree.
+func notInRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	parent := filepath.Dir(dir)
+	if r, err := filepath.EvalSymlinks(parent); err == nil {
+		parent = r
+	}
+	t.Setenv("GIT_CEILING_DIRECTORIES", parent)
+	return dir
+}
+
 func TestDiffBases(t *testing.T) {
 	needGit(t)
 	ctx := context.Background()
 	r := New()
 
 	// Not a git repo: whole-package mode.
-	if d, err := r.Diff(ctx, t.TempDir(), ""); err != nil || !d.NoGit {
+	if d, err := r.Diff(ctx, notInRepo(t), ""); err != nil || !d.NoGit {
 		t.Fatalf("%+v %v", d, err)
 	}
 

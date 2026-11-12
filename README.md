@@ -151,8 +151,8 @@ Everything goes through one file, `bin/loops`. It runs the `loops` binary that m
   - *What it reads from Claude Code:* only that `/loops-pane` was typed (`command.run`). It reads no conversation text and no tool calls.
   - *What it sends, and where:* nothing leaves your machine. The command's output is drawn in the pane and kept nowhere else.
 - **Status line** (`settings.json`): `bin/loops status --subagent`.
-- **Programs**: `git`; `gh` or `glab` for tickets and PRs; your language's formatter, linter and test runner during `loops gate` and post-edit.
-- **Network**: the one-time binary download from github.com; an update check against proxy.golang.org at most once a day (turn it off with `"update_check": false` in `.loops/config.json` or `LOOPS_NO_UPDATE_CHECK=1`); and whatever your agents do in a run (ticket and PR APIs, web research). Run records stay in `.loops/runs/` in your repository, which git ignores (loops writes `.loops/.gitignore`).
+- **Programs**: `git`; `gh` or `glab` for tickets and PRs; your language's formatter, linter and test runner during `loops gate` and post-edit; and, at the start of `/loops:work`, the `claude` or `copilot` plugin update commands (`claude plugin update`, `copilot plugin update`) through `loops update --apply`.
+- **Network**: the one-time binary download from github.com; an update check against proxy.golang.org at most once a day, plus a fresh check and the plugin update at the start of `/loops:work` (turn both off with `"update_check": false` in `.loops/config.json` or `LOOPS_NO_UPDATE_CHECK=1`); and whatever your agents do in a run (ticket and PR APIs, web research). Run records stay in `.loops/runs/` in your repository, which git ignores (loops writes `.loops/.gitignore`).
 
 ## FAQ
 

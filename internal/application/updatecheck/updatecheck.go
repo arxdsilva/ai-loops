@@ -31,9 +31,10 @@ type Notice struct {
 
 // Service runs the check.
 type Service struct {
-	src   Source
-	store Store
-	clock Clock
+	src    Source
+	store  Store
+	clock  Clock
+	runner Runner // automatic update routes (nil = none), WithRunner
 }
 
 // New builds a Service.

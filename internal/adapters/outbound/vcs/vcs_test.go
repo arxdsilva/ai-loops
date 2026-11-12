@@ -36,11 +36,24 @@ func TestForgeCommands(t *testing.T) {
 	}
 }
 
+// notInRepo returns a fresh temp dir and stops git's upward discovery at its
+// parent, so the test holds even when TMPDIR lies inside a git work tree.
+func notInRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	parent := filepath.Dir(dir)
+	if r, err := filepath.EvalSymlinks(parent); err == nil {
+		parent = r
+	}
+	t.Setenv("GIT_CEILING_DIRECTORIES", parent)
+	return dir
+}
+
 func TestRemoteURL(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("no git")
 	}
-	dir := t.TempDir()
+	dir := notInRepo(t)
 	c := New(dir)
 	if c.RemoteURL(context.Background()) != "" {
 		t.Fatal("expected empty outside a repo")

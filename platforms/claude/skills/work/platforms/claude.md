@@ -46,7 +46,8 @@ Verify: `loops version` resolves (the root shim builds from the checkout; needs 
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are measured from agent transcripts on this platform.
 
 ## Update
-`claude plugin marketplace update ai-loops && claude plugin update loops@ai-loops` (or run `loops update claude`).
+`claude plugin marketplace update ai-loops && claude plugin update loops@ai-loops` (or run `loops update --platform claude`).
+Applied automatically at work start: `<plugin root>/bin/loops update --apply --platform claude` (PLATFORMS §9). Reload with `/reload-plugins` or a new session.
 
 ## Run-scoped toolchain env
 Go commands on this platform are rewritten automatically (the hook rewrites the command; a lone `go build|test|vet|list` is auto-approved). Either way they use the run's own Go cache, which `loops run end` deletes.
