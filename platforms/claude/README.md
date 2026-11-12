@@ -14,7 +14,7 @@ Prefer automatic setup? `/plugin marketplace add arxdsilva/ai-loops` and `/plugi
 
 ## What it runs on your machine
 
-Everything goes through `bin/loops`, a shell script that runs the `loops` binary on your PATH (or in `~/.local/bin` or the loops cache), preferring the one whose version matches this package (v0.9.1). It downloads nothing. Without a binary every hook does nothing, and session start tells Claude to ask you to install it.
+Everything goes through `bin/loops`, a shell script that runs the `loops` program installed on your PATH or in `~/.local/bin` (step 2 above; keep it at this package's version, v0.9.1, by re-running that step after an update). It downloads nothing. Without it every hook does nothing, and session start tells Claude to ask you to install it.
 
 - **Hooks** (`hooks/hooks.json`). Each one runs `"${CLAUDE_PLUGIN_ROOT}/bin/loops" hook <name>`, fails open (no run, bad input or an error means no effect), and changes only what the table says. The full table is in the [guide](https://github.com/arxdsilva/ai-loops/blob/main/docs/GUIDE.md#guardrails-hooks).
 

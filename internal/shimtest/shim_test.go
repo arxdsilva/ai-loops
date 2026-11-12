@@ -373,7 +373,7 @@ func claudeDirectoryShim(t *testing.T) string {
 	}
 	for _, f := range files {
 		if f.Path == "bin/loops" {
-			for _, banned := range []string{"curl", "wget", "go install", "go build"} {
+			for _, banned := range []string{"curl", "wget", "go install", "go build", "npx", "uvx", "exec \"$"} {
 				if strings.Contains(string(f.Data), banned) {
 					t.Fatalf("directory shim mentions %q; it must download and build nothing", banned)
 				}
@@ -404,24 +404,60 @@ func TestClaudeDirectoryShimWithoutBinary(t *testing.T) {
 		}
 	}
 	out, _, err := run(t, shim, nil, "hook", "session-start")
-	if err != nil || !strings.Contains(out, "npx ai-loops bin") {
+	if err != nil || !strings.Contains(out, "README.md#install") {
 		t.Fatalf("session-start: out=%q %v", out, err)
 	}
 	_, errOut, err := run(t, shim, nil, "version")
-	if err == nil || !strings.Contains(errOut, "npx ai-loops bin") {
+	if err == nil || !strings.Contains(errOut, "README.md#install") {
 		t.Fatalf("version: err=%q %v", errOut, err)
 	}
 }
 
-func TestClaudeDirectoryShimUsesCachedBinary(t *testing.T) {
+// The directory shim runs the loops on PATH (or in ~/.local/bin) by name.
+func TestClaudeDirectoryShimRunsLoopsOnPath(t *testing.T) {
 	noGo(t)
 	shim := claudeDirectoryShim(t)
-	data := t.TempDir()
-	if err := os.WriteFile(filepath.Join(data, "loops-"+version), []byte("#!/bin/sh\necho \"cached $LOOPS_PLUGIN_ROOT $*\"\n"), 0o755); err != nil {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "loops"), []byte("#!/bin/sh\necho \"path $LOOPS_PLUGIN_ROOT $*\"\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	out, _, err := run(t, shim, []string{"CLAUDE_PLUGIN_DATA=" + data, "CLAUDE_PLUGIN_ROOT=/plug"}, "hook", "trace")
-	if err != nil || strings.TrimSpace(out) != "cached /plug hook trace" {
+	cmd := exec.Command("/bin/sh", shim, "hook", "trace")
+	cmd.Env = []string{"PATH=" + bin + ":/usr/bin:/bin", "HOME=" + t.TempDir(), "CLAUDE_PLUGIN_ROOT=/plug"}
+	out, err := cmd.Output()
+	if err != nil || strings.TrimSpace(string(out)) != "path /plug hook trace" {
+		t.Fatalf("out=%q %v", out, err)
+	}
+	home := t.TempDir()
+	local := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(local, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(local, "loops"), []byte("#!/bin/sh\necho local $*\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out2, _, err := run(t, shim, []string{"HOME=" + home}, "version")
+	if err != nil || strings.TrimSpace(out2) != "local version" {
+		t.Fatalf("~/.local/bin: out=%q %v", out2, err)
+	}
+}
+
+// With its own bin/ on PATH (as Claude Code adds it) and no other loops, the
+// shim must not run itself again.
+func TestClaudeDirectoryShimSkipsItself(t *testing.T) {
+	noGo(t)
+	shim := claudeDirectoryShim(t)
+	self := filepath.Dir(shim)
+	root := filepath.Dir(self)
+	cmd := exec.Command("/bin/sh", shim, "hook", "read-guard")
+	cmd.Env = []string{"PATH=" + self + ":/usr/bin:/bin", "HOME=" + t.TempDir(), "CLAUDE_PLUGIN_ROOT=" + root}
+	out, err := cmd.CombinedOutput()
+	if err != nil || len(out) != 0 {
+		t.Fatalf("out=%q %v (must fail open, not recurse)", out, err)
+	}
+	// A different spelling of its own dir on PATH still ends after one hop.
+	cmd = exec.Command("/bin/sh", shim, "version")
+	cmd.Env = []string{"PATH=" + self + "/.:/usr/bin:/bin", "HOME=" + t.TempDir(), "CLAUDE_PLUGIN_ROOT=" + root}
+	if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "not installed") {
 		t.Fatalf("out=%q %v", out, err)
 	}
 }

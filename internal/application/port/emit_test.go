@@ -390,7 +390,7 @@ func TestClaudeDirectoryPackage(t *testing.T) {
 		t.Errorf("agent not copied verbatim: %q", got)
 	}
 	shim := mustFile(t, files, "bin/loops")
-	for _, banned := range []string{"curl", "wget", "go install", "releases/download"} {
+	for _, banned := range []string{"curl", "wget", "go install", "releases/download", "npx"} {
 		if strings.Contains(shim, banned) {
 			t.Errorf("directory shim contains %q", banned)
 		}
