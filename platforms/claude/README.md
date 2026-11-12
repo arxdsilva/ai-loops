@@ -7,14 +7,14 @@ This is the Claude plugin directory package of [github.com/arxdsilva/ai-loops](h
 ## Install
 
 1. Install loops from the Claude Code plugin directory.
-2. Install the `loops` binary once, in a terminal: `npx ai-loops bin` (Node 18+). It downloads the release binary for your OS from GitHub, checks it against the release's `checksums.txt` and puts it in `~/.local/bin`. Without Node: `go install github.com/arxdsilva/ai-loops/cmd/loops@v0.9.4`, or the other ways in the [install guide](https://github.com/arxdsilva/ai-loops/blob/main/docs/GUIDE.md#install).
+2. Install the `loops` binary once, in a terminal: `npx ai-loops bin` (Node 18+). It downloads the release binary for your OS from GitHub, checks it against the release's `checksums.txt` and puts it in `~/.local/bin`. Without Node: `go install github.com/arxdsilva/ai-loops/cmd/loops@v0.9.5`, or the other ways in the [install guide](https://github.com/arxdsilva/ai-loops/blob/main/docs/GUIDE.md#install).
 3. In your repository: `/loops:init`, then `/loops:work <ticket>`.
 
 Prefer automatic setup? `/plugin marketplace add arxdsilva/ai-loops` and `/plugin install loops@ai-loops` install the same plugin with a shim that downloads the binary on first use.
 
 ## What it runs on your machine
 
-Everything goes through `bin/loops`, a shell script that runs the `loops` program installed on your PATH or in `~/.local/bin` (step 2 above; keep it at this package's version, v0.9.4, by re-running that step after an update). It downloads nothing. Without it every hook does nothing, and session start tells Claude to ask you to install it.
+Everything goes through `bin/loops`, a shell script that runs the `loops` program installed on your PATH or in `~/.local/bin` (step 2 above; keep it at this package's version, v0.9.5, by re-running that step after an update). It downloads nothing. Without it every hook does nothing, and session start tells Claude to ask you to install it.
 
 - **Hooks** (`hooks/hooks.json`). Each one runs `"${CLAUDE_PLUGIN_ROOT}/bin/loops" hook <name>` and fails open: no active run, bad input or an internal error means no effect. None of them sends anything off your machine. The [guide](https://github.com/arxdsilva/ai-loops/blob/main/docs/GUIDE.md#guardrails-hooks) has the details and the switches.
 
