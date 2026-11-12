@@ -47,7 +47,8 @@ These are the files each emitter writes under `platforms/<name>/`. Every package
 Every path the package needs comes from its root variable, so no package hard-codes absolute paths.
 
 ### 3.1 Claude Code and Copilot: the root
-- **Claude:** `/plugin marketplace add arxdsilva/ai-loops`, then `/plugin install loops@ai-loops`.
+- **Claude:** `/plugin marketplace add arxdsilva/ai-loops`, then `/plugin install loops@ai-loops`. The repository root is the plugin.
+- **Claude plugin directory: `platforms/claude/`.** The same plugin (agents, skills, specs, templates, hooks, settings, mod, manifest and icon copied unchanged) with a `bin/loops` that downloads and builds nothing, because the directory refuses a plugin that downloads a file and runs it. It runs an installed `loops` (PATH, `~/.local/bin`, then the cache), preferring the package's version; the user installs it once with `npx ai-loops bin`. Without one, hooks and the status line exit 0 with no effect and session start asks for the install. Its README reuses the readme's "What it runs on your machine" bullets. Submit this folder, not the root, to the directory.
 - **Copilot:** `copilot plugin install arxdsilva/ai-loops`, or in VS Code run *Chat: Install Plugin from Source*. Copilot reads `.claude-plugin/`, `hooks/hooks.json`, `agents/` (Claude frontmatter) and `skills/`, and `${CLAUDE_PLUGIN_ROOT}` is aliased. No generated package is needed. The Copilot emitter only writes `platforms/copilot/README.md` with these steps.
 
 ### 3.2 Codex: `platforms/codex/`

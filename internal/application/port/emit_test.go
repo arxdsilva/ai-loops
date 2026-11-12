@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	ailoops "github.com/arxdsilva/ai-loops"
 	"github.com/arxdsilva/ai-loops/internal/domain/plugin"
@@ -377,9 +378,54 @@ func TestSetFrontmatterKey(t *testing.T) {
 	}
 }
 
+func TestClaudeDirectoryPackage(t *testing.T) {
+	files, warns := build(t, plugin.Claude, Options{})
+	if len(warns) != 0 {
+		t.Fatalf("warns %q", warns)
+	}
+	for _, name := range []string{".loops-generated", ".claude-plugin/plugin.json", "hooks/hooks.json", "agents/planner.md", "agents/scout.md", "skills/work/SKILL.md", "specs/WORKFLOW.md", "ROLES.md"} {
+		mustFile(t, files, name)
+	}
+	if got := mustFile(t, files, "agents/scout.md"); got != "---\nname: scout\ndescription: Scout.\ntools: Read, Grep\n---\nScout body\n" {
+		t.Errorf("agent not copied verbatim: %q", got)
+	}
+	shim := mustFile(t, files, "bin/loops")
+	for _, banned := range []string{"curl", "wget", "go install", "releases/download"} {
+		if strings.Contains(shim, banned) {
+			t.Errorf("directory shim contains %q", banned)
+		}
+	}
+	r := mustFile(t, files, "README.md")
+	for _, w := range []string{"npx ai-loops bin", "/plugin marketplace add arxdsilva/ai-loops", "/loops:work", "What it runs on your machine", "- **Network**"} {
+		if !strings.Contains(r, w) {
+			t.Errorf("README lacks %q", w)
+		}
+	}
+}
+
+func TestClaudeDirectoryReadmeReusesDisclosure(t *testing.T) {
+	p, src := loadFixture(t)
+	src["README.md"] = &fstest.MapFile{Data: []byte("# x\n\n## What it runs on your machine\n\nintro\n\n- **Hooks** [g](docs/GUIDE.md#h)\n- **Programs**: git\n- **Network**: lots\n")}
+	list, _, err := Build(p, src, plugin.Claude, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]plugin.File{}
+	for _, f := range list {
+		files[f.Path] = f
+	}
+	r := mustFile(t, files, "README.md")
+	if !strings.Contains(r, "- **Hooks** [g](https://github.com/arxdsilva/ai-loops/blob/main/docs/GUIDE.md#h)\n- **Programs**: git\n") || strings.Contains(r, "lots") || strings.Contains(r, "intro") {
+		t.Fatalf("disclosure not reused: %s", r)
+	}
+	src["README.md"] = &fstest.MapFile{Data: []byte("# x\n")}
+	if _, _, err := Build(p, src, plugin.Claude, Options{}); err == nil {
+		t.Fatal("README without the section accepted")
+	}
+}
+
 func TestReadmeOnlyPackages(t *testing.T) {
 	for target, wants := range map[plugin.Platform][]string{
-		plugin.Claude:  {"/plugin marketplace add arxdsilva/ai-loops", "/plugin install loops@ai-loops"},
 		plugin.Copilot: {"copilot plugin install arxdsilva/ai-loops", "Chat: Install Plugin from Source"},
 	} {
 		files, warns := build(t, target, Options{})

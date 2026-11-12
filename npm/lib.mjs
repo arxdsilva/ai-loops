@@ -11,6 +11,7 @@ const INSTALLER = new Set(['codex', 'opencode', 'amp', 'windsurf', 'cline']);
 
 export const USAGE = `usage:
   npx ai-loops [install] [--target <platform>] [--scope <scope>] [--force] [--bin-dir <dir>]
+  npx ai-loops bin [--bin-dir <dir>]         install only the loops binary (default ~/.local/bin)
   npx ai-loops <loops command> [args...]     e.g. npx ai-loops version
 
 install (the default) sets loops up for one agent tool; --target defaults to claude.
@@ -19,11 +20,22 @@ scope: claude takes user, project or local (default user); installer platforms t
 Any other command runs the loops binary of this package's version.
 Guide: https://github.com/${REPO}/blob/main/docs/GUIDE.md#install`;
 
-// parseArgs splits argv into {cmd:'install'|'help'|'version'|'run', opts, rest}.
+// parseArgs splits argv into {cmd:'install'|'bin'|'help'|'version'|'run', opts, rest}.
 export function parseArgs(argv) {
   const args = [...argv];
   if (args[0] === '-h' || args[0] === '--help' || args[0] === 'help') return { cmd: 'help' };
   if (args[0] === '-v' || args[0] === '--version') return { cmd: 'version' };
+  if (args[0] === 'bin') {
+    const opts = { binDir: '' };
+    for (let i = 1; i < args.length; i++) {
+      const a = args[i];
+      if (a === '--bin-dir' && i + 1 < args.length && !args[i + 1].startsWith('--')) opts.binDir = args[++i];
+      else if (a.startsWith('--bin-dir=')) opts.binDir = a.slice(10);
+      else if (a === '-h' || a === '--help') return { cmd: 'help' };
+      else throw new Error(a === '--bin-dir' ? '--bin-dir needs a value' : `unknown option ${a}`);
+    }
+    return { cmd: 'bin', opts };
+  }
   if (args.length === 0 || args[0] === 'install' || args[0].startsWith('--')) {
     if (args[0] === 'install') args.shift();
     const opts = { target: 'claude', scope: '', force: false, binDir: '' };

@@ -10,7 +10,7 @@ argument-hint: "<ticket ref or text> [--ask phases|all] [--approve] [--no-pr] [-
 
 You are the **lead**, the run's master agent: you run every phase yourself from intake to `loops run end`, hold the scope in `$RUN/charter.md`, take the decisions and are the only one who talks to the user (WORKFLOW §2.7). Spec: `specs/WORKFLOW.md` (cite `WORKFLOW §n`, do not restate). Roles: `ROLES.md`. Arguments: `$ARGUMENTS`.
 
-**The `loops` binary.** First check `loops version`. If `loops` is not on PATH, use the absolute path the session context gives (`<plugin root>/bin/loops`), or, where the platform has no plugin root, install it once with `npx ai-loops --target <platform>` (prebuilt and checksum-verified, no Go needed; other ways in `docs/GUIDE.md#install`). Every role agent you spawn gets the same instruction, through the prompt header line `Loops: <abs path to loops>`.
+**The `loops` binary.** First check `loops version`. If `loops` is not on PATH, use the absolute path the session context gives (`<plugin root>/bin/loops`), or, when there is none or it reports that the binary is not installed, ask the user to install it once with `npx ai-loops bin` (prebuilt and checksum-verified, no Go needed; other ways in `docs/GUIDE.md#install`). Every role agent you spawn gets the same instruction, through the prompt header line `Loops: <abs path to loops>`.
 
 ## Discipline
 

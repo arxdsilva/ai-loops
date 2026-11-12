@@ -79,6 +79,21 @@ async function cachedBinary(tag) {
   return dest;
 }
 
+// installBinary puts the checksummed loops binary in dir (default
+// ~/.local/bin) and returns its path.
+async function installBinary(binDir) {
+  const tag = await resolveTag();
+  const dir = binDir || join(homedir(), '.local', 'bin');
+  mkdirSync(dir, { recursive: true });
+  const loops = join(dir, `loops${ext}`);
+  await download(tag, loops);
+  console.log(`loops ${tag} installed to ${loops}`);
+  if (!(process.env.PATH || '').split(process.platform === 'win32' ? ';' : ':').includes(dir)) {
+    console.error(`ai-loops: note: ${dir} is not on your PATH; add it to run loops from a terminal`);
+  }
+  return loops;
+}
+
 async function install(opts) {
   let loops = '';
   for (const step of plan(opts)) {
@@ -88,15 +103,7 @@ async function install(opts) {
         if (!step.fallback || !run(step.fallback)) die(`${step.run.join(' ')} failed`);
       }
     } else if (step.binary) {
-      const tag = await resolveTag();
-      const dir = opts.binDir || join(homedir(), '.local', 'bin');
-      mkdirSync(dir, { recursive: true });
-      loops = join(dir, `loops${ext}`);
-      await download(tag, loops);
-      console.log(`loops ${tag} installed to ${loops}`);
-      if (!(process.env.PATH || '').split(process.platform === 'win32' ? ';' : ':').includes(dir)) {
-        console.error(`ai-loops: warning: ${dir} is not on your PATH; add it so the hooks can find loops`);
-      }
+      loops = await installBinary(opts.binDir);
     } else if (step.loops) {
       if (!run([loops, ...step.loops])) die(`loops ${step.loops.join(' ')} failed`);
     } else if (step.gemini) {
@@ -132,6 +139,8 @@ if (parsed.cmd === 'help') {
   console.log(USAGE);
 } else if (parsed.cmd === 'version') {
   console.log(`ai-loops ${pkg.version}`);
+} else if (parsed.cmd === 'bin') {
+  await installBinary(parsed.opts.binDir).catch(e => die(e.message));
 } else if (parsed.cmd === 'install') {
   await install(parsed.opts).catch(e => die(e.message));
 } else {

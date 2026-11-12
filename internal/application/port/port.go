@@ -61,7 +61,7 @@ type emitter func(p plugin.Plugin, src fs.FS, o Options) ([]plugin.File, []strin
 
 // emitters maps platforms to their builders (one file per platform).
 var emitters = map[plugin.Platform]emitter{
-	plugin.Claude:   buildClaude,   // claude.go   (P1): README only — the repo root is the package
+	plugin.Claude:   buildClaude,   // claude.go   (P1): the plugin-directory package (no-download shim)
 	plugin.Copilot:  buildCopilot,  // copilot.go  (P1): README only — Copilot reads the root
 	plugin.Codex:    buildCodex,    // codex.go    (P1)
 	plugin.Cursor:   buildCursor,   // cursor.go   (P1)

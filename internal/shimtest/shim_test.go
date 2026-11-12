@@ -358,3 +358,70 @@ func TestInstallScriptRefuses(t *testing.T) {
 		t.Errorf("bogus flag: %v %s", err, errOut)
 	}
 }
+
+// claudeDirectoryShim writes the Claude plugin-directory package's bin/loops.
+func claudeDirectoryShim(t *testing.T) string {
+	t.Helper()
+	root := repoRoot(t)
+	p, err := port.Load(os.DirFS(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, _, err := port.Build(p, os.DirFS(root), plugin.Claude, port.Options{Version: "v" + version})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if f.Path == "bin/loops" {
+			for _, banned := range []string{"curl", "wget", "go install", "go build"} {
+				if strings.Contains(string(f.Data), banned) {
+					t.Fatalf("directory shim mentions %q; it must download and build nothing", banned)
+				}
+			}
+			path := filepath.Join(t.TempDir(), "pkg", "bin", "loops")
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, f.Data, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			return path
+		}
+	}
+	t.Fatal("no bin/loops in the Claude package")
+	return ""
+}
+
+// Without a binary the directory shim fails open for hooks and the status
+// line, asks for an install at session start, and errors for commands.
+func TestClaudeDirectoryShimWithoutBinary(t *testing.T) {
+	noGo(t)
+	shim := claudeDirectoryShim(t)
+	for _, args := range [][]string{{"hook", "read-guard"}, {"hook", "stop-gate"}, {"status", "--subagent"}} {
+		out, errOut, err := run(t, shim, nil, args...)
+		if err != nil || out != "" || errOut != "" {
+			t.Fatalf("%v: out=%q err=%q %v (must fail open silently)", args, out, errOut, err)
+		}
+	}
+	out, _, err := run(t, shim, nil, "hook", "session-start")
+	if err != nil || !strings.Contains(out, "npx ai-loops bin") {
+		t.Fatalf("session-start: out=%q %v", out, err)
+	}
+	_, errOut, err := run(t, shim, nil, "version")
+	if err == nil || !strings.Contains(errOut, "npx ai-loops bin") {
+		t.Fatalf("version: err=%q %v", errOut, err)
+	}
+}
+
+func TestClaudeDirectoryShimUsesCachedBinary(t *testing.T) {
+	noGo(t)
+	shim := claudeDirectoryShim(t)
+	data := t.TempDir()
+	if err := os.WriteFile(filepath.Join(data, "loops-"+version), []byte("#!/bin/sh\necho \"cached $LOOPS_PLUGIN_ROOT $*\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := run(t, shim, []string{"CLAUDE_PLUGIN_DATA=" + data, "CLAUDE_PLUGIN_ROOT=/plug"}, "hook", "trace")
+	if err != nil || strings.TrimSpace(out) != "cached /plug hook trace" {
+		t.Fatalf("out=%q %v", out, err)
+	}
+}

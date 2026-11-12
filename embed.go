@@ -10,4 +10,5 @@ import "embed"
 // Source is the canonical plugin tree, rooted at the repository root.
 //
 //go:embed agents skills specs templates hooks/hooks.json ROLES.md LICENSE .claude-plugin/plugin.json
+//go:embed .claude-plugin/icon.png settings.json mod/register.js mod/view.js README.md
 var Source embed.FS

@@ -19,6 +19,15 @@ test('bad install arguments are rejected', () => {
   assert.throws(() => parseArgs(['install', 'x']), /unknown option x/);
 });
 
+test('bin installs only the binary', () => {
+  assert.deepEqual(parseArgs(['bin']), { cmd: 'bin', opts: { binDir: '' } });
+  assert.deepEqual(parseArgs(['bin', '--bin-dir', '/b']).opts, { binDir: '/b' });
+  assert.deepEqual(parseArgs(['bin', '--bin-dir=/c']).opts, { binDir: '/c' });
+  assert.equal(parseArgs(['bin', '-h']).cmd, 'help');
+  assert.throws(() => parseArgs(['bin', '--bin-dir']), /needs a value/);
+  assert.throws(() => parseArgs(['bin', 'x']), /unknown option x/);
+});
+
 test('help, version and pass-through', () => {
   assert.equal(parseArgs(['--help']).cmd, 'help');
   assert.equal(parseArgs(['install', '-h']).cmd, 'help');
