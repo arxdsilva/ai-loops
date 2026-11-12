@@ -20,17 +20,32 @@ var ReleasePaths = []string{
 	".cursor-plugin/marketplace.json",
 }
 
-// Git is the repository as the release needs it.
+// Git is the repository as the release needs it: what it reads, and how it
+// publishes.
 type Git interface {
+	History
+	Publisher
+}
+
+// History is what the release reads from the repository.
+type History interface {
 	LastTag(ctx context.Context) (string, error) // "" when there is none
 	CommitsSince(ctx context.Context, tag string) ([]string, error)
 	HeadTags(ctx context.Context) ([]string, error)
 	HeadSubject(ctx context.Context) (string, error)
+	// TagExists reports a tag of that name anywhere in the repository,
+	// reachable from HEAD or not.
+	TagExists(ctx context.Context, tag string) (bool, error)
+	Dirty(ctx context.Context) (bool, error)
+}
+
+// Publisher records and publishes the release.
+type Publisher interface {
 	// Commit stages paths and commits only them (git add -- paths; git commit -m msg -- paths).
 	Commit(ctx context.Context, msg string, paths []string) error
 	Tag(ctx context.Context, tag, msg string) error // annotated
+	// Push pushes refs to origin atomically: all of them or none.
 	Push(ctx context.Context, ref ...string) error
-	Dirty(ctx context.Context) (bool, error)
 }
 
 // Files is the version file.
@@ -55,7 +70,13 @@ type Result struct {
 	Next    string
 	Level   string // the level applied
 	Summary string // e.g. "3 feat, 2 fix"
+	// Taken lists the versions skipped because their tag already exists
+	// (a tag left behind by a release whose commit never reached the branch).
+	Taken []string
 }
+
+// maxTaken bounds the walk past existing tags.
+const maxTaken = 100
 
 // Service is the release use case.
 type Service struct {
@@ -115,6 +136,9 @@ func (s *Service) Release(ctx context.Context, o Options) (Result, error) {
 		return res, err
 	}
 	res.Summary = domain.Summarize(commits).String()
+	if err := s.skipTaken(ctx, &res); err != nil {
+		return res, err
+	}
 	if o.DryRun {
 		return res, nil
 	}
@@ -137,6 +161,22 @@ func (s *Service) Release(ctx context.Context, o Options) (Result, error) {
 		}
 	}
 	return res, nil
+}
+
+// skipTaken moves res.Next past versions whose tag already exists, one
+// patch at a time, so a stale tag never blocks the next release.
+func (s *Service) skipTaken(ctx context.Context, res *Result) error {
+	for range maxTaken {
+		taken, err := s.git.TagExists(ctx, "v"+res.Next)
+		if err != nil || !taken {
+			return err
+		}
+		res.Taken = append(res.Taken, "v"+res.Next)
+		if res.Next, _, err = domain.Bump(res.Next, domain.Patch, nil); err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("release: %d versions after %s are already tagged", maxTaken, res.Current)
 }
 
 func skip(r Result, reason string) Result {

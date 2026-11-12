@@ -103,8 +103,15 @@ func (g *Git) Tag(ctx context.Context, tag, msg string) error {
 	return err
 }
 
-// Push pushes refs to origin.
+// TagExists reports whether the tag exists locally (fetched tags included).
+func (g *Git) TagExists(ctx context.Context, tag string) (bool, error) {
+	out, err := g.run(ctx, "tag", "--list", tag)
+	return strings.TrimSpace(out) != "", err
+}
+
+// Push pushes refs to origin atomically, so a rejected branch update never
+// leaves its tag behind.
 func (g *Git) Push(ctx context.Context, ref ...string) error {
-	_, err := g.run(ctx, append([]string{"push", "origin"}, ref...)...)
+	_, err := g.run(ctx, append([]string{"push", "--atomic", "origin"}, ref...)...)
 	return err
 }

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/arxdsilva/ai-loops/internal/application/release"
 )
@@ -47,6 +48,9 @@ func (r releaseCmd) run(ctx context.Context, args []string) int {
 	if err != nil {
 		fmt.Fprintln(r.Err, "loops release:", err)
 		return 1
+	}
+	if len(res.Taken) > 0 {
+		fmt.Fprintf(r.Out, "release: skipping already tagged %s\n", strings.Join(res.Taken, ", "))
 	}
 	switch {
 	case res.Skipped:

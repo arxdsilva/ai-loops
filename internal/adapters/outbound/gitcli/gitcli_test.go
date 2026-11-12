@@ -104,3 +104,42 @@ func TestGit(t *testing.T) {
 		t.Fatal("non-repo accepted")
 	}
 }
+
+// A release whose branch push is rejected (main moved on) must not leave its
+// tag on origin: that stale tag blocked every later release.
+func TestPushIsAtomicAndTagExists(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	ctx := context.Background()
+	origin, a, b := t.TempDir(), t.TempDir(), t.TempDir()
+	git(t, origin, "init", "-q", "--bare", "-b", "main")
+	git(t, a, "init", "-q", "-b", "main")
+	write(t, a, "a.txt", "1")
+	git(t, a, "add", ".")
+	git(t, a, "commit", "-q", "-m", "feat: first")
+	git(t, a, "remote", "add", "origin", origin)
+	git(t, a, "push", "-q", "origin", "main")
+	git(t, b, "clone", "-q", origin, ".")
+	write(t, b, "b.txt", "1")
+	git(t, b, "add", ".")
+	git(t, b, "commit", "-q", "-m", "fix: moved on")
+	git(t, b, "push", "-q", "origin", "main")
+
+	write(t, a, "a.txt", "2")
+	git(t, a, "commit", "-q", "-am", "release v0.1.0")
+	git(t, a, "tag", "-a", "v0.1.0", "-m", "x")
+	g := New(a)
+	if ok, err := g.TagExists(ctx, "v0.1.0"); err != nil || !ok {
+		t.Fatalf("tag exists: %v %v", ok, err)
+	}
+	if ok, err := g.TagExists(ctx, "v9.9.9"); err != nil || ok {
+		t.Fatalf("missing tag reported: %v %v", ok, err)
+	}
+	if err := g.Push(ctx, "HEAD:main", "v0.1.0"); err == nil {
+		t.Fatal("non-fast-forward push succeeded")
+	}
+	if ok, _ := New(origin).TagExists(ctx, "v0.1.0"); ok {
+		t.Fatal("rejected push left its tag on origin")
+	}
+}

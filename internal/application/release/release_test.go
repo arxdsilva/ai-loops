@@ -14,6 +14,7 @@ type fakeGit struct {
 	headTags []string
 	subject  string
 	dirty    bool
+	taken    map[string]bool
 	calls    []string
 	err      map[string]error
 }
@@ -35,6 +36,9 @@ func (g *fakeGit) Commit(_ context.Context, msg string, paths []string) error {
 	return g.rec("Commit", msg, strings.Join(paths, ","))
 }
 func (g *fakeGit) Tag(_ context.Context, tag, msg string) error { return g.rec("Tag", tag, msg) }
+func (g *fakeGit) TagExists(_ context.Context, tag string) (bool, error) {
+	return g.taken[tag], g.rec("TagExists", tag)
+}
 func (g *fakeGit) Push(_ context.Context, refs ...string) error {
 	return g.rec("Push", refs...)
 }
@@ -78,7 +82,7 @@ func TestReleaseHappyPath(t *testing.T) {
 	}
 	want := []string{
 		"LastTag ", "CommitsSince v0.3.0", "HeadTags ", "HeadSubject ", "Dirty ",
-		"WriteVersion 0.4.0", "Regenerate",
+		"TagExists v0.4.0", "WriteVersion 0.4.0", "Regenerate",
 		"Commit release v0.4.0 " + strings.Join(ReleasePaths, ","),
 		"Tag v0.4.0 loops v0.4.0",
 		"Push HEAD v0.4.0",
@@ -120,7 +124,7 @@ func TestReleaseDirty(t *testing.T) {
 		t.Fatalf("dirty tree accepted: %v", err)
 	}
 	res, err := s.Release(context.Background(), Options{Level: "auto", DryRun: true})
-	if err != nil || !res.DryRun || res.Next != "0.3.1" || has(g.calls, "WriteVersion") || has(g.calls, "Commit release") || has(g.calls, "Tag") {
+	if err != nil || !res.DryRun || res.Next != "0.3.1" || has(g.calls, "WriteVersion") || has(g.calls, "Commit release") || has(g.calls, "Tag v") {
 		t.Fatalf("dry-run: %+v %v %q", res, err, g.calls)
 	}
 }
@@ -136,7 +140,7 @@ func TestReleaseNoTagUsesAllCommits(t *testing.T) {
 
 func TestReleaseErrors(t *testing.T) {
 	boom := errors.New("boom")
-	for _, op := range []string{"LastTag", "CommitsSince", "HeadTags", "HeadSubject", "Dirty", "Commit", "Tag", "Push"} {
+	for _, op := range []string{"LastTag", "CommitsSince", "HeadTags", "HeadSubject", "Dirty", "TagExists", "Commit", "Tag", "Push"} {
 		t.Run(op, func(t *testing.T) {
 			g := &fakeGit{lastTag: "v0.3.0", commits: []string{"fix: b"}, subject: "x", err: map[string]error{op: boom}}
 			s, _ := setup(g)
@@ -160,3 +164,35 @@ func TestReleaseErrors(t *testing.T) {
 		t.Fatalf("regen: %v", err)
 	}
 }
+
+// A tag left behind by a release whose commit never reached the branch
+// (v0.3.1 below) must not block the next release: it moves past it.
+func TestReleaseSkipsTakenTags(t *testing.T) {
+	g := &fakeGit{lastTag: "v0.3.0", commits: []string{"fix: b"}, subject: "fix: b",
+		taken: map[string]bool{"v0.3.1": true, "v0.3.2": true}}
+	s, _ := setup(g)
+	res, err := s.Release(context.Background(), Options{Level: "auto", Push: true})
+	if err != nil || res.Next != "0.3.3" || !reflect.DeepEqual(res.Taken, []string{"v0.3.1", "v0.3.2"}) {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if !has(g.calls, "Tag v0.3.3") || !has(g.calls, "Push HEAD v0.3.3") || !has(g.calls, "WriteVersion 0.3.3") {
+		t.Fatalf("calls %q", g.calls)
+	}
+	dry := &fakeGit{lastTag: "v0.3.0", commits: []string{"feat: a"}, subject: "x", taken: map[string]bool{"v0.4.0": true}}
+	s, _ = setup(dry)
+	if res, err := s.Release(context.Background(), Options{Level: "auto", DryRun: true}); err != nil || res.Next != "0.4.1" {
+		t.Fatalf("dry run: %+v %v", res, err)
+	}
+}
+
+func TestReleaseTakenWalkIsBounded(t *testing.T) {
+	g := &allTaken{fakeGit{lastTag: "v0.3.0", commits: []string{"fix: b"}, subject: "x"}}
+	s := New(g, &fakeFiles{v: "0.3.0", calls: &g.calls}, func() error { return nil })
+	if _, err := s.Release(context.Background(), Options{Level: "auto"}); err == nil || has(g.calls, "WriteVersion") {
+		t.Fatalf("unbounded walk: %v", err)
+	}
+}
+
+type allTaken struct{ fakeGit }
+
+func (g *allTaken) TagExists(context.Context, string) (bool, error) { return true, nil }
