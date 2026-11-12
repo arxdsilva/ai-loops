@@ -18,19 +18,36 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 	"github.com/arxdsilva/ai-loops/internal/platform/atomicfile"
+	"github.com/arxdsilva/ai-loops/internal/platform/loopsdir"
 )
 
 // Store implements tracker.EventLog and tracker.Pointer.
-type Store struct{ root string }
+type Store struct {
+	root    string
+	ignored atomic.Bool // .loops/.gitignore checked once per Store
+}
 
 // New returns a Store for the project at root.
 func New(root string) *Store { return &Store{root: root} }
 
 // Base returns <root>/.loops.
-func (s *Store) Base() string { return filepath.Join(s.root, ".loops") }
+func (s *Store) Base() string { return filepath.Join(s.root, loopsdir.Name) }
+
+// ensureBase creates .loops with the .gitignore that keeps it out of git.
+func (s *Store) ensureBase() error {
+	if s.ignored.Load() {
+		return nil
+	}
+	if _, err := loopsdir.Ensure(s.root); err != nil {
+		return err
+	}
+	s.ignored.Store(true)
+	return nil
+}
 
 // Dir returns the run directory.
 func (s *Store) Dir(runID string) string { return filepath.Join(s.Base(), "runs", runID) }
@@ -43,6 +60,9 @@ func (s *Store) Append(ctx context.Context, runID string, e run.Event) error {
 	}
 	line = append(line, '\n')
 	dir := s.Dir(runID)
+	if err := s.ensureBase(); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -68,6 +88,9 @@ func (s *Store) Append(ctx context.Context, runID string, e run.Event) error {
 
 // Create reserves runID by creating its directory; fs.ErrExist if taken.
 func (s *Store) Create(ctx context.Context, runID string) error {
+	if err := s.ensureBase(); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(s.Dir(runID)), 0o755); err != nil {
 		return err
 	}
@@ -118,7 +141,7 @@ func (s *Store) Current() (string, error) {
 
 // SetCurrent writes .loops/current atomically.
 func (s *Store) SetCurrent(runID string) error {
-	if err := os.MkdirAll(s.Base(), 0o755); err != nil {
+	if err := s.ensureBase(); err != nil {
 		return err
 	}
 	return atomicfile.WriteFile(s.currentPath(), []byte(runID+"\n"), 0o644)

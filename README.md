@@ -152,7 +152,7 @@ Everything goes through one file, `bin/loops`. It runs the `loops` binary that m
   - *What it sends, and where:* nothing leaves your machine. The command's output is drawn in the pane and kept nowhere else.
 - **Status line** (`settings.json`): `bin/loops status --subagent`.
 - **Programs**: `git`; `gh` or `glab` for tickets and PRs; your language's formatter, linter and test runner during `loops gate` and post-edit.
-- **Network**: the one-time binary download from github.com; an update check against proxy.golang.org at most once a day (turn it off with `"update_check": false` in `.loops/config.json` or `LOOPS_NO_UPDATE_CHECK=1`); and whatever your agents do in a run (ticket and PR APIs, web research). Run records stay in `.loops/runs/` in your repository.
+- **Network**: the one-time binary download from github.com; an update check against proxy.golang.org at most once a day (turn it off with `"update_check": false` in `.loops/config.json` or `LOOPS_NO_UPDATE_CHECK=1`); and whatever your agents do in a run (ticket and PR APIs, web research). Run records stay in `.loops/runs/` in your repository, which git ignores (loops writes `.loops/.gitignore`).
 
 ## FAQ
 

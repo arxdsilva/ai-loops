@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/arxdsilva/ai-loops/internal/platform/loopsdir"
 	"io"
 	"os"
 	"path/filepath"
@@ -268,6 +269,7 @@ func (h *Handler) writePluginRoot(root, repo string) {
 	if fi, err := os.Stat(filepath.Join(repo, ".loops")); err != nil || !fi.IsDir() {
 		return // only projects already using loops
 	}
+	_ = loopsdir.EnsureIgnore(repo) // projects from before .loops/.gitignore
 	_ = write(filepath.Join(repo, ".loops", "plugin-root"), []byte(root))
 }
 

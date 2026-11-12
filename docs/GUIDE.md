@@ -108,7 +108,7 @@ Use `loops watch` in a side terminal for the live view on any platform.
 Then, in your repo (Claude Code shown; other platforms use their own command syntax):
 
 ```sh
-/loops:init      # .loops/config.json, AGENTS.md rules, .gitignore, dependency check
+/loops:init      # .loops/config.json, AGENTS.md rules, dependency check
 /loops:status    # optional: install the live status line
 /loops:work #42  # or a GitLab URL, a Jira or Linear key, or plain text
 ```
@@ -145,7 +145,7 @@ When a newer release exists, the session context carries one line: `loops vX is 
 
 - **Runs leave no trace.** Agents build with run-scoped build caches and tmp dirs (per language pack) that are deleted at the end, along with any binaries or test artifacts they left behind; download caches stay shared and your global caches are untouched.
 
-Everything is recorded in `.loops/runs/<id>/events.jsonl`, written by the skills (`loops run …`) and by the plugin's hooks.
+Everything is recorded in `.loops/runs/<id>/events.jsonl`, written by the skills (`loops run …`) and by the plugin's hooks. Git never sees `.loops/`: loops writes a `.loops/.gitignore` of `*` when it creates the folder, so run data, caches and settings stay local (share the settings with `git add -f .loops/config.json`). `loops run dir` prints a run's folder and `loops report` opens it as one HTML page.
 
 ## Languages
 

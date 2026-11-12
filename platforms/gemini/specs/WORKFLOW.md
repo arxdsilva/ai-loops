@@ -319,7 +319,7 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 
 ## 5. Events
 
-`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `ask`, `decision`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
+`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). `.loops/` is local: whatever creates it (a run, the installer, session start in a project that has one) adds a `.loops/.gitignore` of `*`, so git never lists it. Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `ask`, `decision`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
 
 | Source | Emits |
 |---|---|

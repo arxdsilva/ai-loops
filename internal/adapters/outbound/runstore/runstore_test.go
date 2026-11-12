@@ -132,3 +132,32 @@ func TestCreateExclusive(t *testing.T) {
 		t.Fatal(wins)
 	}
 }
+
+// Every way the store creates .loops leaves a .gitignore that keeps it out
+// of git.
+func TestStoreKeepsLoopsOutOfGit(t *testing.T) {
+	ctx := context.Background()
+	for name, do := range map[string]func(s *Store) error{
+		"create":      func(s *Store) error { return s.Create(ctx, "r1") },
+		"append":      func(s *Store) error { return s.Append(ctx, "r1", run.Event{Kind: run.KindNote}) },
+		"set current": func(s *Store) error { return s.SetCurrent("r1") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := do(New(root)); err != nil {
+				t.Fatal(err)
+			}
+			b, err := os.ReadFile(filepath.Join(root, ".loops", ".gitignore"))
+			if err != nil || !bytes.Contains(b, []byte("\n*\n")) {
+				t.Fatalf("%q %v", b, err)
+			}
+		})
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".loops"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := New(root).Create(ctx, "r1"); err == nil {
+		t.Fatal(".loops as a file accepted")
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/arxdsilva/ai-loops/internal/platform/loopsdir"
 	"io"
 	"io/fs"
 	"os"
@@ -152,6 +153,9 @@ func (a *App) install(args []string, build packageBuilder) int {
 		if err != nil {
 			fmt.Fprintln(a.Err, "loops install:", err)
 			return 1
+		}
+		if *scope == port.ScopeProject {
+			_ = loopsdir.EnsureIgnore(projDir) // the plugin home under .loops/ stays out of git
 		}
 		for _, s := range stale {
 			if fi, err := os.Lstat(s); err != nil || !fi.Mode().IsRegular() {
