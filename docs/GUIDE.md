@@ -1,6 +1,6 @@
 # loops guide
 
-The reference behind the [readme](../readme.md): installing on every platform, updating, what you see during a run, languages, parallelism, limits, guardrails and the repo layout. The workflow itself is specified in [specs/WORKFLOW.md](../specs/WORKFLOW.md).
+The reference behind the [readme](../README.md): installing on every platform, updating, what you see during a run, languages, parallelism, limits, guardrails and the repo layout. The workflow itself is specified in [specs/WORKFLOW.md](../specs/WORKFLOW.md).
 
 ## Contents
 - [Install](#install)
