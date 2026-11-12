@@ -12,7 +12,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/workspace"
 )
 
-const goEnvMsg = "go_env: this run uses its own Go cache — run `loops go <args>` or prefix `eval \"$(loops run env)\";` (WORKFLOW §2.6)"
+const goEnvMsg = "go_env: this run uses its own Go cache — run `loops go <args>` or `loops exec -- <cmd>` (WORKFLOW §2.6)"
 
 // goEnvAction is how a platform handles an unscoped go command.
 type goEnvAction int

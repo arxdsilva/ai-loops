@@ -14,7 +14,7 @@ Digest of RULES IDIOM.
 - Backed `enum`s instead of constants and magic strings; `tryFrom()` at the boundary; `match` instead of `switch` (strict, exhaustive) (`-05`).
 - First-class callables `strlen(...)` over string callables; property hooks only for trivial validation (`-12`).
 - Attributes for metadata (`#[Route]`, `#[ORM\Entity]`); `#[\Override]` (8.3+), `#[\Deprecated]` (8.4+), `#[\NoDiscard]` (8.5) (`-10`).
-- Avoid `eval`, `extract`, `$$x`, undocumented `__call`/`__get` magic (`-11`).
+- Avoid evaluating strings as PHP code, `extract`, `$$x`, undocumented `__call`/`__get` magic (`-11`).
 
 ## Comparison, time, text, money
 - `===`/`!==`; `in_array($x, $l, true)`; validate numeric strings explicitly (`-07`).

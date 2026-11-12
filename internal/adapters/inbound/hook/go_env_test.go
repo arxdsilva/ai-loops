@@ -147,7 +147,7 @@ func TestGoEnvPerPlatform(t *testing.T) {
 			}
 			code, out, errOut := e.runP(p, "go-env", payload)
 			if w == deny {
-				if code != 2 || out != "" || !strings.Contains(errOut, "loops go <args>") || !strings.Contains(errOut, "loops run env") {
+				if code != 2 || out != "" || !strings.Contains(errOut, "loops go <args>") || !strings.Contains(errOut, "loops exec -- <cmd>") {
 					t.Errorf("%s %q: want deny, got %d %q %q", p, c.cmd, code, out, errOut)
 				}
 				if n := len(e.h.d.Rec.(*dirRec).evs); n != 1 || e.h.d.Rec.(*dirRec).evs[0].Name != "go-env" {

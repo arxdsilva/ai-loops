@@ -22,7 +22,7 @@ Instants are UTC ISO-8601 or epoch ms. `Temporal` status in Node was not verifie
 ## Style and modules (TS-IDIOM-11, 12, 14)
 - Google TS style naming: `UpperCamelCase` types, `lowerCamelCase` values, `CONSTANT_CASE` constants, no `I` prefix, named exports over default. TSDoc on public API.
 - ESM: `"type": "module"`, `"module": "nodenext"`, explicit extensions in relative imports, `import.meta.dirname` not `__dirname`. Dual CJS/ESM only for libraries, via the `exports` map.
-- Decorators, `Proxy`, `eval`, `new Function`, monkey-patching built-ins: only inside framework adapters.
+- Decorators, `Proxy`, string evaluation (`new Function` and the global evaluator), monkey-patching built-ins: only inside framework adapters.
 
 ## Known bugs (TS-IDIOM-13)
 `parseInt` without radix, `Array.sort()` without a comparator, `for..in` over arrays, `JSON.parse` typed as `any`, numbers above 2^53, `forEach(async ...)`.

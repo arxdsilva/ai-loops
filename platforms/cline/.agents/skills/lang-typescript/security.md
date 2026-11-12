@@ -7,7 +7,7 @@ Types vanish at runtime. Validate every inbound payload, env var and queue messa
 
 ## Injection and unsafe parsing (TS-SEC-01, 02)
 - Parameterised queries only (`pg` `$1`, Prisma, Drizzle, Kysely builders); never template strings from input. `execFile` or `spawn` with an argv array; never `exec` or `shell: true` on untrusted data.
-- Prototype pollution: schema-validate JSON, reject `__proto__` and `constructor` keys, no recursive merge or `Object.assign` of input, use `Map` or `Object.create(null)`. No `eval`, no `vm` as a sandbox, no `node-serialize`, no unsafe YAML tags; disable XXE in XML parsers.
+- Prototype pollution: schema-validate JSON, reject `__proto__` and `constructor` keys, no recursive merge or `Object.assign` of input, use `Map` or `Object.create(null)`. No string evaluation as code, no `vm` as a sandbox, no `node-serialize`, no unsafe YAML tags; disable XXE in XML parsers.
 
 ## Web hardening (TS-SEC-03)
 `helmet` (`@fastify/helmet`, Hono `secureHeaders`), explicit CORS origin allowlist, CSRF tokens or SameSite cookies, SSRF allowlist without redirects to private ranges, path canonicalisation (`path.resolve` then prefix check).

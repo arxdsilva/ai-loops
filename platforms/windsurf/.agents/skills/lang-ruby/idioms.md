@@ -25,4 +25,4 @@ Override `==`, `eql?` and `hash` together (or use `Data`); build strings with `<
 
 ## Style and metaprogramming (RUBY-IDIOM-08/09)
 - snake_case methods, CamelCase classes, predicates end in `?`, `!` only with a non-bang twin. YARD tags on public API (RUBY-DOC-01).
-- No monkey-patching core classes, no `method_missing` magic without `respond_to_missing?`, never `eval` user input. Active Support extensions are the accepted exception in Rails.
+- No monkey-patching core classes, no `method_missing` magic without `respond_to_missing?`, never evaluate user input as Ruby code. Active Support extensions are the accepted exception in Rails.

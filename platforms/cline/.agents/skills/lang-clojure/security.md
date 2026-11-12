@@ -5,7 +5,7 @@ Digest of CLJ-SEC. Universal rules: OWASP and `specs/ARCHITECTURE.md`. Rules: `s
 ## Injection and parsing (CLJ-SEC-01/02/03)
 - SQL: HoneySQL maps with `?` params through next.jdbc; never concatenate input.
 - Shell: `clojure.java.shell/sh` or `ProcessBuilder` with an argv vector, never `sh -c` with a string; allow-list arguments.
-- Untrusted data: `clojure.edn/read-string` (restricted `:readers`) or JSON. Never `read-string`, `load-string` or `eval`. Disable keywordizing of untrusted JSON keys (keyword interning).
+- Untrusted data: `clojure.edn/read-string` (restricted `:readers`) or JSON. Never `read-string`, `load-string` or runtime code evaluation. Disable keywordizing of untrusted JSON keys (keyword interning).
 
 ## HTTP and input (CLJ-SEC-04/05/08)
 - `ring-defaults` (`secure-api-defaults`, `secure-site-defaults`): headers, CSRF, HTTPS, same-site cookies.

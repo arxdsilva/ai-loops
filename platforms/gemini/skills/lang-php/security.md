@@ -4,7 +4,7 @@ Digest of RULES SEC. Review these in every diff (`PHP-DOC-03`).
 
 - **SQL (`PHP-SEC-01`)**: PDO `prepare` + bound parameters, `ATTR_ERRMODE => ERRMODE_EXCEPTION`, `ATTR_EMULATE_PREPARES => false`. Identifiers and sort directions come from an allow-list. ORMs: no `whereRaw`/`DB::raw`/DQL string building with input.
 - **Deserialization (`-02`)**: never `unserialize()` untrusted data; use `json_decode(..., JSON_THROW_ON_ERROR)`. If unavoidable: HMAC with `hash_equals`, then `['allowed_classes' => false]`. XML: `LIBXML_NONET`, never `LIBXML_NOENT`.
-- **Code and commands (`-03`)**: no `eval`, string `assert`, or `system/exec/shell_exec/passthru/proc_open/popen` with input; Symfony Process with an argv array. The backtick operator is deprecated in 8.5.
+- **Code and commands (`-03`)**: no evaluating strings as PHP code, no string `assert`, or `system/exec/shell_exec/passthru/proc_open/popen` with input; Symfony Process with an argv array. The backtick operator is deprecated in 8.5.
 - **Passwords (`-04`)**: `password_hash($p, PASSWORD_ARGON2ID)` (OWASP minimum m=19456 KiB, t=2, p=1) or default bcrypt (cost 12 in 8.4; 72-byte limit); `password_verify`, `password_needs_rehash`; no `salt` option; column at least 255 bytes.
 - **Randomness and crypto (`-05`)**: `random_bytes`/`random_int` for security, never `rand`/`mt_rand`/`uniqid`; compare secrets with `hash_equals`; libsodium or `defuse/php-encryption`; no `md5`/`sha1` for passwords or tokens.
 - **Web (`-06`)**: context escaping (Twig/Blade autoescape on; avoid `{!! !!}` and Twig `raw`); CSRF on (`PreventRequestForgery`, `csrf_protection`); redirect allow-lists; `realpath` + base-dir check for paths; SSRF host allow-list; explicit CORS.

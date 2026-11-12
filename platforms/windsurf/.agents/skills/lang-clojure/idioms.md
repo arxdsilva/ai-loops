@@ -19,7 +19,7 @@ Digest of CLJ-IDIOM and CLJ-PERF. Rules: `specs/languages/clojure/RULES.md`.
 
 ## Time and macros (CLJ-IDIOM-10/12)
 - `java.time` only, always with an explicit zone; no `java.util.Date` or `SimpleDateFormat`.
-- A function first; a macro only for control flow or a DSL, as a thin wrapper. Never `eval` or `read-string` on input.
+- A function first; a macro only for control flow or a DSL, as a thin wrapper. Never `read-string` or runtime code evaluation on input.
 
 ## Style (CLJ-IDIOM-11/14)
 - kebab-case; predicates end in `?`, side-effecting in `!`, conversions `x->y`, private `defn-`. Compose with `->`, `->>`, `cond->`; destructure params.

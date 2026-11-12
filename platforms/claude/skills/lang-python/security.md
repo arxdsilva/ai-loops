@@ -7,7 +7,7 @@ Digest of RULES `PY-SEC`. Language-neutral threat handling: `skills/consistency`
 - SQL: bind parameters (`cursor.execute(sql, params)`, SQLAlchemy `text()` with binds, the Django ORM); never f-strings or `%` into SQL [S608].
 - Processes: argv lists, never `shell=True` or `os.system` on input [S602, S605]. Jinja2 autoescape on.
 - No `pickle.loads`, `marshal`, `shelve`, `yaml.load` (use `safe_load`), `torch.load` without `weights_only=True` on untrusted data [bandit B301/B506]. Use JSON or a schema (Pydantic, msgpack).
-- XML through `defusedxml`; never `eval`, `exec`, `compile` on input.
+- XML through `defusedxml`; never run input as code (the `exec` and `compile` builtins or the expression evaluator).
 
 ## Network and files (`PY-SEC-04/05/10`)
 

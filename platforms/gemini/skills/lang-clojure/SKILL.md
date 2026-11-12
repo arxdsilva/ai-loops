@@ -65,7 +65,7 @@ Domain stays pure: no `slurp`, `Instant/now`, `rand`, `future` or `next.jdbc` (`
 3. Side effects in `swap!`/`dosync`: they retry; pure function first, effect after.
 4. `map` for side effects: `run!` or `doseq`.
 5. Blocking calls inside a core.async `go` block: `a/thread` or `a/io-thread`, bounded channels.
-6. `read-string`/`eval` on input: `clojure.edn/read-string` or JSON.
+6. `read-string` or runtime code evaluation on input: `clojure.edn/read-string` or JSON.
 7. `nil` vs `false` with `or`: `(get cfg :enabled true)`.
 8. `RELEASE`, branches or ranges in `deps.edn`: exact versions and full git SHAs.
 9. Namespace-level `(def conn ...)` state and Mount globals: lifecycle map via Integrant.

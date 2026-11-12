@@ -208,7 +208,7 @@ Both shims, the root `bin/loops` and the generated `platforms/*/bin/loops`, find
 6. **Fallback:** `go install <module>/cmd/loops@v<version>`, or a source build for the root shim.
 7. Otherwise, a clear error with a link to the install docs.
 
-**Installer platforms.** `install.sh` (`curl -fsSL …/install.sh | sh -s -- --target <p> [--scope] [--force] [--version] [--bin-dir]`) downloads and verifies the binary the same way, puts it in `~/.local/bin`, and runs `loops install`.
+**Installer platforms.** `install.sh --target <p> [--scope] [--force] [--version] [--bin-dir]` (fetch it as `docs/GUIDE.md#install` shows, or run `npx ai-loops --target <p>`) downloads and verifies the binary the same way, puts it in `~/.local/bin`, and runs `loops install`.
 
 The repository must be public for release downloads and for the update check. A release is a `v<version>` tag that matches `.claude-plugin/plugin.json`, the single version source.
 
@@ -257,6 +257,6 @@ Verified 2026-11-09:
 | Codex | `codex plugin marketplace upgrade [name]` refreshes Git marketplaces only; no CLI plugin-update command is documented, so the plugin is updated in the desktop app and the binary and agents via the installer route | https://learn.chatgpt.com/docs/developer-commands?surface=cli , https://learn.chatgpt.com/docs/plugins |
 | Cursor | No update command. Team marketplaces: Dashboard > Plugins & MCPs > Refresh (or Enable Auto Refresh); running agents keep old versions | https://cursor.com/docs/plugins |
 | Gemini CLI | `git -C ai-loops pull && gemini extensions update loops` (`update --all` also exists; installs are copies) | https://geminicli.com/docs/extensions/reference/ |
-| OpenCode, Amp, Windsurf, Cline | `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target <p> --force` (prebuilt binary, no Go needed) | this repo |
+| OpenCode, Amp, Windsurf, Cline | `npx ai-loops --target <p> --force` (or `install.sh --target <p> --force`) (prebuilt binary, no Go needed) | this repo |
 
 Unverified: that `gemini extensions update` works for a local-path install (docs imply it); Copilot's plugin name after `arxdsilva/ai-loops` install (assumed `loops`); the Codex marketplace name (omitted, so all are refreshed); that the Cursor marketplace entry auto-refreshes without the GitHub App.
