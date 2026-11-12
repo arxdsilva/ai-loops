@@ -8,14 +8,21 @@ let inFlight = false
 let wasActive = false
 let timer = null
 
+// refresh reads .loops/status.json, the run state the plugin's hooks keep in
+// the project (run.StatusDoc, the same document as `loops status --json`).
+// It starts no program and sends nothing anywhere.
 async function refresh($) {
   if (inFlight) return
   inFlight = true
   try {
-    const res = await $.process.run([$.plugin.root + '/bin/loops', 'status', '--json'], { timeoutMs: 5000 })
-    status = res.exitCode === 0 ? parseStatus(res.stdout) : { error: 'loops status failed: ' + String(res.stderr || res.exitCode).split('\n')[0] }
+    const root = await $.session.root()
+    if (await $.fs.exists(root + '/.loops/status.json')) {
+      status = parseStatus(await $.fs.read(root + '/.loops/status.json'))
+    } else {
+      status = { active: false } // no run has started in this project
+    }
   } catch (err) {
-    status = { error: 'loops binary unavailable: ' + String((err && err.message) || err).split('\n')[0] }
+    status = { error: 'loops status unavailable: ' + String((err && err.message) || err).split('\n')[0] }
   } finally {
     inFlight = false
   }

@@ -10,13 +10,6 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
-// statusEnvelope is the `loops status --json` document.
-type statusEnvelope struct {
-	Active bool       `json:"active"`
-	Dir    string     `json:"dir,omitempty"`
-	State  *run.State `json:"state,omitempty"`
-}
-
 // cmdStatus implements `loops status [--json|--statusline|--subagent]`.
 func (a *App) cmdStatus(ctx context.Context, args []string) int {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
@@ -41,9 +34,9 @@ func (a *App) cmdStatus(ctx context.Context, args []string) int {
 		a.writeSubagentLines(st, active)
 		return 0
 	case *asJSON:
-		env := statusEnvelope{}
+		env := run.StatusDoc{}
 		if active {
-			env = statusEnvelope{Active: true, Dir: dir, State: &st}
+			env = run.StatusDoc{Active: true, Dir: dir, State: &st}
 		}
 		b, err := json.MarshalIndent(env, "", "  ")
 		if err != nil {

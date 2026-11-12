@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 	"github.com/arxdsilva/ai-loops/internal/platform/atomicfile"
@@ -82,8 +83,50 @@ func (s *Store) Append(ctx context.Context, runID string, e run.Event) error {
 			line = append([]byte{'\n'}, line...)
 		}
 	}
-	_, err = f.Write(line)
-	return err
+	if _, err := f.Write(line); err != nil {
+		return err
+	}
+	// Still under the lock, so concurrent appenders write the status in order.
+	s.writeStatus(runID, e.Kind)
+	return nil
+}
+
+// statusName is the run-status document the live pane reads
+// (run.StatusDoc, the same as `loops status --json`).
+const statusName = "status.json"
+
+// stepInterval throttles status rewrites for tool-call steps, which come in
+// bursts; every other event kind rewrites it at once.
+const stepInterval = time.Second
+
+// StatusPath returns <root>/.loops/status.json.
+func (s *Store) StatusPath() string { return filepath.Join(s.Base(), statusName) }
+
+// writeStatus rewrites .loops/status.json from the current run's log. Best
+// effort: the event is already recorded, and the pane only shows status.
+func (s *Store) writeStatus(runID string, kind run.Kind) {
+	if cur, err := s.Current(); err != nil || cur != runID {
+		return // not the current run (or none): its log is not the pane's
+	}
+	if kind == run.KindStep {
+		if fi, err := os.Stat(s.StatusPath()); err == nil && time.Since(fi.ModTime()) < stepInterval {
+			return
+		}
+	}
+	evs, err := s.Load(context.Background(), runID)
+	if err != nil {
+		return
+	}
+	st := run.Fold(evs)
+	_ = s.putStatus(run.StatusDoc{Active: true, Dir: s.Dir(runID), State: &st})
+}
+
+func (s *Store) putStatus(doc run.StatusDoc) error {
+	b, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+	return atomicfile.WriteFile(s.StatusPath(), append(b, '\n'), 0o644)
 }
 
 // Create reserves runID by creating its directory; fs.ErrExist if taken.
@@ -139,19 +182,26 @@ func (s *Store) Current() (string, error) {
 	return strings.TrimSpace(string(b)), nil
 }
 
-// SetCurrent writes .loops/current atomically.
+// SetCurrent writes .loops/current atomically and refreshes the status.
 func (s *Store) SetCurrent(runID string) error {
 	if err := s.ensureBase(); err != nil {
 		return err
 	}
-	return atomicfile.WriteFile(s.currentPath(), []byte(runID+"\n"), 0o644)
+	if err := atomicfile.WriteFile(s.currentPath(), []byte(runID+"\n"), 0o644); err != nil {
+		return err
+	}
+	s.writeStatus(runID, run.KindRun) // the events written before it became current
+	return nil
 }
 
-// Clear removes .loops/current.
+// Clear removes .loops/current and marks the status inactive.
 func (s *Store) Clear() error {
 	err := os.Remove(s.currentPath())
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+		err = nil
+	}
+	if _, serr := os.Stat(s.Base()); serr == nil {
+		_ = s.putStatus(run.StatusDoc{})
 	}
 	return err
 }

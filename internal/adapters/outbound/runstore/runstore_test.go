@@ -161,3 +161,59 @@ func TestStoreKeepsLoopsOutOfGit(t *testing.T) {
 		t.Fatal(".loops as a file accepted")
 	}
 }
+
+func readStatus(t *testing.T, s *Store) run.StatusDoc {
+	t.Helper()
+	var doc run.StatusDoc
+	b, err := os.ReadFile(s.StatusPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatalf("%q: %v", b, err)
+	}
+	return doc
+}
+
+// The live pane reads .loops/status.json, kept by the store: written when a
+// run becomes current and on each of its events (tool-call steps at most
+// once a second), and marked inactive when the run ends.
+func TestStatusFile(t *testing.T) {
+	ctx := context.Background()
+	s := New(t.TempDir())
+	if err := s.Create(ctx, "r1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Append(ctx, "r1", run.Event{Kind: run.KindRun, Run: "r1", Name: "demo"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(s.StatusPath()); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("status written for a run that is not current: %v", err)
+	}
+	if err := s.SetCurrent("r1"); err != nil {
+		t.Fatal(err)
+	}
+	doc := readStatus(t, s)
+	if !doc.Active || doc.Dir != s.Dir("r1") || doc.State == nil || doc.State.Title != "demo" {
+		t.Fatalf("after start: %+v", doc)
+	}
+	if err := s.Append(ctx, "r1", run.Event{Kind: run.KindPhase, Run: "r1", Phase: run.PhasePlan}); err != nil {
+		t.Fatal(err)
+	}
+	if doc := readStatus(t, s); doc.State.Phase != run.PhasePlan {
+		t.Fatalf("phase not written: %+v", doc.State)
+	}
+	// A step right after a write waits for the next one-second window.
+	if err := s.Append(ctx, "r1", run.Event{Kind: run.KindStep, Run: "r1", Name: "Bash"}); err != nil {
+		t.Fatal(err)
+	}
+	if doc := readStatus(t, s); doc.State.Steps != 0 {
+		t.Fatalf("step not throttled: %+v", doc.State.Steps)
+	}
+	if err := s.Clear(); err != nil {
+		t.Fatal(err)
+	}
+	if doc := readStatus(t, s); doc.Active || doc.State != nil {
+		t.Fatalf("after end: %+v", doc)
+	}
+}

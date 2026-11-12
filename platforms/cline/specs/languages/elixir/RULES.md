@@ -83,7 +83,7 @@ Coverage: `excoveralls`, format lcov, `MIX_ENV=test mix coveralls.lcov` to `cove
 - **`ELIXIR-TEST-11`** (SHOULD) ExMachina or hand-written fixtures in `test/support/`, one factory per schema; never share fixtures that mutate. ([ExMachina](https://hexdocs.pm/ex_machina/ExMachina.html))
 
 ## PERF
-- **`ELIXIR-PERF-01`** (SHOULD) Benchmark with Benchee (`time:`, `memory_time:`, `save:`/`load:`), never in `dev` or `iex`. ([Benchee](https://benchee.hexdocs.pm/Benchee.html))
+- **`ELIXIR-PERF-01`** (SHOULD) Benchmark with Benchee (`time:`, `memory_time:`, `save:`/`load:`), never in `dev` or the interactive shell. ([Benchee](https://benchee.hexdocs.pm/Benchee.html))
 - **`ELIXIR-PERF-02`** (SHOULD) Profile with `mix profile.tprof` (OTP 27+), `eprof` or `fprof`; live: `:observer`, `:recon`, telemetry. ([Profile.Tprof](https://mix.hexdocs.pm/Mix.Tasks.Profile.Tprof.html))
 - **`ELIXIR-PERF-03`** (SHOULD) Tune the VM only after measuring: schedulers (`+S`), `:max_heap_size`, ETS `read_concurrency`/`write_concurrency`, `rel/vm.args.eex`. ([Release](https://mix.hexdocs.pm/Mix.Tasks.Release.html))
 - **`ELIXIR-PERF-04`** (AVOID) `++` on large lists in loops, `Enum.at`/`length` on lists in loops, `String.to_atom` on input, per-request `Process.sleep`, N+1 Ecto queries, large messages, `Enum` over `Stream` for huge data, global GenServer bottlenecks. ([code anti-patterns](https://elixir.hexdocs.pm/code-anti-patterns.html))

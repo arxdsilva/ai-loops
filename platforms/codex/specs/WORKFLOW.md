@@ -362,7 +362,7 @@ Gates:
 - `loops gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--fail-fast]`: runs every detected pack's checks (§6). `--only`/`--skip`/`--enable` take check names; `--enable` turns on `default: off` checks; `--vuln` enables the vuln checks.
 - `loops arch [--json] [--root dir]`: the architecture lint (`specs/ARCHITECTURE.md §25`).
 
-`run.Fold(events)` gives `run.State`, which `loops status --json` prints. The status line, the mod pane and the HTML report all read that one source.
+`run.Fold(events)` gives `run.State`, which `loops status --json` prints. The status line, the mod pane and the HTML report all read that one source: every recorded event of the current run also rewrites `.loops/status.json` (`run.StatusDoc`, the same document; tool-call steps at most once a second), which the pane reads instead of starting a program, and the end of a run marks it inactive.
 
 ## 6. Gates
 

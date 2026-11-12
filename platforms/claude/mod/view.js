@@ -24,10 +24,10 @@ const ts = x => { const n = Date.parse(x); return Number.isFinite(n) ? n : NaN }
 export function parseStatus(stdout) {
   try {
     const v = JSON.parse(stdout)
-    if (!v || typeof v !== 'object') return { error: 'unexpected loops status output' }
+    if (!v || typeof v !== 'object') return { error: 'unexpected .loops/status.json content' }
     return v
   } catch {
-    return { error: 'could not parse `loops status --json` output' }
+    return { error: 'could not parse .loops/status.json' }
   }
 }
 

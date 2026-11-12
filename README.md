@@ -147,7 +147,7 @@ Everything goes through one file, `bin/loops`. It runs the `loops` binary that m
   | stop-gate | Stop | Keeps Claude working while sources changed since the last green gate | Nothing; it can only block the stop |
 
 - **Live pane (mod, `mod/`)**. It adds the `/loops-pane` command and shows the active run beside the chat.
-  - *What it runs:* one program, `${CLAUDE_PLUGIN_ROOT}/bin/loops status --json`, through `process.run`, every 2 seconds and when you type `/loops-pane`. That command reads the active run's state from `.loops/runs/` in your repository.
+  - *What it reads:* one file, `.loops/status.json` in your project (the active run's state, which the plugin's hooks keep up to date), every 2 seconds and when you type `/loops-pane`. It starts no program.
   - *What it reads from Claude Code:* only that `/loops-pane` was typed (`command.run`). It reads no conversation text and no tool calls.
   - *What it sends, and where:* nothing leaves your machine. The command's output is drawn in the pane and kept nowhere else.
 - **Status line** (`settings.json`): `bin/loops status --subagent`.
