@@ -2,7 +2,7 @@
 
 **Give your AI coding agent a ticket. Get back a pull request with proof that every acceptance criteria works.**
 
-[![CI](https://github.com/arxdsilva/ai-loops/actions/workflows/ci.yml/badge.svg)](https://github.com/arxdsilva/ai-loops/actions/workflows/ci.yml) [![release](https://img.shields.io/github/v/release/arxdsilva/ai-loops?sort=semver)](https://github.com/arxdsilva/ai-loops/releases) [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) ![dependencies: 0](https://img.shields.io/badge/dependencies-0-blue)
+[![CI](https://github.com/arxdsilva/ai-loops/actions/workflows/ci.yml/badge.svg)](https://github.com/arxdsilva/ai-loops/actions/workflows/ci.yml) [![release](https://img.shields.io/github/v/release/arxdsilva/ai-loops?sort=semver)](https://github.com/arxdsilva/ai-loops/releases) [![npm](https://img.shields.io/npm/v/ai-loops)](https://www.npmjs.com/package/ai-loops) [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) ![dependencies: 0](https://img.shields.io/badge/dependencies-0-blue)
 
 **loops** is an open-source, multi-agent workflow plugin for **Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI, OpenCode, Amp, Windsurf and Cline**. One ticket (GitHub, GitLab, Jira, Linear or plain text) becomes a team of specialist AI agents: they research, plan, build in parallel, re-test each other's work, prove each requirement by hand and open the PR. It is built to be the best multi-agent workflow for one job: shipping backend changes you can trust without re-checking them yourself. It supports 15 backend languages.
 
@@ -13,7 +13,16 @@
 
 https://github.com/user-attachments/assets/59ddd321-4561-44fb-afa1-a606ee473c51
 
-## Quick start (Claude Code)
+## Quick start
+
+From any terminal, with Node 18+:
+
+```sh
+npx ai-loops                        # Claude Code (runs the claude CLI for you)
+npx ai-loops --target copilot       # or codex, cursor, gemini, opencode, amp, windsurf, cline
+```
+
+Or inside Claude Code:
 
 ```sh
 /plugin marketplace add arxdsilva/ai-loops
@@ -27,15 +36,14 @@ Then, in your repository:
 /loops:work #42   # or a Jira/Linear key, a GitLab URL, or plain text: "add partial refunds"
 ```
 
-Or from any terminal: `npx ai-loops` (it runs the same two steps through the `claude` CLI).
-
 That's it. Nothing else to install: the plugin downloads one checksummed `loops` binary on first use. You need `gh` or `glab` for tickets and PRs.
 
+`npx ai-loops` also takes `--scope user|project|local` (default `user`) and `--force`. `npx ai-loops bin` installs only the `loops` binary into `~/.local/bin`, and `npx ai-loops <command>` runs any `loops` command, such as `npx ai-loops report`.
+
 <details>
-<summary><b>Copilot, Codex, Cursor, Gemini CLI, OpenCode, Amp, Windsurf, Cline</b></summary>
+<summary><b>Without npx: Copilot, Codex, Cursor, Gemini CLI, OpenCode, Amp, Windsurf, Cline</b></summary>
 
 ```sh
-npx ai-loops --target <platform>                                  # any of them, with Node 18+
 copilot plugin install arxdsilva/ai-loops                         # GitHub Copilot CLI (VS Code: "Chat: Install Plugin from Source")
 codex plugin marketplace add arxdsilva/ai-loops                   # Codex, then install loops in the desktop app
 curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target codex

@@ -37,7 +37,7 @@ npx ai-loops                         # Claude Code: claude plugin marketplace ad
 npx ai-loops --target <platform>     # copilot, codex, cursor, gemini, opencode, amp, windsurf, cline
 ```
 
-`npx ai-loops` downloads the release binary matching its own version and checks it against `checksums.txt`, like `install.sh`; `--scope`, `--force` and `--bin-dir` work the same. Any other arguments run that `loops` command (`npx ai-loops report`). Tiers: A resumable subagents, B subagents without resume, C generic subagents, D solo mode ([specs/PLATFORMS.md](../specs/PLATFORMS.md) §4).
+`npx ai-loops` downloads the release binary matching its own version and checks it against `checksums.txt`, like `install.sh`; `--scope`, `--force` and `--bin-dir` work the same. `npx ai-loops bin [--bin-dir dir]` installs only the binary (the Claude plugin-directory package needs it, since it downloads nothing). Any other arguments run that `loops` command (`npx ai-loops report`). Tiers: A resumable subagents, B subagents without resume, C generic subagents, D solo mode ([specs/PLATFORMS.md](../specs/PLATFORMS.md) §4).
 
 ### Claude Code (tier A)
 ```sh
