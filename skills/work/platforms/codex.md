@@ -45,7 +45,7 @@ Needs `loops` on PATH (prebuilt; `install.sh`). Verify: `loops version`; `ls .co
 The `hardware-researcher` runs as a normal subagent (`loops hw --write`). Token budgets (`--budget`) are measured only if the SubagentStop payload carries `agent_transcript_path` *(unverified)*; otherwise they are advisory. Agent, role and concurrency limits always apply.
 
 ## Update
-`codex plugin marketplace upgrade && curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target codex --force`, then update the plugin in the desktop app (or run `loops update codex`).
+`codex plugin marketplace upgrade && npx ai-loops --target codex --force`, then update the plugin in the desktop app (`loops update --platform codex` prints the other ways).
 
 ## Model fallback
 Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).

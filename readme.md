@@ -27,12 +27,15 @@ Then, in your repository:
 /loops:work #42   # or a Jira/Linear key, a GitLab URL, or plain text: "add partial refunds"
 ```
 
+Or from any terminal: `npx ai-loops` (it runs the same two steps through the `claude` CLI).
+
 That's it. Nothing else to install: the plugin downloads one checksummed `loops` binary on first use. You need `gh` or `glab` for tickets and PRs.
 
 <details>
 <summary><b>Copilot, Codex, Cursor, Gemini CLI, OpenCode, Amp, Windsurf, Cline</b></summary>
 
 ```sh
+npx ai-loops --target <platform>                                  # any of them, with Node 18+
 copilot plugin install arxdsilva/ai-loops                         # GitHub Copilot CLI (VS Code: "Chat: Install Plugin from Source")
 codex plugin marketplace add arxdsilva/ai-loops                   # Codex, then install loops in the desktop app
 curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target codex
@@ -116,6 +119,28 @@ Python, TypeScript/JavaScript, Java, C++, C#, PHP, Go, Ruby, Swift, Kotlin, Rust
 - **It is built for backend services.** The proof step drives your service (HTTP, CLI, tests), not a browser UI.
 - **Some tools get less.** Resumable subagents, hooks and the live pane depend on the platform; Windsurf and Cline run in solo mode. [Capability matrix](docs/GUIDE.md#capability-matrix-condensed)
 - **It never pushes to main, force-pushes or merges.** It works on a branch and opens a PR (a draft when something is left open).
+
+## What it runs on your machine
+
+Everything goes through one file, `bin/loops`. It runs the `loops` binary that matches the plugin version: one on your PATH, a cached copy (`$CLAUDE_PLUGIN_DATA`, else `~/.cache/loops`), or one it downloads once from this repo's GitHub releases and checks against the release's `checksums.txt` before running. In a git checkout of this repo it builds `cmd/loops` with Go instead.
+
+- **Hooks** (`hooks/hooks.json`). Each one runs `"${CLAUDE_PLUGIN_ROOT}/bin/loops" hook <name>`, fails open (no run, bad input or an error means no effect), and changes only what the table says. The full table is in the [guide](docs/GUIDE.md#guardrails-hooks).
+
+  | Hook | When | What it does or changes |
+  |---|---|---|
+  | session-start | session start | Adds context: where the plugin lives, the active run, an update notice |
+  | read-guard | before Read, Bash | Denies whole-file reads of very large files; read in ranges |
+  | test-guard | before Bash | Denies a Go or Swift test run without its race flag |
+  | toolchain-env | before Bash | Rewrites toolchain commands to use the run's cache directories |
+  | model-guard | before Agent | Denies a general subagent launched without a model |
+  | post-edit | after Edit, Write | Runs the language's formatter and linter on the edited file |
+  | trace, trace-agent | after each tool, agent start and stop | Appends one line to `.loops/runs/<id>/events.jsonl` |
+  | stop-gate | Stop | Blocks finishing while sources changed since the last green gate |
+
+- **Live pane (mod, `mod/`)**. It adds the `/loops` command, runs `bin/loops status --json` every 3 seconds and after tool and agent events, and draws the result. It sends nothing anywhere.
+- **Status line** (`settings.json`): `bin/loops status --subagent`.
+- **Programs**: `git`; `gh` or `glab` for tickets and PRs; your language's formatter, linter and test runner during `loops gate` and post-edit.
+- **Network**: the one-time binary download from github.com; an update check against proxy.golang.org at most once a day (turn it off with `"update_check": false` in `.loops/config.json` or `LOOPS_NO_UPDATE_CHECK=1`); and whatever your agents do in a run (ticket and PR APIs, web research). Run records stay in `.loops/runs/` in your repository.
 
 ## FAQ
 

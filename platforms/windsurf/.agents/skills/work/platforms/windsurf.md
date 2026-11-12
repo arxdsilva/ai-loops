@@ -40,7 +40,7 @@ Writes `.agents/skills/`, `.devin/hooks.v1.json`. Needs `loops` on PATH (prebuil
 Tier D: no subagents, so the lead runs `loops hw --write` itself. Token budgets (`--budget`) are advisory on this platform; agent-count and role limits still apply.
 
 ## Update
-`curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target windsurf --force` (or run `loops update windsurf`).
+`npx ai-loops --target windsurf --force` (`loops update --platform windsurf` prints the other ways).
 
 ## Model fallback
 Roles ask for their tier, and the planner and plan-reviewer ask for the strongest reasoning model. If the platform rejects a model, re-spawn the role with the best model available here, or the session model. Record a `model-fallback` note (WORKFLOW §3a).

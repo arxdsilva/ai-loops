@@ -1,6 +1,6 @@
 ---
 name: performance
-description: Use when optimizing or reviewing latency, throughput, CPU, memory, allocations, queries, data layout, update frequency or concurrency in a backend service in any language pack, based on measurement; the benchmark and profiler workflow (Go: benchstat and pprof).
+description: "Use when optimizing or reviewing latency, throughput, CPU, memory, allocations, queries, data layout, update frequency or concurrency in a backend service in any language pack, based on measurement; the benchmark and profiler workflow (Go: benchstat and pprof)."
 ---
 
 # Performance and scale
