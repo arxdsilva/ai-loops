@@ -2,5 +2,5 @@
   "contextFileName": "GEMINI.md",
   "description": "Multi-agent workflow that turns a ticket into a pull request with proof: research, plan with a reviewer agent, parallel specialist engineers, an independent QA agent per engineer, every acceptance criteria proven, reflection. One master agent, opt-in checkpoints, a ≥70% new-code coverage and race-detector gate, 15 backend languages, live status and HTML report.",
   "name": "loops",
-  "version": "0.9.2"
+  "version": "0.9.3"
 }
