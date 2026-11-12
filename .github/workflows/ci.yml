@@ -48,12 +48,20 @@ jobs:
           node-version: 22
       - name: mod pane tests
         run: node --test mod/test/render.test.mjs
+      - name: npm launcher tests
+        run: node --test npm/test/lib.test.mjs
   release:
     # Bumps the version from conventional commits, regenerates the platform
     # packages, then pushes a "release vX.Y.Z" commit and tag. That commit's
     # subject (and tag) make the next run skip, so it cannot loop.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Releases run one at a time; a run whose commit is no longer main's tip
+    # skips, because the newer run releases its commits too. The push is
+    # atomic, so a race that still happens leaves no stray tag.
     needs: gates
+    concurrency:
+      group: release
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -74,6 +82,12 @@ jobs:
       - id: release
         name: release (bump, regenerate, commit, tag, push)
         run: |
+          git fetch -q origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "main moved past $GITHUB_SHA; the newer run releases it"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           before=$(git tag --list 'v*' | sort)
           go run ./cmd/loops release --push
           after=$(git tag --list 'v*' | sort)
@@ -88,6 +102,8 @@ jobs:
     if: needs.release.outputs.tag != ''
     permissions:
       contents: write
+      id-token: write
     uses: ./.github/workflows/release-assets.yml
     with:
       tag: ${{ needs.release.outputs.tag }}
+    secrets: inherit

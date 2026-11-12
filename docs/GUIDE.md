@@ -30,7 +30,14 @@ Platforms marked *installer* take one line in your project:
 curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target <platform>
 ```
 
-That installs `loops` into `~/.local/bin` and places the platform's files. Tiers: A resumable subagents, B subagents without resume, C generic subagents, D solo mode ([specs/PLATFORMS.md](../specs/PLATFORMS.md) §4).
+That installs `loops` into `~/.local/bin` and places the platform's files. With Node 18+ you can use npm instead, for any platform:
+
+```sh
+npx ai-loops                         # Claude Code: claude plugin marketplace add + claude plugin install
+npx ai-loops --target <platform>     # copilot, codex, cursor, gemini, opencode, amp, windsurf, cline
+```
+
+`npx ai-loops` downloads the release binary matching its own version and checks it against `checksums.txt`, like `install.sh`; `--scope`, `--force` and `--bin-dir` work the same. Any other arguments run that `loops` command (`npx ai-loops report`). Tiers: A resumable subagents, B subagents without resume, C generic subagents, D solo mode ([specs/PLATFORMS.md](../specs/PLATFORMS.md) §4).
 
 ### Claude Code (tier A)
 ```sh
@@ -112,7 +119,7 @@ Then, in your repo (Claude Code shown; other platforms use their own command syn
 When a newer release exists, the session context carries one line: `loops vX is available - update with: <command>`. The check asks the Go module proxy for `@latest`, runs at most once per 24h, and announces each version once.
 
 - Opt out with `LOOPS_NO_UPDATE_CHECK=1` or `"update_check": false` in `.loops/config.json`. It is also skipped when `CI=true`.
-- `loops version --check` checks on demand; `loops update [platform]` prints the command for your platform.
+- `loops version --check` checks on demand; `loops update [--platform p]` prints the command for your platform.
 - Releases are produced automatically: each push to main bumps the version from its conventional commits (`loops release`), regenerates the packages and tags `vX.Y.Z`.
 
 | Platform | Update command |

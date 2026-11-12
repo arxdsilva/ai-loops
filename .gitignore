@@ -1,4 +1,5 @@
-/.loops/
+/.loops/*
+!/.loops/config.json
 /dist/
 *.test
 *.out

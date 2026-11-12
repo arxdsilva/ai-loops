@@ -64,13 +64,13 @@ os=$(uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')
 case $os in
   darwin | linux) ;;
   mingw* | msys* | cygwin*) os=windows ext=.exe ;;
-  *) die "unsupported OS $os; see https://github.com/$repo#install" ;;
+  *) die "unsupported OS $os; see https://github.com/$repo/blob/main/docs/GUIDE.md#install" ;;
 esac
 arch=$(uname -m 2>/dev/null)
 case $arch in
   x86_64 | amd64 | AMD64) arch=amd64 ;;
   arm64 | aarch64 | ARM64) arch=arm64 ;;
-  *) die "unsupported architecture $arch; see https://github.com/$repo#install" ;;
+  *) die "unsupported architecture $arch; see https://github.com/$repo/blob/main/docs/GUIDE.md#install" ;;
 esac
 
 if [ -z "$version" ]; then
@@ -92,7 +92,7 @@ url="$base/$version"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/loops-install.XXXXXX") || die "mktemp failed"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
-fetch "$url/$asset" "$tmp/$asset" || die "no release binary $asset for $version ($url); see https://github.com/$repo#install"
+fetch "$url/$asset" "$tmp/$asset" || die "no release binary $asset for $version ($url); see https://github.com/$repo/blob/main/docs/GUIDE.md#install"
 if [ "${LOOPS_SKIP_VERIFY:-}" != 1 ]; then
   fetch "$url/checksums.txt" "$tmp/checksums.txt" || die "could not fetch checksums.txt for $version; refusing an unverified binary"
   want=$(awk -v n="$asset" '$2 == n || $2 == "*" n {print $1; exit}' "$tmp/checksums.txt")

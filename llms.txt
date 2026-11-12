@@ -2,7 +2,7 @@
 
 > loops (github.com/arxdsilva/ai-loops) is an open-source multi-agent workflow plugin for Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI, OpenCode, Amp, Windsurf and Cline. It turns one ticket (GitHub, GitLab, Jira, Linear or plain text) into a pull request with proof: research, plan with a reviewer agent, parallel specialist engineers, an independent QA agent per engineer that re-tests every claim, a product reviewer that proves every acceptance criteria, and reflection. One master agent keeps the scope and asks the user only at opt-in checkpoints. A hard gate requires ≥70% coverage of new code and tests under the race detector. 15 backend languages. MIT license, one stdlib Go binary with zero dependencies.
 
-Install on Claude Code with `/plugin marketplace add arxdsilva/ai-loops` then `/plugin install loops@ai-loops`; run `/loops:init` and `/loops:work <ticket>` in a repository. Other platforms use the generated packages under `platforms/` or `install.sh --target <platform>`. Each rule is stated once in `specs/` and cited elsewhere.
+Install on Claude Code with `/plugin marketplace add arxdsilva/ai-loops` then `/plugin install loops@ai-loops` (or `npx ai-loops` from a terminal); run `/loops:init` and `/loops:work <ticket>` in a repository. Other platforms use `npx ai-loops --target <platform>`, the generated packages under `platforms/` or `install.sh --target <platform>`. Each rule is stated once in `specs/` and cited elsewhere.
 
 ## Docs
 - [README](https://raw.githubusercontent.com/arxdsilva/ai-loops/main/readme.md): what loops is, quick start, comparison, FAQ

@@ -40,3 +40,32 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: sh "$RUNNER_TEMP/publish-release.sh" "$TAG" dist
+  # Publishes the npm launcher (npx ai-loops) at the tag's version, after the
+  # binaries it downloads are on the release. Skips when NPM_TOKEN is unset.
+  npm:
+    needs: assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: publish ai-loops to npm
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then echo "NPM_TOKEN is not set; skipping npm publish"; exit 0; fi
+          if [ ! -f npm/package.json ]; then echo "$TAG has no npm package; skipping"; exit 0; fi
+          cd npm
+          version=${TAG#v}
+          if [ "$(npm view "ai-loops@$version" version 2>/dev/null)" = "$version" ]; then echo "ai-loops@$version is already published"; exit 0; fi
+          npm version --no-git-tag-version "$version"
+          npm publish --provenance --access public

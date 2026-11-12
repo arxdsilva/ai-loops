@@ -1,0 +1,16 @@
+{
+  "name": "ai-loops",
+  "version": "0.0.0",
+  "description": "Install loops, the multi-agent coding workflow plugin that proves its work, into Claude Code, GitHub Copilot, Codex, Cursor, Gemini CLI, OpenCode, Amp, Windsurf or Cline with one npx command.",
+  "keywords": ["claude-code", "claude-code-plugin", "multi-agent", "ai-agents", "coding-agent", "copilot", "codex", "cursor", "gemini-cli", "opencode", "agentic-workflow", "code-review", "qa"],
+  "homepage": "https://github.com/arxdsilva/ai-loops#readme",
+  "bugs": "https://github.com/arxdsilva/ai-loops/issues",
+  "repository": { "type": "git", "url": "git+https://github.com/arxdsilva/ai-loops.git", "directory": "npm" },
+  "license": "MIT",
+  "author": "Arthur Silva",
+  "type": "module",
+  "bin": { "ai-loops": "cli.mjs" },
+  "files": ["cli.mjs", "lib.mjs", "README.md"],
+  "scripts": { "test": "node --test test/lib.test.mjs" },
+  "engines": { "node": ">=18" }
+}
