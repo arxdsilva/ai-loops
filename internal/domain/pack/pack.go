@@ -6,10 +6,44 @@
 // file access goes through the View interface the caller supplies.
 package pack
 
-import "slices"
+import (
+	"fmt"
+	"slices"
+)
 
 // Schema is the pack schema version this package reads.
 const Schema = 1
+
+// Race modes.
+const (
+	RaceFlag  = "flag"
+	RaceBuild = "build"
+	RaceNone  = "none"
+)
+
+// Coverage formats loops parses.
+const (
+	FormatGoCover   = "gocover"
+	FormatLCOV      = "lcov"
+	FormatCobertura = "cobertura"
+	FormatJaCoCo    = "jacoco"
+)
+
+// Arch parsers.
+const (
+	ParserGo    = "go"
+	ParserRegex = "regex"
+	ParserNone  = "none"
+)
+
+// Check kinds.
+var Kinds = []string{"deps", "build", "format", "lint", "typecheck", "arch", "test", "coverage", "vuln", "sast", "sbom"}
+
+// Formats lists the coverage formats loops parses.
+var Formats = []string{FormatGoCover, FormatLCOV, FormatCobertura, FormatJaCoCo}
+
+// Builtins lists the placeholders loops fills itself.
+var Builtins = []string{"file", "dir", "manifest_dir", "pkgs", "pkg_dirs", "coverage", "coverage_dir", "coverage_args", "run", "cache", "tmp", "seed"}
 
 // Pack is one language pack.
 type Pack struct {
@@ -27,6 +61,7 @@ type Pack struct {
 	Manifest     string                 `json:"manifest,omitempty"`
 	Env          map[string]string      `json:"env,omitempty"`
 	Checks       []Check                `json:"checks"`
+	Security     *Security              `json:"security,omitempty"`
 	TestCommands []TestCommand          `json:"test_commands"`
 	Race         Race                   `json:"race"`
 	Coverage     Coverage               `json:"coverage"`
@@ -148,13 +183,6 @@ type Race struct {
 	Substitute string              `json:"substitute,omitempty"`
 }
 
-// Race modes.
-const (
-	RaceFlag  = "flag"
-	RaceBuild = "build"
-	RaceNone  = "none"
-)
-
 // Coverage says where the coverage report is and how to read it.
 type Coverage struct {
 	Format      string    `json:"format"`
@@ -165,14 +193,6 @@ type Coverage struct {
 	Exclude     []string  `json:"exclude,omitempty"`
 	SourceRoots []string  `json:"source_roots,omitempty"`
 }
-
-// Coverage formats loops parses.
-const (
-	FormatGoCover   = "gocover"
-	FormatLCOV      = "lcov"
-	FormatCobertura = "cobertura"
-	FormatJaCoCo    = "jacoco"
-)
 
 // Produce is a post-test export step; StdoutTo writes its stdout to a path.
 type Produce struct {
@@ -198,13 +218,6 @@ type Arch struct {
 	SizeWarnings          map[string]int `json:"size_warnings,omitempty"`
 }
 
-// Arch parsers.
-const (
-	ParserGo    = "go"
-	ParserRegex = "regex"
-	ParserNone  = "none"
-)
-
 // Modules enables per-module gating (Go multi-module repos, D19).
 type Modules struct {
 	Discover []string `json:"discover"`
@@ -222,15 +235,6 @@ type Placeholder struct {
 	Glob    []string `json:"glob,omitempty"`
 }
 
-// Check kinds.
-var Kinds = []string{"deps", "build", "format", "lint", "typecheck", "arch", "test", "coverage", "vuln", "sast", "sbom"}
-
-// Formats lists the coverage formats loops parses.
-var Formats = []string{FormatGoCover, FormatLCOV, FormatCobertura, FormatJaCoCo}
-
-// Builtins lists the placeholders loops fills itself.
-var Builtins = []string{"file", "dir", "manifest_dir", "pkgs", "pkg_dirs", "coverage", "coverage_dir", "coverage_args", "run", "cache", "tmp", "seed"}
-
 // CheckByName returns the named check.
 func (p Pack) CheckByName(name string) (Check, bool) {
 	for _, c := range p.Checks {
@@ -243,3 +247,35 @@ func (p Pack) CheckByName(name string) (Check, bool) {
 
 // RaceCheck reports whether the named check carries the race policy.
 func (p Pack) RaceCheck(name string) bool { return slices.Contains(p.Race.Checks, name) }
+
+// Security is the pack's security scanners for `loops gate --security`:
+// names of its vuln/sast checks, or None, the reason it has none.
+type Security struct {
+	Checks []string `json:"checks,omitempty"`
+	None   string   `json:"none,omitempty"`
+}
+
+// SecurityChecks returns the checks named in Security.Checks, in pack
+// order; nil when Security is nil or None is set.
+func (p Pack) SecurityChecks() []Check {
+	if p.Security == nil || len(p.Security.Checks) == 0 {
+		return nil
+	}
+	var out []Check
+	for _, c := range p.Checks {
+		if slices.Contains(p.Security.Checks, c.Name) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// RequireSecurity reports a pack that declares no security section:
+// "pack <id>: security: not declared (set checks or none)" when
+// p.Security is nil.
+func RequireSecurity(p Pack) error {
+	if p.Security == nil {
+		return fmt.Errorf("pack %s: security: not declared (set checks or none)", p.ID)
+	}
+	return nil
+}

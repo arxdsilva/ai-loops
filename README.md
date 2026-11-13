@@ -92,12 +92,13 @@ AI code that is "almost right" is the top frustration of 66% of developers, and 
 - **Claims are re-tested, not trusted.** The engineer who wrote the code never verifies it. [ROLES.md](ROLES.md)
 - **The gate cannot be talked past.** New code needs unit tests with ≥70% coverage, every test runs under the language's race detector or its substitute, and the session cannot end while sources changed since the last green gate. [specs/TESTING.md](specs/TESTING.md)
 - **Make it work, then make it right.** Failing test first, data modelled before code, small ordered commits. After two failed fixes on one premise, the agent must name and drop that premise, adapted from Robert C. Martin's [ub-mode](https://github.com/unclebob/ub-mode). [specs/ENGINEERING.md](specs/ENGINEERING.md)
+- **Security is scanned, not assumed.** Each language's security scanners run in the QA phase (`loops gate --security`). A missing tool is skipped with an install hint, never a failure. [specs/languages/go/RULES.md](specs/languages/go/RULES.md)
 - **Your rules win.** AGENTS.md, CLAUDE.md, linter configs and your existing layout beat loops' defaults, and every override is reported on the PR.
 - **Nothing hidden.** Every tool call, verdict, loop-back and decision lands in `.loops/runs/<id>/events.jsonl`.
 
 ## For product managers and leads
 
-- **Acceptance criteria are the contract.** Each one is proven by hand before the PR opens. Unclear tickets get the narrowest reading, written down as an assumption you can see.
+- **Acceptance criteria are the contract.** Each one is proven by hand before the PR opens. Unclear tickets go through the `clarify` skill at intake, and each inference is written down as an assumption you can see.
 - **Predictable phases, visible progress.** The same phases every time, with a live status and a shareable HTML report.
 - **Less back-and-forth.** No questions mid-run unless you ask for a checkpoint (`--ask plan` to approve the plan, `--ask pr` before the PR).
 - **Cost under control when you want it.** Optional caps on tokens, agents and roles per phase (`--budget implement=2M`).
@@ -151,7 +152,7 @@ Everything goes through one file, `bin/loops`. It runs the `loops` binary that m
   - *What it reads from Claude Code:* only that `/loops-pane` was typed (`command.run`). It reads no conversation text and no tool calls.
   - *What it sends, and where:* nothing leaves your machine. The command's output is drawn in the pane and kept nowhere else.
 - **Status line** (`settings.json`): `bin/loops status --subagent`.
-- **Programs**: `git`; `gh` or `glab` for tickets and PRs; your language's formatter, linter and test runner during `loops gate` and post-edit; and, at the start of `/loops:work`, the `claude` or `copilot` plugin update commands (`claude plugin update`, `copilot plugin update`) through `loops update --apply`.
+- **Programs**: `git`; `gh` or `glab` for tickets and PRs; your language's formatter, linter and test runner during `loops gate` and post-edit; the language pack's security scanners (Go: govulncheck, gosec) when installed, in the QA security pass (`loops gate --security`); and, at the start of `/loops:work`, the `claude` or `copilot` plugin update commands (`claude plugin update`, `copilot plugin update`) through `loops update --apply`.
 - **Network**: the one-time binary download from github.com; an update check against proxy.golang.org at most once a day, plus a fresh check and the plugin update at the start of `/loops:work` (turn both off with `"update_check": false` in `.loops/config.json` or `LOOPS_NO_UPDATE_CHECK=1`); and whatever your agents do in a run (ticket and PR APIs, web research). Run records stay in `.loops/runs/` in your repository, which git ignores (loops writes `.loops/.gitignore`).
 
 ## FAQ

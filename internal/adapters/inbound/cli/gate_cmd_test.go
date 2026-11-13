@@ -136,3 +136,41 @@ type errGate struct{}
 func (errGate) Run(context.Context, gate.Options) (gate.Result, error) {
 	return gate.Result{}, gate.ErrNoPack
 }
+
+func TestGateCmdSecurity(t *testing.T) {
+	scan := pack.Pack{ID: "go", Checks: []pack.Check{
+		{Name: "vet", Kind: "lint", Argv: []string{"go", "vet"}},
+		{Name: "govulncheck", Kind: "vuln", Argv: []string{"govulncheck"}, Default: "off"},
+	}, Security: &pack.Security{Checks: []string{"govulncheck"}}}
+	none := pack.Pack{ID: "ruby", Checks: []pack.Check{{Name: "rubocop", Kind: "lint", Argv: []string{"rubocop"}}},
+		Security: &pack.Security{None: "no scanner wired"}}
+	undeclared := pack.Pack{ID: "php", Checks: []pack.Check{{Name: "phpstan", Kind: "lint", Argv: []string{"phpstan"}}}}
+	e := rcSetup(t, "")
+	g := &profGate{}
+	e.app.Gate = g
+	e.app.Langs = gateLangs{ds: []langpack.Detected{
+		{Pack: scan, ID: "go", Root: "."}, {Pack: none, ID: "ruby", Root: "r"}, {Pack: undeclared, ID: "php", Root: "p"},
+	}}
+	g.res = gate.Result{OK: true, Checks: []gate.CheckResult{{Name: "govulncheck", Pack: "go@.", OK: true, Duration: time.Second}}}
+	if code := e.do("gate", "--security"); code != 0 {
+		t.Fatal(code, e.err)
+	}
+	want := "gate: ruby: no security tools (no scanner wired)\ngate: php: security not declared\n✓ govulncheck [go@.] 1.0s\n"
+	if e.out.String() != want {
+		t.Fatalf("%q", e.out)
+	}
+	o := g.opts
+	if !o.NoRecord || o.Missing != gate.MissingSkip || len(o.Enable) != 1 || o.Enable[0] != "govulncheck" ||
+		len(o.PackChecks["go"]) != 1 || o.PackChecks["go"][0] != "govulncheck" ||
+		len(o.PackChecks["ruby"]) != 0 || len(o.PackChecks["php"]) != 0 {
+		t.Fatalf("%+v", o)
+	}
+	// Without --security the options are the plain ones.
+	e.out.Reset()
+	if code := e.do("gate"); code != 0 {
+		t.Fatal(code, e.err)
+	}
+	if g.opts.NoRecord || g.opts.PackChecks != nil || strings.Contains(e.out.String(), "security") {
+		t.Fatalf("%+v %q", g.opts, e.out)
+	}
+}

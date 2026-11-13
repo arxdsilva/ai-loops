@@ -9,6 +9,7 @@ import (
 
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/packfs"
 	"github.com/arxdsilva/ai-loops/internal/application/langpack"
+	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 )
 
 func langSetup(t *testing.T) (*rcEnv, string) {
@@ -92,5 +93,43 @@ func TestLangDetect(t *testing.T) {
 	e.app.Languages = []langpack.Override{{ID: "cobol"}}
 	if code := e.do("lang", "detect", "--root", proj); code == 0 {
 		t.Fatal("bad override accepted")
+	}
+}
+
+func TestLangValidateRequiresSecurity(t *testing.T) {
+	e, _ := langSetup(t)
+	if code := e.do("lang", "validate"); code != 0 || e.out.String() != "ok: 15 packs\n" {
+		t.Fatal(code, e.out.String(), e.err.String())
+	}
+	good, err := os.ReadFile("../../../../specs/languages/go/pack.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(good, &m); err != nil {
+		t.Fatal(err)
+	}
+	delete(m, "security")
+	b, _ := json.Marshal(m)
+	noSec := filepath.Join(t.TempDir(), "nosec.json")
+	if err := os.WriteFile(noSec, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := e.do("lang", "validate", noSec); code != 1 || !strings.Contains(e.err.String(), "security: not declared") {
+		t.Fatal(code, e.out.String(), e.err.String())
+	}
+}
+
+type noSecLangs struct{ gateLangs }
+
+func (noSecLangs) All() ([]pack.Pack, error) {
+	return []pack.Pack{{ID: "a", Security: &pack.Security{None: "x"}}, {ID: "b"}}, nil
+}
+
+func TestLangValidateAllReportsUndeclared(t *testing.T) {
+	e, _ := langSetup(t)
+	e.app.Langs = noSecLangs{}
+	if code := e.do("lang", "validate"); code != 1 || !strings.Contains(e.err.String(), "pack b: security: not declared") || strings.Contains(e.out.String(), "ok:") {
+		t.Fatal(code, e.out.String(), e.err.String())
 	}
 }

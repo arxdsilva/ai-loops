@@ -189,6 +189,7 @@ Two values differ from go.md's research block:
 | `checks[].coverage_args` | argv | spliced in at `{coverage_args}` only when coverage is collected | go (`CoverProfile != ""`) | test |
 | `checks[].signal_regex` | regex | failure lines kept first when output is trimmed | go (`isTestSignal`) | test |
 | `checks[].repeat` | int | run N times; `{seed}` gets a new value each time and is recorded | clojure `repeat`/`{seed}`, scala 3× | absent |
+| `security` | `{checks[]}` or `{none}` | the pack's security scanners for `loops gate --security`: names of its `vuln`/`sast` checks (pack order), or `none` with the reason there is no scanner; validated by `Parse`, required by `RequireSecurity` | new | `gosec`, `govulncheck` (W1-gate) |
 | `test_commands[]` | `{argv_prefix}` | what race-guard and the test guard treat as a test run | draft | 3 prefixes |
 | `race.mode` | `flag`/`build`/`none` | CONC-04 | draft | `flag` |
 | `race.flags`, `race.env` | | `flag` mode: what race-guard requires on test commands | draft | `-race`, `GOFLAGS` |

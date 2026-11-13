@@ -27,19 +27,19 @@ type Config struct {
 // DefaultConfig returns the rimworld-go thresholds.
 func DefaultConfig() Config { return Config{MinLines: 500, MaxViewLines: 150} }
 
-// Guard evaluates tool calls.
-type Guard struct {
+// guard evaluates tool calls.
+type guard struct {
 	files Files
 	cfg   Config
 }
 
-// New builds a Guard.
-func New(files Files, cfg Config) *Guard { return &Guard{files: files, cfg: cfg} }
+// New builds a guard.
+func New(files Files, cfg Config) *guard { return &guard{files: files, cfg: cfg} }
 
 // CheckRead returns a deny reason ("" = allow) for a Read or Bash tool call.
 // toolInput is the hook's raw tool_input; cwd the call's cwd; repo the
 // project root (only files under repo are guarded).
-func (g *Guard) CheckRead(toolName string, toolInput json.RawMessage, cwd, repo string) string {
+func (g *guard) CheckRead(toolName string, toolInput json.RawMessage, cwd, repo string) string {
 	if g.cfg.Off {
 		return ""
 	}

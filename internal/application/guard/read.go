@@ -11,7 +11,7 @@ var binaryExt = map[string]bool{
 	".pdf": true, ".ipynb": true, ".wav": true, ".ogg": true,
 }
 
-func (g *Guard) checkReadTool(in map[string]any, repo string, minLines int) string {
+func (g *guard) checkReadTool(in map[string]any, repo string, minLines int) string {
 	if truthy(in["offset"]) || truthy(in["limit"]) {
 		return ""
 	}

@@ -56,7 +56,7 @@ type Langs interface {
 	Detect(root string) ([]langpack.Detected, error)
 }
 
-// Updater is the update-notice service (updatecheck.Service).
+// Updater is the update-notice service (the updatecheck.New service).
 type Updater interface {
 	Check(ctx context.Context, current string, markNotified bool) (*updatecheck.Notice, error)
 }

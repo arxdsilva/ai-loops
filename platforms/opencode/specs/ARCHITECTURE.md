@@ -289,6 +289,7 @@ The test rules themselves are `specs/TESTING.md`.
 | `init` | error | No implicit registration at load time (`specs/SOLID.md §4`) |
 | `global` | error | No runtime-assigned module-level state (`specs/SOLID.md §9`) |
 | `cmd` | error | The composition root is wiring only (§23) |
+| `decls` | warn | Go only: package-level declaration placement (`specs/languages/go/RULES.md §55`) |
 | `methods`, `fields`, `iface`, `lines`, `files` | warn | Size limits (`specs/SOLID.md §8`) |
 
 Which rules a pack can check depends on its parser; Go checks all of them (`specs/languages/go/ARCHITECTURE.md §5`). `loops gate` fails only on errors. Unchecked mechanically: `utils` modules and edits to generated code; these are review items (`skills/review-integration`).

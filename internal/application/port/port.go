@@ -25,6 +25,19 @@ type Options struct {
 	Version string
 }
 
+// emitters maps platforms to their builders (one file per platform).
+var emitters = map[plugin.Platform]emitter{
+	plugin.Claude:   buildClaude,   // claude.go   (P1): the plugin-directory package (no-download shim)
+	plugin.Copilot:  buildCopilot,  // copilot.go  (P1): README only — Copilot reads the root
+	plugin.Codex:    buildCodex,    // codex.go    (P1)
+	plugin.Cursor:   buildCursor,   // cursor.go   (P1)
+	plugin.Gemini:   buildGemini,   // gemini.go   (P2)
+	plugin.OpenCode: buildOpenCode, // opencode.go (P2)
+	plugin.Amp:      buildAmp,      // amp.go      (P2)
+	plugin.Windsurf: buildWindsurf, // windsurf.go (P2)
+	plugin.Cline:    buildCline,    // cline.go    (P2)
+}
+
 // Load parses the canonical sources (embed.go's layout) into a Plugin:
 // .claude-plugin/plugin.json metadata, skills/*/SKILL.md frontmatter,
 // agents/*.md frontmatter + body, hooks/hooks.json bindings. Worker P1.
@@ -58,19 +71,6 @@ func Build(p plugin.Plugin, src fs.FS, target plugin.Platform, o Options) ([]plu
 
 // emitter builds one platform's package.
 type emitter func(p plugin.Plugin, src fs.FS, o Options) ([]plugin.File, []string, error)
-
-// emitters maps platforms to their builders (one file per platform).
-var emitters = map[plugin.Platform]emitter{
-	plugin.Claude:   buildClaude,   // claude.go   (P1): the plugin-directory package (no-download shim)
-	plugin.Copilot:  buildCopilot,  // copilot.go  (P1): README only — Copilot reads the root
-	plugin.Codex:    buildCodex,    // codex.go    (P1)
-	plugin.Cursor:   buildCursor,   // cursor.go   (P1)
-	plugin.Gemini:   buildGemini,   // gemini.go   (P2)
-	plugin.OpenCode: buildOpenCode, // opencode.go (P2)
-	plugin.Amp:      buildAmp,      // amp.go      (P2)
-	plugin.Windsurf: buildWindsurf, // windsurf.go (P2)
-	plugin.Cline:    buildCline,    // cline.go    (P2)
-}
 
 // RootFiles are files the generator writes at the REPOSITORY root (paths
 // relative to it): .agents/plugins/marketplace.json (Codex) and

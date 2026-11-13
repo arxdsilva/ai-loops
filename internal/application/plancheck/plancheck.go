@@ -11,6 +11,12 @@ import (
 	"strings"
 )
 
+// Patterns for the wave headings and the wave prefix of an agent id.
+var (
+	headingRe = regexp.MustCompile(`^#{1,6}\s*Wave\s+([A-Za-z0-9]+)`)
+	idWaveRe  = regexp.MustCompile(`^(W\d+[a-z]?)[-_]`)
+)
+
 // Agent is one row of a waves table.
 type Agent struct {
 	ID   string
@@ -83,11 +89,6 @@ func Check(plan string, capAgents int) Report {
 	sort.SliceStable(r.Findings, func(i, j int) bool { return r.Findings[i].Line < r.Findings[j].Line })
 	return r
 }
-
-var (
-	headingRe = regexp.MustCompile(`^#{1,6}\s*Wave\s+([A-Za-z0-9]+)`)
-	idWaveRe  = regexp.MustCompile(`^(W\d+[a-z]?)[-_]`)
-)
 
 func normWave(s string) string {
 	if strings.HasPrefix(s, "W") || strings.HasPrefix(s, "w") {

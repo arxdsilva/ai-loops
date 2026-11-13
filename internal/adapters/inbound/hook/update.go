@@ -13,7 +13,7 @@ const updateBudget = 1600 * time.Millisecond
 
 // updateNotice returns the notice to show, or nil. It is silent and fails
 // open: opt-outs, errors and slow networks all yield nil.
-func (h *Handler) updateNotice(ctx context.Context) *updatecheck.Notice {
+func (h *handler) updateNotice(ctx context.Context) *updatecheck.Notice {
 	if h.d.Update == nil || h.d.Version == "" {
 		return nil
 	}

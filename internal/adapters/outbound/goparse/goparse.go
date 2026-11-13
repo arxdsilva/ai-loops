@@ -34,11 +34,11 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
 )
 
-// Parser implements archcheck.Parser.
-type Parser struct{}
+// sourceParser implements archcheck.Parser.
+type sourceParser struct{}
 
-// New returns a Parser.
-func New() *Parser { return &Parser{} }
+// New returns a sourceParser.
+func New() *sourceParser { return &sourceParser{} }
 
 // dirInfo is one walked directory.
 type dirInfo struct {
@@ -51,7 +51,7 @@ type dirInfo struct {
 
 // Parse walks root, skipping testdata, vendor, hidden and _ directories
 // and directories holding their own go.mod, and parses every package.
-func (p *Parser) Parse(ctx context.Context, root string) (archrule.Module, error) {
+func (p *sourceParser) Parse(ctx context.Context, root string) (archrule.Module, error) {
 	modPath, err := modulePath(filepath.Join(root, "go.mod"))
 	if err != nil {
 		return archrule.Module{}, err

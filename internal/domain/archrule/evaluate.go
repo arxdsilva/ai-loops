@@ -24,6 +24,14 @@ const (
 	MaxCmdString     = 40    // runes of a string literal in a cmd/<x>/main.go
 )
 
+// randCtors are the math/rand(/v2) names that build a seeded generator
+// instead of drawing from the global one; the types are listed too, so a
+// conversion is not mistaken for a draw.
+var randCtors = map[string]bool{
+	"New": true, "NewSource": true, "NewPCG": true, "NewChaCha8": true, "NewZipf": true,
+	"Rand": true, "Source": true, "Source64": true, "PCG": true, "ChaCha8": true, "Zipf": true,
+}
+
 // Evaluate runs every rule over m with the layer layout l (zero fields fall
 // back to DefaultLayers) and the Go rule data (GoRules), and returns the
 // findings sorted by file, line and rule. It is pure: no I/O, no clock.
@@ -42,6 +50,7 @@ func EvaluateWith(m Module, l Layers, r Rules) Report {
 		if goMod {
 			fs = append(fs, initFindings(p)...)
 			fs = append(fs, globalFindings(p)...)
+			fs = append(fs, declFindings(p)...)
 		}
 		if lay == layerDomain {
 			fs = append(fs, purityFindings(p, r)...)
@@ -85,12 +94,18 @@ func globalFindings(p Package) []Finding {
 	return out
 }
 
-// randCtors are the math/rand(/v2) names that build a seeded generator
-// instead of drawing from the global one; the types are listed too, so a
-// conversion is not mistaken for a draw.
-var randCtors = map[string]bool{
-	"New": true, "NewSource": true, "NewPCG": true, "NewChaCha8": true, "NewZipf": true,
-	"Rand": true, "Source": true, "Source64": true, "PCG": true, "ChaCha8": true, "Zipf": true,
+// declFindings warns on every package-level var or const declared after the
+// first func of its file (specs/languages/go/RULES.md §55).
+func declFindings(p Package) []Finding {
+	var out []Finding
+	for _, d := range p.Decls {
+		if !d.AfterFunc {
+			continue
+		}
+		out = append(out, Finding{File: d.Pos.File, Line: d.Pos.Line, Rule: "decls", Severity: SeverityWarn,
+			Msg: fmt.Sprintf("decls: package-level %s %s is declared after the first func of its file; move it into a %s (...) cluster at the top of the file, or into the one function that uses it (specs/languages/go/RULES.md §55)", d.Kind, strings.Join(d.Names, ", "), d.Kind)})
+	}
+	return out
 }
 
 // purityFindings: the domain is deterministic, so it reads no clock, draws

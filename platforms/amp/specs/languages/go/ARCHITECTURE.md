@@ -70,11 +70,12 @@ No `func init()` registration: registries are filled explicitly in the root or t
 | `global` | error | No runtime-assigned package-level `var` (§8) |
 | `cmd` | error | §4 |
 | `methods`, `fields`, `iface`, `lines`, `files` | warn | §7 |
+| `decls` | warn | Package-level `var`/`const` after the first `func` of a non-test file (RULES §55) |
 
 ## 6. Go vocabulary for SOLID (SOLID §2)
 
 - **type** is a named type with methods: methods on data, not a class. No hierarchy, no base type.
-- **port** is an interface. Interfaces are satisfied implicitly, so the consumer defines them; "accept interfaces, return concrete types" (`specs/languages/go/RULES.md §5–§6`).
+- **port** is an interface. Interfaces are satisfied implicitly, so the consumer defines them; "accept interfaces, return concrete types" (`specs/languages/go/RULES.md §5–§6`). Constructor returns, including the unexported `New<X>` case, follow RULES §56.
 - **module** is the package: the unit of cohesion and visibility.
 - Embedding composes; it does not inherit. Substitutability exists only through interfaces and their documented contracts.
 
@@ -105,7 +106,7 @@ func newRefundHandler(r RefundUseCase, l limits) *refundHandler { return &refund
 
 ## 8. Package-level state (SOLID §9)
 
-Allowed:
+Preference and placement of package-level declarations are RULES §55. The `global` check allows only these variables:
 
 - `sync.Once*`, `sync.Pool`, `sync.Map`, atomic values, and a cache whose mutex or `Once` is declared in the same `var (...)` group;
 - immutable lookup tables, never assigned after declaration;

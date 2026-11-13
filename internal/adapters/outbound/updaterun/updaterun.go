@@ -13,27 +13,22 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/application/updatecheck"
 )
 
-const (
-	// waitDelay bounds how long Run waits for a killed child's pipes to close.
-	waitDelay = 2 * time.Second
-	// maxOutput is the most output Run returns (the last bytes written).
-	maxOutput = 64 << 10
-)
+var _ updatecheck.Runner = (*runner)(nil)
 
-var _ updatecheck.Runner = (*Runner)(nil)
-
-// Runner implements updatecheck.Runner with os/exec.
-type Runner struct {
-	lookPath func(string) (string, error) // nil = exec.LookPath
+// runner implements updatecheck.Runner with os/exec.
+type runner struct {
+	lookPath  func(string) (string, error) // nil = exec.LookPath
+	waitDelay time.Duration                // how long Run waits for a killed child's pipes to close
+	maxOutput int                          // the most output Run returns (the last bytes written)
 }
 
-// New returns a Runner.
-func New() *Runner { return &Runner{} }
+// New returns a runner with a 2s wait delay and a 64 KiB output cap.
+func New() *runner { return &runner{waitDelay: 2 * time.Second, maxOutput: 64 << 10} }
 
 // Run runs argv[0] from PATH with argv[1:] and returns the combined output
 // (at most the last 64 KiB). The child inherits env and cwd, reads EOF on
 // stdin and is killed when ctx ends; the error then wraps ctx.Err().
-func (r *Runner) Run(ctx context.Context, argv []string) (string, error) {
+func (r *runner) Run(ctx context.Context, argv []string) (string, error) {
 	if len(argv) == 0 {
 		return "", errors.New("updaterun: empty command")
 	}
@@ -45,11 +40,11 @@ func (r *Runner) Run(ctx context.Context, argv []string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: %s", updatecheck.ErrNoCommand, argv[0])
 	}
-	buf := &tailBuffer{max: maxOutput}
+	buf := &tailBuffer{max: r.maxOutput}
 	cmd := exec.CommandContext(ctx, path, argv[1:]...)
 	cmd.Stdout = buf
 	cmd.Stderr = buf
-	cmd.WaitDelay = waitDelay
+	cmd.WaitDelay = r.waitDelay
 	err = cmd.Run()
 	out := buf.String()
 	if cerr := ctx.Err(); cerr != nil {

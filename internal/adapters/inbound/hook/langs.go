@@ -8,6 +8,13 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 )
 
+// legacyGo is the Go pack as the Go-only hooks applied it: at the project
+// root, gofmt (goimports when on PATH) then go vet on the file's package.
+var legacyGo = langpack.Detected{ID: "go", Name: "Go", Root: ".", Pack: pack.Pack{
+	ID: "go", Name: "Go", SourceGlobs: []string{"**/*.go"}, Manifest: "go.mod",
+	PostEdit: &pack.PostEdit{FormatFile: []string{"gofmt", "-w", "{file}"}, LintDir: []string{"go", "vet", "./{dir}"}},
+}}
+
 // detection is one Handle call's language-pack detection result.
 type detection struct {
 	packs []langpack.Detected
@@ -17,7 +24,7 @@ type detection struct {
 // detect returns the project's detected packs, once per Handle call. ok is
 // false when there is no Langs or it failed: callers then fall back to the
 // Go-only behaviour.
-func (h *Handler) detect(p payload) ([]langpack.Detected, bool) {
+func (h *handler) detect(p payload) ([]langpack.Detected, bool) {
 	if h.langs == nil {
 		h.langs = &detection{}
 		if h.d.Langs != nil {
@@ -39,13 +46,6 @@ func packsOf(ds []langpack.Detected) []pack.Pack {
 	}
 	return out
 }
-
-// legacyGo is the Go pack as the Go-only hooks applied it: at the project
-// root, gofmt (goimports when on PATH) then go vet on the file's package.
-var legacyGo = langpack.Detected{ID: "go", Name: "Go", Root: ".", Pack: pack.Pack{
-	ID: "go", Name: "Go", SourceGlobs: []string{"**/*.go"}, Manifest: "go.mod",
-	PostEdit: &pack.PostEdit{FormatFile: []string{"gofmt", "-w", "{file}"}, LintDir: []string{"go", "vet", "./{dir}"}},
-}}
 
 // owner picks the detected pack that owns file (absolute): the deepest pack
 // root containing it for which the file is a source or test file. It

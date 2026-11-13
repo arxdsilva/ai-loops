@@ -217,6 +217,7 @@
       "note": "the command exits 0 even when it finds vulnerabilities, so the JSON is matched across newlines; SDK 9 and older: dotnet list package --vulnerable --include-transitive"
     }
   ],
+  "security": {"checks": ["vuln"]},
   "test_commands": [
     {
       "argv_prefix": [

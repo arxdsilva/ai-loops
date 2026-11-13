@@ -36,6 +36,7 @@
     {"name": "sobelow", "kind": "sast", "argv": ["mix", "sobelow", "--exit", "medium"], "required": false, "tool": "mix", "default": "off",
      "install": "add {:sobelow, \"~> 0.13\", only: [:dev, :test], runtime: false} to mix.exs deps (Phoenix projects)"}
   ],
+  "security": {"checks": ["deps-audit", "hex-audit", "sobelow"]},
   "test_commands": [
     {"argv_prefix": ["mix", "test"]},
     {"argv_prefix": ["mix", "coveralls"]},

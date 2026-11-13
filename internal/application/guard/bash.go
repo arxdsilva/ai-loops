@@ -14,7 +14,7 @@ var (
 )
 
 // checkBash sums the lines cat and sed -n views print from repo files.
-func (g *Guard) checkBash(command, cwd, repo string, maxView int) string {
+func (g *guard) checkBash(command, cwd, repo string, maxView int) string {
 	tokens, err := tokenize(stripHeredocs(command))
 	if err != nil {
 		return ""
@@ -71,7 +71,7 @@ func nextDir(words []string, base string) (string, bool) {
 }
 
 // repoFiles returns the existing repo files a path or glob names.
-func (g *Guard) repoFiles(path, base, repo string) []string {
+func (g *guard) repoFiles(path, base, repo string) []string {
 	if strings.ContainsAny(path, "$`") {
 		return nil
 	}
@@ -91,7 +91,7 @@ func (g *Guard) repoFiles(path, base, repo string) []string {
 }
 
 // view returns the lines printed and the first repo file of a cat or sed -n view.
-func (g *Guard) view(words []string, base, repo string) (int, string, error) {
+func (g *guard) view(words []string, base, repo string) (int, string, error) {
 	var script string
 	var paths []string
 	isSed := words[0] == "sed"

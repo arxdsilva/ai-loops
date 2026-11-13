@@ -27,11 +27,11 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 )
 
-// Scanner implements archcheck.Scanner.
-type Scanner struct{}
+// scanner implements archcheck.Scanner.
+type scanner struct{}
 
-// New returns a Scanner.
-func New() *Scanner { return &Scanner{} }
+// New returns a scanner.
+func New() *scanner { return &scanner{} }
 
 // srcFile is one source file read from the pack root.
 type srcFile struct {
@@ -78,7 +78,7 @@ func (t *tree) sorted(keep func(string) bool) []string {
 }
 
 // Scan builds the module model of the pack p rooted at root.
-func (s *Scanner) Scan(ctx context.Context, root string, p pack.Pack) (archrule.Module, error) {
+func (s *scanner) Scan(ctx context.Context, root string, p pack.Pack) (archrule.Module, error) {
 	if p.Arch.Parser != pack.ParserRegex {
 		return archrule.Module{}, fmt.Errorf("importscan: pack %s has arch.parser %q, want regex", p.ID, p.Arch.Parser)
 	}

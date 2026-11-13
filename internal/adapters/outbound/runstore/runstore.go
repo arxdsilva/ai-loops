@@ -26,20 +26,31 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/platform/loopsdir"
 )
 
-// Store implements tracker.EventLog and tracker.Pointer.
-type Store struct {
+// Status file and its write throttle.
+const (
+	// statusName is the run-status document the live pane reads
+	// (run.StatusDoc, the same as `loops status --json`).
+	statusName = "status.json"
+
+	// stepInterval throttles status rewrites for tool-call steps, which come in
+	// bursts; every other event kind rewrites it at once.
+	stepInterval = time.Second
+)
+
+// store implements tracker.EventLog and tracker.Pointer.
+type store struct {
 	root    string
-	ignored atomic.Bool // .loops/.gitignore checked once per Store
+	ignored atomic.Bool // .loops/.gitignore checked once per store
 }
 
-// New returns a Store for the project at root.
-func New(root string) *Store { return &Store{root: root} }
+// New returns a store for the project at root.
+func New(root string) *store { return &store{root: root} }
 
 // Base returns <root>/.loops.
-func (s *Store) Base() string { return filepath.Join(s.root, loopsdir.Name) }
+func (s *store) Base() string { return filepath.Join(s.root, loopsdir.Name) }
 
 // ensureBase creates .loops with the .gitignore that keeps it out of git.
-func (s *Store) ensureBase() error {
+func (s *store) ensureBase() error {
 	if s.ignored.Load() {
 		return nil
 	}
@@ -51,10 +62,10 @@ func (s *Store) ensureBase() error {
 }
 
 // Dir returns the run directory.
-func (s *Store) Dir(runID string) string { return filepath.Join(s.Base(), "runs", runID) }
+func (s *store) Dir(runID string) string { return filepath.Join(s.Base(), "runs", runID) }
 
 // Append appends e as one JSON line.
-func (s *Store) Append(ctx context.Context, runID string, e run.Event) error {
+func (s *store) Append(ctx context.Context, runID string, e run.Event) error {
 	line, err := json.Marshal(e)
 	if err != nil {
 		return err
@@ -91,20 +102,12 @@ func (s *Store) Append(ctx context.Context, runID string, e run.Event) error {
 	return nil
 }
 
-// statusName is the run-status document the live pane reads
-// (run.StatusDoc, the same as `loops status --json`).
-const statusName = "status.json"
-
-// stepInterval throttles status rewrites for tool-call steps, which come in
-// bursts; every other event kind rewrites it at once.
-const stepInterval = time.Second
-
 // StatusPath returns <root>/.loops/status.json.
-func (s *Store) StatusPath() string { return filepath.Join(s.Base(), statusName) }
+func (s *store) StatusPath() string { return filepath.Join(s.Base(), statusName) }
 
 // writeStatus rewrites .loops/status.json from the current run's log. Best
 // effort: the event is already recorded, and the pane only shows status.
-func (s *Store) writeStatus(runID string, kind run.Kind) {
+func (s *store) writeStatus(runID string, kind run.Kind) {
 	if cur, err := s.Current(); err != nil || cur != runID {
 		return // not the current run (or none): its log is not the pane's
 	}
@@ -121,7 +124,7 @@ func (s *Store) writeStatus(runID string, kind run.Kind) {
 	_ = s.putStatus(run.StatusDoc{Active: true, Dir: s.Dir(runID), State: &st})
 }
 
-func (s *Store) putStatus(doc run.StatusDoc) error {
+func (s *store) putStatus(doc run.StatusDoc) error {
 	b, err := json.Marshal(doc)
 	if err != nil {
 		return err
@@ -130,7 +133,7 @@ func (s *Store) putStatus(doc run.StatusDoc) error {
 }
 
 // Create reserves runID by creating its directory; fs.ErrExist if taken.
-func (s *Store) Create(ctx context.Context, runID string) error {
+func (s *store) Create(ctx context.Context, runID string) error {
 	if err := s.ensureBase(); err != nil {
 		return err
 	}
@@ -142,7 +145,7 @@ func (s *Store) Create(ctx context.Context, runID string) error {
 
 // Load reads all events; malformed lines are skipped. A missing log yields
 // no events and no error.
-func (s *Store) Load(ctx context.Context, runID string) ([]run.Event, error) {
+func (s *store) Load(ctx context.Context, runID string) ([]run.Event, error) {
 	f, err := os.Open(filepath.Join(s.Dir(runID), "events.jsonl"))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -168,10 +171,10 @@ func (s *Store) Load(ctx context.Context, runID string) ([]run.Event, error) {
 	return out, nil
 }
 
-func (s *Store) currentPath() string { return filepath.Join(s.Base(), "current") }
+func (s *store) currentPath() string { return filepath.Join(s.Base(), "current") }
 
 // Current returns the current run ID, "" when none.
-func (s *Store) Current() (string, error) {
+func (s *store) Current() (string, error) {
 	b, err := os.ReadFile(s.currentPath())
 	if errors.Is(err, fs.ErrNotExist) {
 		return "", nil
@@ -183,7 +186,7 @@ func (s *Store) Current() (string, error) {
 }
 
 // SetCurrent writes .loops/current atomically and refreshes the status.
-func (s *Store) SetCurrent(runID string) error {
+func (s *store) SetCurrent(runID string) error {
 	if err := s.ensureBase(); err != nil {
 		return err
 	}
@@ -195,7 +198,7 @@ func (s *Store) SetCurrent(runID string) error {
 }
 
 // Clear removes .loops/current and marks the status inactive.
-func (s *Store) Clear() error {
+func (s *store) Clear() error {
 	err := os.Remove(s.currentPath())
 	if errors.Is(err, fs.ErrNotExist) {
 		err = nil

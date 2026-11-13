@@ -11,13 +11,13 @@ import (
 	"strings"
 )
 
-// Git runs git in Root.
-type Git struct{ root string }
+// gitCLI runs git in Root.
+type gitCLI struct{ root string }
 
-// New returns a Git rooted at the repository.
-func New(root string) *Git { return &Git{root: root} }
+// New returns a gitCLI rooted at the repository.
+func New(root string) *gitCLI { return &gitCLI{root: root} }
 
-func (g *Git) run(ctx context.Context, args ...string) (string, error) {
+func (g *gitCLI) run(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = g.root
 	var out, errb bytes.Buffer
@@ -29,7 +29,7 @@ func (g *Git) run(ctx context.Context, args ...string) (string, error) {
 }
 
 // LastTag is the newest v<digit>* tag reachable from HEAD ("" when none).
-func (g *Git) LastTag(ctx context.Context) (string, error) {
+func (g *gitCLI) LastTag(ctx context.Context) (string, error) {
 	out, err := g.run(ctx, "tag", "--list", "v[0-9]*", "--merged", "HEAD", "--sort=-v:refname")
 	if err != nil {
 		return "", err
@@ -40,7 +40,7 @@ func (g *Git) LastTag(ctx context.Context) (string, error) {
 
 // CommitsSince returns each commit's full message since tag (all history
 // when tag is "").
-func (g *Git) CommitsSince(ctx context.Context, tag string) ([]string, error) {
+func (g *gitCLI) CommitsSince(ctx context.Context, tag string) ([]string, error) {
 	args := []string{"log", "--format=%B%x00"}
 	if tag != "" {
 		args = append(args, tag+"..HEAD")
@@ -59,7 +59,7 @@ func (g *Git) CommitsSince(ctx context.Context, tag string) ([]string, error) {
 }
 
 // HeadTags lists the tags pointing at HEAD.
-func (g *Git) HeadTags(ctx context.Context) ([]string, error) {
+func (g *gitCLI) HeadTags(ctx context.Context) ([]string, error) {
 	out, err := g.run(ctx, "tag", "--points-at", "HEAD")
 	if err != nil {
 		return nil, err
@@ -68,19 +68,19 @@ func (g *Git) HeadTags(ctx context.Context) ([]string, error) {
 }
 
 // HeadSubject is HEAD's subject line.
-func (g *Git) HeadSubject(ctx context.Context) (string, error) {
+func (g *gitCLI) HeadSubject(ctx context.Context) (string, error) {
 	out, err := g.run(ctx, "log", "-1", "--format=%s")
 	return strings.TrimSpace(out), err
 }
 
 // Dirty reports uncommitted changes (untracked files included).
-func (g *Git) Dirty(ctx context.Context) (bool, error) {
+func (g *gitCLI) Dirty(ctx context.Context) (bool, error) {
 	out, err := g.run(ctx, "status", "--porcelain")
 	return strings.TrimSpace(out) != "", err
 }
 
 // Commit stages paths (those that exist) and commits only them.
-func (g *Git) Commit(ctx context.Context, msg string, paths []string) error {
+func (g *gitCLI) Commit(ctx context.Context, msg string, paths []string) error {
 	var existing []string
 	for _, p := range paths {
 		if _, err := os.Stat(filepath.Join(g.root, filepath.FromSlash(p))); err == nil {
@@ -98,20 +98,20 @@ func (g *Git) Commit(ctx context.Context, msg string, paths []string) error {
 }
 
 // Tag creates an annotated tag at HEAD.
-func (g *Git) Tag(ctx context.Context, tag, msg string) error {
+func (g *gitCLI) Tag(ctx context.Context, tag, msg string) error {
 	_, err := g.run(ctx, "tag", "-a", tag, "-m", msg)
 	return err
 }
 
 // TagExists reports whether the tag exists locally (fetched tags included).
-func (g *Git) TagExists(ctx context.Context, tag string) (bool, error) {
+func (g *gitCLI) TagExists(ctx context.Context, tag string) (bool, error) {
 	out, err := g.run(ctx, "tag", "--list", tag)
 	return strings.TrimSpace(out) != "", err
 }
 
 // Push pushes refs to origin atomically, so a rejected branch update never
 // leaves its tag behind.
-func (g *Git) Push(ctx context.Context, ref ...string) error {
+func (g *gitCLI) Push(ctx context.Context, ref ...string) error {
 	_, err := g.run(ctx, append([]string{"push", "--atomic", "origin"}, ref...)...)
 	return err
 }

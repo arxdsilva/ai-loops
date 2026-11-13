@@ -51,7 +51,7 @@ func goEnvPolicy(platform string, use guard.GoUse) goEnvAction {
 // approval (Claude, Gemini, Windsurf); they are never denied. With no
 // active run, an already-scoped command, or a command test-guard denies
 // (test-guard reports that one), it stays silent.
-func (h *Handler) toolchainEnv(ctx context.Context, d dialect, p payload, out, errw io.Writer) int {
+func (h *handler) toolchainEnv(ctx context.Context, d dialect, p payload, out, errw io.Writer) int {
 	if p.ToolName != "Bash" {
 		return 0
 	}
@@ -81,7 +81,7 @@ func (h *Handler) toolchainEnv(ctx context.Context, d dialect, p payload, out, e
 
 // goEnv scopes go commands to the run's GOCACHE/GOTMPDIR. handled is false
 // when cmd runs no unscoped go command.
-func (h *Handler) goEnv(ctx context.Context, d dialect, p payload, in map[string]any, cmd, dir string, out, errw io.Writer) (code int, handled bool) {
+func (h *handler) goEnv(ctx context.Context, d dialect, p payload, in map[string]any, cmd, dir string, out, errw io.Writer) (code int, handled bool) {
 	cache, tmp := workspace.GoCache(dir), workspace.GoTmp(dir)
 	use := guard.InspectGo(cmd, cache)
 	if !use.Invokes || !use.Unscoped {
@@ -106,7 +106,7 @@ func (h *Handler) goEnv(ctx context.Context, d dialect, p payload, in map[string
 // run-scoped env and cache flags. It never denies: where the platform cannot
 // rewrite without approving the call, the command runs as is (agents can
 // use `loops exec`).
-func (h *Handler) packEnv(d dialect, p payload, in map[string]any, cmd, dir string, out io.Writer) {
+func (h *handler) packEnv(d dialect, p payload, in map[string]any, cmd, dir string, out io.Writer) {
 	switch h.platform {
 	case "claude", "gemini", "windsurf":
 	default:

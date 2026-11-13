@@ -33,6 +33,7 @@
      "argv": ["swift", "package", "generate-sbom"],
      "note": "emits an SPDX or CycloneDX document and never fails on a vulnerability; there is no first-party vuln check (SWIFT-TOOL-05)"}
   ],
+  "security": {"none": "no maintained scanner reads Package.resolved that loops can verify (osv-scanner does not list it, 2026-11); run trivy fs or semgrep by hand"},
   "test_commands": [{"argv_prefix": ["swift", "test"]}],
   "race": {
     "mode": "flag", "flags": ["--sanitize=thread"], "checks": ["test"],

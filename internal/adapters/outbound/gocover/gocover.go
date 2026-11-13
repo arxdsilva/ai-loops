@@ -24,28 +24,29 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/glob"
 )
 
-// Reader implements gate.Coverage with the filesystem and the git CLI.
-type Reader struct{}
-
-// New returns a Reader.
-func New() *Reader { return &Reader{} }
-
+// The reader implements every gate host port.
 var (
-	_ gate.Coverage     = (*Reader)(nil)
-	_ gate.PackCoverage = (*Reader)(nil)
-	_ gate.Files        = (*Reader)(nil)
-	_ gate.RealPaths    = (*Reader)(nil)
-	_ gate.EnvLookup    = (*Reader)(nil)
+	_ gate.Coverage     = (*reader)(nil)
+	_ gate.PackCoverage = (*reader)(nil)
+	_ gate.Files        = (*reader)(nil)
+	_ gate.RealPaths    = (*reader)(nil)
+	_ gate.EnvLookup    = (*reader)(nil)
 )
 
+// reader implements gate.Coverage with the filesystem and the git CLI.
+type reader struct{}
+
+// New returns a reader.
+func New() *reader { return &reader{} }
+
 // Profile returns the coverprofile at path.
-func (r *Reader) Profile(path string) (string, error) {
+func (r *reader) Profile(path string) (string, error) {
 	b, err := os.ReadFile(path)
 	return string(b), err
 }
 
 // Module returns the module path declared in root/go.mod.
-func (r *Reader) Module(root string) (string, error) {
+func (r *reader) Module(root string) (string, error) {
 	b, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil {
 		return "", err
@@ -64,14 +65,14 @@ func (r *Reader) Module(root string) (string, error) {
 }
 
 // HasTests reports whether root/dir holds a _test.go file.
-func (r *Reader) HasTests(root, dir string) bool {
+func (r *reader) HasTests(root, dir string) bool {
 	m, _ := filepath.Glob(filepath.Join(root, filepath.FromSlash(dir), "*_test.go"))
 	return len(m) > 0
 }
 
 // HasTestFiles reports whether root/dir directly holds a file whose
 // root-relative slash path matches one of testGlobs.
-func (r *Reader) HasTestFiles(root, dir string, testGlobs []string) bool {
+func (r *reader) HasTestFiles(root, dir string, testGlobs []string) bool {
 	es, err := os.ReadDir(filepath.Join(root, filepath.FromSlash(dir)))
 	if err != nil {
 		return false
@@ -89,7 +90,7 @@ func (r *Reader) HasTestFiles(root, dir string, testGlobs []string) bool {
 
 // Head returns root/file's opening lines (at most 50, up to and including
 // a "package " clause), for pack.IsGenerated.
-func (r *Reader) Head(root, file string) string {
+func (r *reader) Head(root, file string) string {
 	f, err := os.Open(filepath.Join(root, filepath.FromSlash(file)))
 	if err != nil {
 		return ""
@@ -108,7 +109,7 @@ func (r *Reader) Head(root, file string) string {
 
 // Generated reports whether root/file starts with a "Code generated … DO
 // NOT EDIT." comment (before its package clause).
-func (r *Reader) Generated(root, file string) bool {
+func (r *reader) Generated(root, file string) bool {
 	return coverage.IsGenerated(r.Head(root, file))
 }
 
@@ -117,14 +118,14 @@ func (r *Reader) Generated(root, file string) bool {
 // merge-base(HEAD, base), so commits on the base branch that this branch
 // never touched are not judged. base "" picks the default branch (see
 // resolveBase). Diff.Base names the base chosen and the commit diffed from.
-func (r *Reader) Diff(ctx context.Context, root, base string) (gate.Diff, error) {
+func (r *reader) Diff(ctx context.Context, root, base string) (gate.Diff, error) {
 	return r.DiffGlobs(ctx, root, base, []string{"**/*.go"})
 }
 
 // DiffGlobs is Diff for the files matching globs (a pack's source_globs,
 // root-relative): paths in the result are relative to root, so a pack in a
 // subdirectory gets pack-relative paths.
-func (r *Reader) DiffGlobs(ctx context.Context, root, base string, globs []string) (gate.Diff, error) {
+func (r *reader) DiffGlobs(ctx context.Context, root, base string, globs []string) (gate.Diff, error) {
 	specs := pathspecs(globs)
 	if _, err := runGit(ctx, root, "rev-parse", "--is-inside-work-tree"); err != nil {
 		return gate.Diff{NoGit: true}, nil
@@ -236,25 +237,25 @@ func runGit(ctx context.Context, dir string, args ...string) (string, error) {
 }
 
 // Exists reports whether p exists.
-func (r *Reader) Exists(p string) bool {
+func (r *reader) Exists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
 }
 
 // RealPath returns p with its symlinks resolved (gate.RealPaths).
-func (r *Reader) RealPath(p string) (string, error) { return filepath.EvalSymlinks(p) }
+func (r *reader) RealPath(p string) (string, error) { return filepath.EvalSymlinks(p) }
 
 // ReadFile returns p's content.
-func (r *Reader) ReadFile(p string) (string, error) {
+func (r *reader) ReadFile(p string) (string, error) {
 	b, err := os.ReadFile(p)
 	return string(b), err
 }
 
 // WriteFile writes data to p.
-func (r *Reader) WriteFile(p, data string) error { return os.WriteFile(p, []byte(data), 0o644) }
+func (r *reader) WriteFile(p, data string) error { return os.WriteFile(p, []byte(data), 0o644) }
 
 // Remove deletes the file p; a missing file is fine.
-func (r *Reader) Remove(p string) error {
+func (r *reader) Remove(p string) error {
 	if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
@@ -262,16 +263,16 @@ func (r *Reader) Remove(p string) error {
 }
 
 // MkdirAll creates dir and its parents.
-func (r *Reader) MkdirAll(dir string) error { return os.MkdirAll(dir, 0o755) }
+func (r *reader) MkdirAll(dir string) error { return os.MkdirAll(dir, 0o755) }
 
 // LookupEnv reads the process environment.
-func (r *Reader) LookupEnv(k string) (string, bool) { return os.LookupEnv(k) }
+func (r *reader) LookupEnv(k string) (string, bool) { return os.LookupEnv(k) }
 
 // Walk calls fn with the root-relative slash path of each regular file
 // under root, down to depth directory levels (<0 = unlimited), skipping the
 // directories skip names; fn returning true stops the walk. Unreadable
 // entries are skipped; a root that is not a directory yields nothing.
-func (r *Reader) Walk(root string, depth int, skip func(name string) bool, fn func(rel string) bool) error {
+func (r *reader) Walk(root string, depth int, skip func(name string) bool, fn func(rel string) bool) error {
 	if fi, err := os.Stat(root); err != nil || !fi.IsDir() {
 		return nil
 	}

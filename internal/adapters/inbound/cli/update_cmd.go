@@ -15,8 +15,11 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/update"
 )
 
+// applyBudget bounds one `loops update --apply` (check plus route).
+const applyBudget = 60 * time.Second
+
 // Applier checks for a release now and runs the platform's update of the
-// installed plugin (updatecheck.Service). current is the installed plugin's
+// installed plugin (the updatecheck.New service). current is the installed plugin's
 // version.
 type Applier interface {
 	Apply(ctx context.Context, current, platform string) updatecheck.Outcome
@@ -66,9 +69,6 @@ func (a *App) cmdUpdate(ctx context.Context, args []string) int {
 	}
 	return 0
 }
-
-// applyBudget bounds one `loops update --apply` (check plus route).
-const applyBudget = 60 * time.Second
 
 // pluginInfo is the installed plugin as the CLI resolved it.
 type pluginInfo struct {

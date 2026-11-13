@@ -16,6 +16,9 @@ import (
 // PackGlob is where packs live in the plugin tree.
 const PackGlob = "specs/languages/*/pack.json"
 
+// maxRead caps how much of a marker file is read for "contains" checks.
+const maxRead = 1 << 20
+
 // Embedded reads packs from a plugin tree.
 type Embedded struct{ FS fs.FS }
 
@@ -35,9 +38,6 @@ func (e Embedded) PackFiles() (map[string][]byte, error) {
 	}
 	return out, nil
 }
-
-// maxRead caps how much of a marker file is read for "contains" checks.
-const maxRead = 1 << 20
 
 // OS reads the project tree from disk.
 type OS struct{}

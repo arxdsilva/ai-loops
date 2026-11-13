@@ -39,7 +39,7 @@ func (e edited) stepName() string {
 // distinct command, both in the pack root. A file no pack owns, a pack with
 // no post_edit, or a tool not on PATH is skipped. A failure is sent back to
 // the agent; formatting failures skip linting.
-func (h *Handler) postEdit(ctx context.Context, d dialect, p payload, out io.Writer) {
+func (h *handler) postEdit(ctx context.Context, d dialect, p payload, out io.Writer) {
 	var in toolInput
 	_ = json.Unmarshal(p.ToolInput, &in)
 	repo := h.repo(p)
@@ -126,7 +126,7 @@ func (h *Handler) postEdit(ctx context.Context, d dialect, p payload, out io.Wri
 // template, a placeholder that cannot be filled, or a tool not on PATH.
 // Go keeps the Go-only hook's behaviour: goimports replaces gofmt when it
 // is on PATH, and the Go toolchain's own tools are not looked up.
-func (h *Handler) postEditArgv(e edited, tmpl []string) []string {
+func (h *handler) postEditArgv(e edited, tmpl []string) []string {
 	if len(tmpl) == 0 {
 		return nil
 	}
@@ -159,7 +159,7 @@ func (h *Handler) postEditArgv(e edited, tmpl []string) []string {
 
 // manifestDir is the nearest directory from the file's up to the pack root
 // that holds the pack's manifest (the pack root when none does).
-func (h *Handler) manifestDir(e edited) string {
+func (h *handler) manifestDir(e edited) string {
 	if e.det.Pack.Manifest == "" {
 		return e.root
 	}
@@ -175,7 +175,7 @@ func (h *Handler) manifestDir(e edited) string {
 
 // filePlaceholder resolves a pack placeholder of the file+regex kind: the
 // first submatch of Regex in File (relative paths are under the pack root).
-func (h *Handler) filePlaceholder(e edited, name string, vals map[string][]string) (string, bool) {
+func (h *handler) filePlaceholder(e edited, name string, vals map[string][]string) (string, bool) {
 	ph, ok := e.det.Pack.Placeholders[name]
 	if !ok || ph.File == "" || ph.Regex == "" {
 		return "", false

@@ -19,6 +19,12 @@ import (
 // Options.Module is empty.
 const DefaultModule = "github.com/arxdsilva/ai-loops"
 
+// readOnlyNote opens the body of a read-only role on platforms that cannot
+// enforce it per agent (or whose switch would also block the role's own
+// run-dir file): the role still writes research/*.md, plan.v*.md, qa/*.md,
+// proofs/ or reflection.md.
+const readOnlyNote = "You are a read-only role: you may write only your own file under the run dir (the one your brief names); never edit repo code."
+
 // withDefaults fills Options.Module (DefaultModule) and Options.Version
 // ("v" + p.Version) when empty, and makes sure Version carries a "v".
 func withDefaults(p plugin.Plugin, o Options) Options {
@@ -157,12 +163,6 @@ exit 1
 `
 	return plugin.File{Path: "bin/loops", Data: []byte(script), Exec: true}
 }
-
-// readOnlyNote opens the body of a read-only role on platforms that cannot
-// enforce it per agent (or whose switch would also block the role's own
-// run-dir file): the role still writes research/*.md, plan.v*.md, qa/*.md,
-// proofs/ or reflection.md.
-const readOnlyNote = "You are a read-only role: you may write only your own file under the run dir (the one your brief names); never edit repo code."
 
 // contextText returns templates/PLUGIN_CONTEXT.md (the always-on plugin
 // context for rules files such as GEMINI.md and Cursor rules).

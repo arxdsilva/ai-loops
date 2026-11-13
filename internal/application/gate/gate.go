@@ -11,12 +11,17 @@ package gate
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/arxdsilva/ai-loops/internal/application/langpack"
+	"github.com/arxdsilva/ai-loops/internal/domain/pack"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
+
+// maxOutputLines caps the lines of check output kept in a result.
+const maxOutputLines = 60
 
 // Commander runs external commands in the project root.
 type Commander interface {
@@ -112,11 +117,32 @@ type Options struct {
 	// Packs are the language packs detected for the project
 	// (langpack.Service.Detect); each runs its pipeline in its root.
 	Packs []langpack.Detected
+	// PackChecks maps a pack ID to the only checks to run for that pack;
+	// nil = all. A gate run with it is scoped and never records "all".
+	PackChecks map[string][]string
+	// Missing is what a missing tool or env does (MissingDefault = today's rule).
+	Missing MissingPolicy
+	// NoRecord records no gate events, the "all" event included; the
+	// Result is returned as usual.
+	NoRecord bool
 }
+
+// MissingPolicy says what a check whose tool or env is missing does.
+type MissingPolicy int
+
+// Missing-tool policies.
+const (
+	// MissingDefault is today's rule: fail when the check must run, else
+	// skip with its install hint.
+	MissingDefault MissingPolicy = iota
+	// MissingSkip skips every check whose tool or env is missing, with the
+	// same message and install hint (race checks still fail).
+	MissingSkip
+)
 
 // CheckNames lists the Go pack's check names, in pipeline order (compat:
 // the checks themselves come from the packs).
-var CheckNames = []string{CheckBuild, CheckGofmt, CheckVet, CheckStaticcheck, CheckArch, CheckTest, CheckCoverage, CheckVuln}
+var CheckNames = []string{CheckBuild, CheckGofmt, CheckVet, CheckStaticcheck, CheckArch, CheckTest, CheckCoverage, CheckVuln, CheckGosec}
 
 // RequiredChecks are the Go pack's required checks (compat): a full gate
 // that config-skips one fails. CheckCoverage is not even skippable from the
@@ -124,7 +150,7 @@ var CheckNames = []string{CheckBuild, CheckGofmt, CheckVet, CheckStaticcheck, Ch
 var RequiredChecks = []string{CheckBuild, CheckVet, CheckTest, CheckCoverage}
 
 // StaleStaticcheckNote is shown when staticcheck cannot analyse this toolchain's code.
-const StaleStaticcheckNote = "staticcheck too old for this Go toolchain — upgrade: go install honnef.co/go/tools/cmd/staticcheck@latest"
+const StaleStaticcheckNote = "staticcheck too old for this Go toolchain — upgrade: go install honnef.co/go/tools/cmd/staticcheck@v0.8.2"
 
 // Check names of the Go pack, in pipeline order.
 const (
@@ -136,6 +162,7 @@ const (
 	CheckTest        = "test"
 	CheckCoverage    = "coverage"
 	CheckVuln        = "govulncheck"
+	CheckGosec       = "gosec"
 )
 
 // CheckResult is one check's outcome.
@@ -156,8 +183,8 @@ type Result struct {
 	OK     bool
 }
 
-// Service runs gates.
-type Service struct {
+// service runs gates.
+type service struct {
 	cmd    Commander
 	arch   Arch
 	rec    Recorder
@@ -168,21 +195,21 @@ type Service struct {
 	env    EnvLookup
 }
 
-// New builds a Service.
-func New(cmd Commander, arch Arch, rec Recorder, clock Clock) *Service {
-	return &Service{cmd: cmd, arch: arch, rec: rec, clock: clock}
+// New builds a service.
+func New(cmd Commander, arch Arch, rec Recorder, clock Clock) *service {
+	return &service{cmd: cmd, arch: arch, rec: rec, clock: clock}
 }
 
 // WithFiles sets the file port; without it the gate uses the Coverage
 // port when that implements Files. It returns s.
-func (s *Service) WithFiles(f Files) *Service { s.files = f; return s }
+func (s *service) WithFiles(f Files) *service { s.files = f; return s }
 
 // WithEnvLookup sets the process-environment port; without it the gate
 // uses the Coverage port or the Commander when one implements EnvLookup.
 // It returns s.
-func (s *Service) WithEnvLookup(e EnvLookup) *Service { s.env = e; return s }
+func (s *service) WithEnvLookup(e EnvLookup) *service { s.env = e; return s }
 
-func (s *Service) fs() Files {
+func (s *service) fs() Files {
 	if s.files != nil {
 		return s.files
 	}
@@ -192,7 +219,7 @@ func (s *Service) fs() Files {
 	return nil
 }
 
-func (s *Service) lookupEnv(k string) (string, bool) {
+func (s *service) lookupEnv(k string) (string, bool) {
 	for _, x := range []any{s.env, s.cov, s.cmd} {
 		if e, ok := x.(EnvLookup); ok && e != nil {
 			return e.LookupEnv(k)
@@ -204,53 +231,91 @@ func (s *Service) lookupEnv(k string) (string, bool) {
 // Run executes every pack's pipeline and records one KindGate event per
 // check that ran plus a final run.GateAll event (OK only when every
 // non-skipped check passed and Pkgs/Only/Skip were empty, i.e. a full gate).
-func (s *Service) Run(ctx context.Context, o Options) (Result, error) {
+func (s *service) Run(ctx context.Context, o Options) (Result, error) {
 	if len(o.Packs) == 0 {
 		return Result{}, ErrNoPack
 	}
 	res := Result{OK: true}
-	stopped := false
+	st := &runState{}
 	startedAt := s.clock.Now()
-	var skippedReq string
 	for i, d := range o.Packs {
 		pr := s.newPackRun(o, d, i, startedAt)
 		for _, c := range pr.p.Checks {
 			if err := ctx.Err(); err != nil {
 				return res, err
 			}
-			if contains(o.ConfigSkip, c.Name) && (c.Required || pr.p.RaceCheck(c.Name)) {
-				skippedReq = c.Name + pr.suffix()
-			}
-			cr := CheckResult{Name: c.Name, Pack: pr.label, Skipped: true}
-			if !stopped && selected(o, c.Name, c.IsSkippable()) {
-				cr = s.check(ctx, o, pr, c)
-				cr.Name, cr.Pack = c.Name, pr.label
-				if !cr.Skipped {
-					pr.ran[c.Name] = true
-					s.record(ctx, cr)
-					if !cr.OK {
-						res.OK = false
-						if o.FailFast {
-							stopped = true
-						}
-					}
-				}
-			}
-			res.Checks = append(res.Checks, cr)
+			res.Checks = append(res.Checks, s.step(ctx, o, pr, c, st, &res))
 		}
 	}
-	if len(o.Pkgs) == 0 && len(o.Only) == 0 && len(o.Skip) == 0 {
-		ev := run.Event{Kind: run.KindGate, Name: run.GateAll, OK: run.Bool(res.OK), Time: startedAt.UTC()}
-		if skippedReq != "" {
-			// A full gate that skipped a required check is not green:
-			// fail the run too, so the exit code and the Stop gate agree.
-			ev.OK = run.Bool(false)
-			ev.Note = "required check skipped: " + skippedReq
-			res.OK = false
-		}
-		_ = s.rec.Record(ctx, ev) // no active run is fine; gating must not depend on recording
+	if isFullGate(o) {
+		s.recordAll(ctx, &res, startedAt, st.skippedReq)
 	}
 	return res, nil
+}
+
+// runState is what a Run carries across checks.
+type runState struct {
+	stopped    bool   // fail-fast tripped: later checks are skipped
+	skippedReq string // a required check skipped by config
+}
+
+// step handles one check of pr: the config-skip bookkeeping, selection,
+// the run, and the effect of a failure on res and st.
+func (s *service) step(ctx context.Context, o Options, pr *packRun, c pack.Check, st *runState, res *Result) CheckResult {
+	if contains(o.ConfigSkip, c.Name) && (c.Required || pr.p.RaceCheck(c.Name)) {
+		st.skippedReq = c.Name + pr.suffix()
+	}
+	if st.stopped || !selected(o, c.Name, c.IsSkippable()) || !packSelected(o, pr.p.ID, c.Name) {
+		return CheckResult{Name: c.Name, Pack: pr.label, Skipped: true}
+	}
+	cr := s.runOne(ctx, o, pr, c)
+	if !cr.Skipped && !cr.OK {
+		res.OK = false
+		st.stopped = o.FailFast
+	}
+	return cr
+}
+
+// runOne runs a selected check and records it unless it skipped or
+// o.NoRecord is set.
+func (s *service) runOne(ctx context.Context, o Options, pr *packRun, c pack.Check) CheckResult {
+	cr := s.check(ctx, o, pr, c)
+	cr.Name, cr.Pack = c.Name, pr.label
+	if !cr.Skipped {
+		pr.ran[c.Name] = true
+		if !o.NoRecord {
+			s.record(ctx, cr)
+		}
+	}
+	return cr
+}
+
+// isFullGate reports whether o is unscoped and recording, so the run ends
+// with an "all" event.
+func isFullGate(o Options) bool {
+	return len(o.Pkgs) == 0 && len(o.Only) == 0 && len(o.Skip) == 0 && o.PackChecks == nil && !o.NoRecord
+}
+
+// recordAll records the "all" event; a full gate that skipped a required
+// check is not green, so it fails the result too (exit code and Stop gate
+// agree).
+func (s *service) recordAll(ctx context.Context, res *Result, startedAt time.Time, skippedReq string) {
+	ev := run.Event{Kind: run.KindGate, Name: run.GateAll, OK: run.Bool(res.OK), Time: startedAt.UTC()}
+	if skippedReq != "" {
+		ev.OK = run.Bool(false)
+		ev.Note = "required check skipped: " + skippedReq
+		res.OK = false
+	}
+	_ = s.rec.Record(ctx, ev) // no active run is fine; gating must not depend on recording
+}
+
+// packSelected reports whether check name may run for pack id under
+// o.PackChecks (nil = every check).
+func packSelected(o Options, id, name string) bool {
+	if o.PackChecks == nil {
+		return true
+	}
+	return slices.Contains(o.PackChecks[id], name)
 }
 
 func selected(o Options, name string, skippable bool) bool {
@@ -274,7 +339,7 @@ func contains(l []string, n string) bool {
 
 // exec runs one external command in dir with env when the Commander
 // supports it.
-func (s *Service) exec(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
+func (s *service) exec(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
 	if ec, ok := s.cmd.(EnvCommander); ok && len(env) > 0 {
 		return ec.RunEnv(ctx, dir, env, name, args...)
 	}
@@ -283,7 +348,7 @@ func (s *Service) exec(ctx context.Context, dir string, env []string, name strin
 
 // stdout runs a command for its stdout (combined output without a
 // StdoutCommander).
-func (s *Service) stdout(ctx context.Context, dir string, env []string, argv []string) (string, error) {
+func (s *service) stdout(ctx context.Context, dir string, env []string, argv []string) (string, error) {
 	if sc, ok := s.cmd.(StdoutCommander); ok {
 		return sc.RunStdout(ctx, dir, env, argv[0], argv[1:]...)
 	}
@@ -307,8 +372,6 @@ func fmtDirs(pkgs []string) []string {
 	}
 	return dirs
 }
-
-const maxOutputLines = 60
 
 // trim keeps the first maxOutputLines lines; with signal set, the lines it
 // matches (failures) come first.
@@ -343,7 +406,7 @@ func firstLine(out string) string {
 	return ""
 }
 
-func (s *Service) record(ctx context.Context, cr CheckResult) {
+func (s *service) record(ctx context.Context, cr CheckResult) {
 	_ = s.rec.Record(ctx, run.Event{
 		Kind: run.KindGate, Name: cr.Name, OK: run.Bool(cr.OK),
 		DurationMS: cr.Duration.Milliseconds(), Note: cr.note, Pack: cr.Pack,

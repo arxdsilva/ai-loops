@@ -6,29 +6,6 @@ import (
 	"strings"
 )
 
-var platforms = map[string]string{
-	"claude": "claude", "copilot": "copilot", "codex": "codex", "cursor": "cursor",
-	"gemini": "gemini", "windsurf": "windsurf", "devin": "windsurf", "opencode": "opencode",
-}
-
-// detect picks the platform from the flag, else the environment (PLATFORMS.md §5).
-func detect(flag string, env func(string) string) string {
-	if p, ok := platforms[strings.ToLower(flag)]; ok {
-		return p
-	}
-	switch {
-	case env("CURSOR_PLUGIN_ROOT") != "" || env("CURSOR_PROJECT_DIR") != "":
-		return "cursor"
-	case env("GEMINI_PROJECT_DIR") != "" || env("GEMINI_CWD") != "":
-		return "gemini"
-	case env("DEVIN_PROJECT_DIR") != "":
-		return "windsurf"
-	case env("PLUGIN_ROOT") != "" && env("CLAUDE_PROJECT_DIR") == "":
-		return "codex"
-	}
-	return "claude"
-}
-
 var eventNames = map[string]string{
 	"sessionStart": "SessionStart", "preToolUse": "PreToolUse", "postToolUse": "PostToolUse",
 	"postToolUseFailure": "PostToolUseFailure", "subagentStart": "SubagentStart",
@@ -54,6 +31,31 @@ var toolNames = map[string]string{
 	"agent": "Agent", "grep": "Grep", "webfetch": "WebFetch", "websearch": "WebSearch",
 }
 
+var patchFile = regexp.MustCompile(`(?m)^\*\*\* (?:Add|Update|Delete) File: (.+?)\s*$`)
+
+var platforms = map[string]string{
+	"claude": "claude", "copilot": "copilot", "codex": "codex", "cursor": "cursor",
+	"gemini": "gemini", "windsurf": "windsurf", "devin": "windsurf", "opencode": "opencode",
+}
+
+// detect picks the platform from the flag, else the environment (PLATFORMS.md §5).
+func detect(flag string, env func(string) string) string {
+	if p, ok := platforms[strings.ToLower(flag)]; ok {
+		return p
+	}
+	switch {
+	case env("CURSOR_PLUGIN_ROOT") != "" || env("CURSOR_PROJECT_DIR") != "":
+		return "cursor"
+	case env("GEMINI_PROJECT_DIR") != "" || env("GEMINI_CWD") != "":
+		return "gemini"
+	case env("DEVIN_PROJECT_DIR") != "":
+		return "windsurf"
+	case env("PLUGIN_ROOT") != "" && env("CLAUDE_PROJECT_DIR") == "":
+		return "codex"
+	}
+	return "claude"
+}
+
 func canonTool(n string) string {
 	if c, ok := toolNames[n]; ok {
 		return c
@@ -63,8 +65,6 @@ func canonTool(n string) string {
 	}
 	return n
 }
-
-var patchFile = regexp.MustCompile(`(?m)^\*\*\* (?:Add|Update|Delete) File: (.+?)\s*$`)
 
 // patchFiles lists the files an apply_patch touches, in order.
 func patchFiles(patch string) []string {

@@ -41,7 +41,8 @@ Note the three printed absolute paths: below, `$RUN`, `$SPECS` and `$TEMPLATES` 
 4. **Languages.** `loops lang detect` prints the detected packs and their roots. Each implementation lane is a layer role plus one pack (ROLES.md). Nothing detected: continue (the gate will check nothing), put that under the charter's Constraints, and tell the user in one line that `languages` in `.loops/config.json` pins packs (`/loops:init` step 1a).
 5. **ai-memory, once** (only if its tools exist and `memory_status` succeeds; else skip silently): call `memory_briefing`, then one `memory_query` on the ticket's key terms (pass `workspace`/`project` per WORKFLOW §7). Write hits to `$RUN/research/memory.md` (mark as unverified evidence) and run `loops run event --kind memory --name briefing`.
 6. **Checkpoints.** `loops run ask [<list from step 1>]` records them (no list = the config) and prints them.
-7. **Charter.** Write `$RUN/charter.md` from `$TEMPLATES/CHARTER.md`: goal, ACs from `ticket.md`, in and out of scope, constraints, assumptions (each also `loops run decide --topic assumption …`). Then `loops run checkpoint intake`; `ask`: show it and ask Continue / Edit scope / Stop.
+7. **Clarify.** Load `loops:clarify` (WORKFLOW §2.0 step 5). It records the ticket's open points in `$RUN/clarifications.md`; its inferred answers become charter assumptions.
+8. **Charter.** Write `$RUN/charter.md` from `$TEMPLATES/CHARTER.md`: goal, ACs from `ticket.md`, in and out of scope, constraints, assumptions (each also `loops run decide --topic assumption …`). Then `loops run checkpoint intake`; `ask`: show it and ask Continue / Edit scope / Stop.
 
 ### 0a. Opt-in limits (WORKFLOW §4a)
 
@@ -130,7 +131,8 @@ loops run loopback --from qa-verifier --to <id> --round N --note "<claims>"
    - send it to its lane like a failed claim. That lane's verifier re-verifies, and the pass runs again.
 
    Same limits.
-7. When the quality pass is VERIFIED, run the full gate yourself. It runs every detected pack's checks at its root, each under the pack's race policy (WORKFLOW §6):
+6a. **Security pass** (WORKFLOW §2.4): when the quality pass is VERIFIED, spawn one `security-reviewer` (Agent id `qa-security`, round N, the `Language:` line of each pack, `Charter:`, and `Base: <commit>`: the commit the run started from, from `git merge-base HEAD <default branch>`, or the HEAD recorded at `loops run start`). Label it. Record each finding as `loops run verdict --name security:S<n> --status FAILED --round N --ref qa/security.r<N>.md`, then `loops run loopback --from qa-security --to <id> --round N` and send it to the owning lane like a failed claim, with the same limits. On a platform whose plugin cache lacks the role, spawn a general agent with `agents/security-reviewer.md` as its prompt.
+7. When the quality and security passes are VERIFIED, run the full gate yourself. It runs every detected pack's checks at its root, each under the pack's race policy (WORKFLOW §6):
 ```
 loops gate
 ```

@@ -171,6 +171,7 @@
       "install": "add {project_plugins, [rebar3_sbom]}. to rebar.config"
     }
   ],
+  "security": {"checks": ["audit"]},
   "test_commands": [
     {
       "argv_prefix": [

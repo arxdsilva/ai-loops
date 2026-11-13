@@ -1,5 +1,23 @@
 package archrule
 
+// Import kinds a resolver assigns.
+const (
+	ImportInternal = "internal"
+	ImportStd      = "std"
+	ImportThird    = "third"
+)
+
+// Type kinds.
+const (
+	KindStruct    = "struct"
+	KindInterface = "interface"
+	KindOther     = "other"
+
+	// Decl kinds (Decl.Kind).
+	DeclVar   = "var"
+	DeclConst = "const"
+)
+
 // Module is the syntax-level model of a Go module that the rules evaluate.
 // The parser (an outbound adapter) fills it; the rules never touch files.
 // Every path is module-relative and slash-separated; the module root is ".".
@@ -31,18 +49,19 @@ type Dir struct {
 // Package is what the parser gathers for one directory of .go files.
 // Test files (_test.go) feed only Globals and TestFiles.
 type Package struct {
-	Dir        string    `json:"dir"`        // module-relative, "." for the root
-	ImportPath string    `json:"importPath"` // Module.Path + "/" + Dir
-	Files      []string  `json:"files"`      // non-test .go files, module-relative
-	TestFiles  []string  `json:"testFiles"`  // _test.go files, module-relative
-	Lines      int       `json:"lines"`      // newlines over Files
-	Imports    []Import  `json:"imports"`    // one per import spec in Files
-	Inits      []Pos     `json:"inits"`      // func init() declarations in Files
-	Globals    []Global  `json:"globals"`    // package vars some function body assigns
-	Types      []Type    `json:"types"`      // top-level types and receiver types of Files
-	GoStmts    []Pos     `json:"goStmts"`    // go statements in Files
-	Calls      []Call    `json:"calls"`      // time.Now and math/rand(/v2) selectors in Files
-	Main       *MainFile `json:"main"`       // <Dir>/main.go facts, nil without one
+	Dir        string    `json:"dir"`             // module-relative, "." for the root
+	ImportPath string    `json:"importPath"`      // Module.Path + "/" + Dir
+	Files      []string  `json:"files"`           // non-test .go files, module-relative
+	TestFiles  []string  `json:"testFiles"`       // _test.go files, module-relative
+	Lines      int       `json:"lines"`           // newlines over Files
+	Imports    []Import  `json:"imports"`         // one per import spec in Files
+	Inits      []Pos     `json:"inits"`           // func init() declarations in Files
+	Globals    []Global  `json:"globals"`         // package vars some function body assigns
+	Decls      []Decl    `json:"decls,omitempty"` // package-level var and const decls of Files (RULES §55)
+	Types      []Type    `json:"types"`           // top-level types and receiver types of Files
+	GoStmts    []Pos     `json:"goStmts"`         // go statements in Files
+	Calls      []Call    `json:"calls"`           // time.Now and math/rand(/v2) selectors in Files
+	Main       *MainFile `json:"main"`            // <Dir>/main.go facts, nil without one
 	// Impure holds the impure-call text hits of the import scanner (non-Go
 	// packs); Evaluate reports them in domain packages.
 	Impure []Hit `json:"impure,omitempty"`
@@ -65,13 +84,6 @@ type Import struct {
 	Dir  string `json:"dir,omitempty"` // module-relative target directory of an internal import
 }
 
-// Import kinds a resolver assigns.
-const (
-	ImportInternal = "internal"
-	ImportStd      = "std"
-	ImportThird    = "third"
-)
-
 // Global is a package-level var (declared in a non-test file) that a
 // function body, test files included, assigns to or increments.
 type Global struct {
@@ -80,12 +92,17 @@ type Global struct {
 	Assigned Pos    `json:"assigned"` // the first assignment found
 }
 
-// Type kinds.
-const (
-	KindStruct    = "struct"
-	KindInterface = "interface"
-	KindOther     = "other"
-)
+// Decl is a package-level var or const GenDecl of a non-test, non-generated
+// file; Pos is its keyword. The tunables rule (specs/languages/go/RULES.md
+// §55) reads it: Kind is DeclVar or DeclConst, Names lists every name the
+// declaration binds, in source order, and AfterFunc reports that a func
+// declaration precedes it in its file.
+type Decl struct {
+	Kind      string   `json:"kind"`
+	Names     []string `json:"names"`
+	Pos       Pos      `json:"pos"`
+	AfterFunc bool     `json:"afterFunc,omitempty"`
+}
 
 // Type is one named type of a package.
 type Type struct {

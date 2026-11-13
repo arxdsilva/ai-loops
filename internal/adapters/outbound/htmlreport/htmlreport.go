@@ -30,11 +30,11 @@ var tmpl = template.Must(template.New("report.html.tmpl").Funcs(template.FuncMap
 	"statusClass": statusClass,
 }).ParseFS(assets, "assets/report.html.tmpl"))
 
-// Renderer renders reports.
-type Renderer struct{}
+// renderer renders reports.
+type renderer struct{}
 
-// New returns a Renderer.
-func New() *Renderer { return &Renderer{} }
+// New returns a renderer.
+func New() *renderer { return &renderer{} }
 
 type phaseView struct {
 	Index     int
@@ -107,7 +107,7 @@ type view struct {
 
 // Render writes the report for state/events; dir is the run directory (for
 // linking and inlining ticket.md, plan, proofs, reflection).
-func (r *Renderer) Render(w io.Writer, s run.State, events []run.Event, dir string) error {
+func (r *renderer) Render(w io.Writer, s run.State, events []run.Event, dir string) error {
 	css, err := assets.ReadFile("assets/style.css")
 	if err != nil {
 		return err

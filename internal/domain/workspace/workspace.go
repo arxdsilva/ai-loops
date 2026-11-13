@@ -37,6 +37,41 @@ const (
 	baselineDirsName = "baseline-dirs.txt"
 )
 
+// artifactSuffixes are lower-case name endings of Go build/test/profile outputs.
+var artifactSuffixes = []string{".test", ".test.exe", ".out", ".prof", ".pprof", ".cov", ".exe"}
+
+// HeadSize is how many leading bytes IsExecutableBinary needs to judge a file.
+const HeadSize = 4096
+
+// skipNames are directory names whose trees are never snapshotted or pruned:
+// VCS data and dependency or build trees that can hold millions of files
+// (vendor, node_modules, Elixir deps and _build/deps, Python virtualenvs,
+// Cargo/Maven target, the Gradle project cache).
+var skipNames = map[string]bool{
+	".git": true, "vendor": true, "node_modules": true,
+	"deps": true, ".venv": true, "venv": true, "target": true, ".gradle": true,
+}
+
+// EntryKind is what a path is on disk (never following symlinks).
+type EntryKind int
+
+// Entry kinds.
+const (
+	KindOther   EntryKind = iota // fifo, socket, device, vanished
+	KindFile                     // regular file
+	KindSymlink                  // symbolic link (never followed, never deleted)
+	KindDir                      // directory
+)
+
+// Action is what cleanup does with an entry.
+type Action int
+
+// Actions.
+const (
+	Keep   Action = iota // leave it, list it for review
+	Remove               // delete it
+)
+
 // GoDir is the run's Go scratch directory (<run dir>/go).
 func GoDir(runDir string) string { return filepath.Join(runDir, "go") }
 
@@ -148,9 +183,6 @@ func NewPaths(baseline, current []string) (fresh, unsafe []string) {
 	return fresh, unsafe
 }
 
-// artifactSuffixes are lower-case name endings of Go build/test/profile outputs.
-var artifactSuffixes = []string{".test", ".test.exe", ".out", ".prof", ".pprof", ".cov", ".exe"}
-
 // IsArtifactName reports whether a file's base name is a Go build, test or
 // profiling output: *.test, *.test.exe, *.out, *.prof, *.pprof, *.cov,
 // coverage*.txt, cover*.out, __debug_bin*, *.exe.
@@ -169,9 +201,6 @@ func IsArtifactName(base string) bool {
 	}
 	return false
 }
-
-// HeadSize is how many leading bytes IsExecutableBinary needs to judge a file.
-const HeadSize = 4096
 
 // IsExecutableBinary reports whether head (a file's first bytes) starts an
 // ELF, Mach-O (thin or fat) or PE executable. Java class files share the
@@ -199,17 +228,6 @@ func IsExecutableBinary(head []byte) bool {
 	return false
 }
 
-// EntryKind is what a path is on disk (never following symlinks).
-type EntryKind int
-
-// Entry kinds.
-const (
-	KindOther   EntryKind = iota // fifo, socket, device, vanished
-	KindFile                     // regular file
-	KindSymlink                  // symbolic link (never followed, never deleted)
-	KindDir                      // directory
-)
-
 // Entry is one new path as the adapter found it.
 type Entry struct {
 	Rel  string
@@ -222,15 +240,6 @@ type Entry struct {
 	InArtifactDir bool
 }
 
-// Action is what cleanup does with an entry.
-type Action int
-
-// Actions.
-const (
-	Keep   Action = iota // leave it, list it for review
-	Remove               // delete it
-)
-
 // Decide returns Remove only for a safe, regular, non-script file that is
 // an artifact by name or by executable header.
 func Decide(e Entry) Action {
@@ -241,15 +250,6 @@ func Decide(e Entry) Action {
 		return Remove
 	}
 	return Keep
-}
-
-// skipNames are directory names whose trees are never snapshotted or pruned:
-// VCS data and dependency or build trees that can hold millions of files
-// (vendor, node_modules, Elixir deps and _build/deps, Python virtualenvs,
-// Cargo/Maven target, the Gradle project cache).
-var skipNames = map[string]bool{
-	".git": true, "vendor": true, "node_modules": true,
-	"deps": true, ".venv": true, "venv": true, "target": true, ".gradle": true,
 }
 
 // SkipDir reports whether the directory rel is outside the snapshot: .git,

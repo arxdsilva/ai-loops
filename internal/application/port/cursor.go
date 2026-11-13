@@ -46,6 +46,7 @@ var cursorBackground = map[string]bool{
 	"test-engineer":        true,
 	"docs-writer":          true,
 	"qa-verifier":          true,
+	"security-reviewer":    true,
 	"product-reviewer":     false,
 	"reflector":            false,
 	// Language roles (agents/<id>-engineer.md): wave 0 toolchain lanes

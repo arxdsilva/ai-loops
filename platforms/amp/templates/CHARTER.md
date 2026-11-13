@@ -25,6 +25,7 @@ Run: <run id> | Ticket: <ref or "text"> | Checkpoints: <loops run ask output, e.
 - <project rules that bind this run (file:line), compatibility promises, deadlines, --no-pr, the language packs or "no pack detected">
 
 ## Assumptions
+<!-- when from the clarify step, each cites its clarifications.md item, e.g. "(K3)" -->
 - A1: <the reading taken where the ticket is unclear, and why it is the narrowest one that meets the goal> (decision recorded)
 
 ## Plan

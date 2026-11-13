@@ -291,6 +291,7 @@
       "install": "cargo install cargo-audit --locked"
     }
   ],
+  "security": {"checks": ["deny", "audit"]},
   "test_commands": [
     {
       "argv_prefix": [

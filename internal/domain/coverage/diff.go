@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+// generatedRe matches the standard generated-file marker line.
+var generatedRe = regexp.MustCompile(`^// Code generated .* DO NOT EDIT\.$`)
+
 // LineRange is an inclusive range of 1-based lines.
 type LineRange struct{ Start, End int }
 
@@ -154,8 +157,6 @@ func span(s string) (int, int, error) {
 	}
 	return start, n, nil
 }
-
-var generatedRe = regexp.MustCompile(`^// Code generated .* DO NOT EDIT\.$`)
 
 // IsGenerated reports whether a Go file's head (its first lines) carries the
 // standard "// Code generated … DO NOT EDIT." marker before the package

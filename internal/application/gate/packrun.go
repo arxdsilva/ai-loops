@@ -35,7 +35,7 @@ type packRun struct {
 	seedBase, seedNumber int64
 }
 
-func (s *Service) newPackRun(o Options, d langpack.Detected, i int, startedAt time.Time) *packRun {
+func (s *service) newPackRun(o Options, d langpack.Detected, i int, startedAt time.Time) *packRun {
 	p := d.Pack
 	id := p.ID
 	if id == "" {
@@ -199,14 +199,14 @@ func (pr *packRun) vals(c pack.Check, seed string) (map[string][]string, error) 
 
 // expand fills argv's placeholders: the built-ins, then the pack-declared
 // ones (resolved on first use).
-func (s *Service) expand(ctx context.Context, pr *packRun, argv []string, v map[string][]string) ([]string, error) {
+func (s *service) expand(ctx context.Context, pr *packRun, argv []string, v map[string][]string) ([]string, error) {
 	if err := s.resolvePlaceholders(ctx, pr, argv, v, 0); err != nil {
 		return nil, err
 	}
 	return pack.Expand(argv, v)
 }
 
-func (s *Service) resolvePlaceholders(ctx context.Context, pr *packRun, argv []string, v map[string][]string, depth int) error {
+func (s *service) resolvePlaceholders(ctx context.Context, pr *packRun, argv []string, v map[string][]string, depth int) error {
 	for _, name := range pack.Placeholders(argv) {
 		if _, ok := v[name]; ok {
 			continue
@@ -231,7 +231,7 @@ func (s *Service) resolvePlaceholders(ctx context.Context, pr *packRun, argv []s
 	return nil
 }
 
-func (s *Service) resolveOne(ctx context.Context, pr *packRun, name string, ph pack.Placeholder, v map[string][]string, depth int) ([]string, error) {
+func (s *service) resolveOne(ctx context.Context, pr *packRun, name string, ph pack.Placeholder, v map[string][]string, depth int) ([]string, error) {
 	sub := func(argv []string) ([]string, error) {
 		if err := s.resolvePlaceholders(ctx, pr, argv, v, depth+1); err != nil {
 			return nil, err

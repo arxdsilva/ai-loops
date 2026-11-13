@@ -21,23 +21,23 @@ const (
 	timeout      = 1500 * time.Millisecond
 )
 
-// Client implements updatecheck.Source.
-type Client struct {
+// proxyClient implements updatecheck.Source.
+type proxyClient struct {
 	module string
 	getenv func(string) string
 	http   *http.Client
 }
 
-// New returns a Client for module.
-func New(module string) *Client {
-	return &Client{module: module, getenv: os.Getenv, http: &http.Client{}}
+// New returns a proxyClient for module.
+func New(module string) *proxyClient {
+	return &proxyClient{module: module, getenv: os.Getenv, http: &http.Client{}}
 }
 
 // Latest returns the latest version. It honours GOPROXY (first http(s)
 // entry; "off"/"direct"-only → error), skips modules matched by
 // GOPRIVATE/GONOPROXY (error), escapes upper-case path letters (!x), and
 // times out after 1500ms.
-func (c *Client) Latest(ctx context.Context) (string, error) {
+func (c *proxyClient) Latest(ctx context.Context) (string, error) {
 	if c.private() {
 		return "", errors.New("goproxy: private module")
 	}
@@ -69,7 +69,7 @@ func (c *Client) Latest(ctx context.Context) (string, error) {
 	return info.Version, nil
 }
 
-func (c *Client) proxy() (string, error) {
+func (c *proxyClient) proxy() (string, error) {
 	v := strings.TrimSpace(c.getenv("GOPROXY"))
 	if v == "" {
 		return defaultProxy, nil
@@ -85,7 +85,7 @@ func (c *Client) proxy() (string, error) {
 
 // private reports whether GOPRIVATE or GONOPROXY covers the module, with
 // the go command's prefix semantics.
-func (c *Client) private() bool {
+func (c *proxyClient) private() bool {
 	for _, env := range []string{"GOPRIVATE", "GONOPROXY"} {
 		for _, pat := range strings.Split(c.getenv(env), ",") {
 			pat = strings.TrimSpace(pat)

@@ -29,17 +29,17 @@ type Notice struct {
 	Latest  string
 }
 
-// Service runs the check.
-type Service struct {
+// service runs the check.
+type service struct {
 	src    Source
 	store  Store
 	clock  Clock
 	runner Runner // automatic update routes (nil = none), WithRunner
 }
 
-// New builds a Service.
-func New(src Source, store Store, clock Clock) *Service {
-	return &Service{src: src, store: store, clock: clock}
+// New builds a service.
+func New(src Source, store Store, clock Clock) *service {
+	return &service{src: src, store: store, clock: clock}
 }
 
 // Check loads state, fetches when due (errors are swallowed: state keeps
@@ -47,7 +47,7 @@ func New(src Source, store Store, clock Clock) *Service {
 // re-probed every run), saves, and returns a Notice when the user should be
 // told. markNotified=true records the notice as delivered (session-start);
 // false only peeks (`loops version --check`).
-func (s *Service) Check(ctx context.Context, current string, markNotified bool) (*Notice, error) {
+func (s *service) Check(ctx context.Context, current string, markNotified bool) (*Notice, error) {
 	st, _ := s.store.Load() // unreadable state behaves like a first run
 	now := s.clock.Now()
 	var saveErr error
@@ -73,7 +73,7 @@ func (s *Service) Check(ctx context.Context, current string, markNotified bool) 
 
 // Fetch queries the source now, ignoring the throttle, and records the
 // result (LastCheck, Latest). On a source error the state is left alone.
-func (s *Service) Fetch(ctx context.Context) (update.State, error) {
+func (s *service) Fetch(ctx context.Context) (update.State, error) {
 	st, _ := s.store.Load()
 	v, err := s.src.Latest(ctx)
 	if err != nil {

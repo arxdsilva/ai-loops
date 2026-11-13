@@ -7,6 +7,14 @@ import (
 	"strings"
 )
 
+// Budget limit names (BudgetDecision.Limit, Event.Name for KindBudget).
+const (
+	LimitMaxAgents = "max_agents"
+	LimitRoles     = "roles"
+	LimitAgents    = "agents"
+	LimitTokens    = "tokens"
+)
+
 // Limits are the user's opt-in limits (WORKFLOW §4a). The zero value means
 // no limits: nothing is checked and nothing is shown.
 type Limits struct {
@@ -62,14 +70,6 @@ type BudgetDecision struct {
 	Limit  string // "tokens" | "agents" | "roles" | "max_agents" when !OK
 	Reason string
 }
-
-// Budget limit names (BudgetDecision.Limit, Event.Name for KindBudget).
-const (
-	LimitMaxAgents = "max_agents"
-	LimitRoles     = "roles"
-	LimitAgents    = "agents"
-	LimitTokens    = "tokens"
-)
 
 // CheckBudget decides whether spawning n more agents of role in phase fits
 // the limits given the run state (running lanes, phase lanes, phase

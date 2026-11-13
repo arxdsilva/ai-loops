@@ -19,11 +19,11 @@ import (
 // Marker is the file every generated package root contains.
 const Marker = ".loops-generated"
 
-// FS implements the CLI's PackageWriter.
-type FS struct{}
+// fileSystem implements the CLI's PackageWriter.
+type fileSystem struct{}
 
-// New returns an FS.
-func New() *FS { return &FS{} }
+// New returns a fileSystem.
+func New() *fileSystem { return &fileSystem{} }
 
 // junk names are OS droppings ignored by Diff and removed by Write.
 func junk(name string) bool {
@@ -58,7 +58,7 @@ func sortedKeys(m map[string]plugin.File) []string {
 
 // Write makes dir an exact image of files (plus the marker). It refuses a
 // non-empty dir that lacks the marker.
-func (FS) Write(dir string, files []plugin.File) error {
+func (fileSystem) Write(dir string, files []plugin.File) error {
 	m, err := want(files)
 	if err != nil {
 		return err
@@ -189,7 +189,7 @@ func prune(dir string, m map[string]plugin.File) error {
 }
 
 // Diff lists drifted relative paths (missing, extra, changed), sorted.
-func (FS) Diff(dir string, files []plugin.File) ([]string, error) {
+func (fileSystem) Diff(dir string, files []plugin.File) ([]string, error) {
 	m, err := want(files)
 	if err != nil {
 		return nil, err
@@ -255,7 +255,7 @@ func (FS) Diff(dir string, files []plugin.File) ([]string, error) {
 // Place copies placements to their absolute destinations, skipping existing
 // files unless force. A symlink at a destination is replaced, never written
 // through.
-func (FS) Place(p []plugin.Placement, force bool) ([]string, error) {
+func (fileSystem) Place(p []plugin.Placement, force bool) ([]string, error) {
 	var written []string
 	for _, pl := range p {
 		if !filepath.IsAbs(pl.Dest) {

@@ -12,14 +12,14 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/platform/atomicfile"
 )
 
-// File implements updatecheck.Store.
-type File struct{ path string }
+// stateFile implements updatecheck.Store.
+type stateFile struct{ path string }
 
-// New returns a File at the default path (empty path disables persistence).
-func New() *File { return &File{path: defaultPath()} }
+// New returns a stateFile at the default path (empty path disables persistence).
+func New() *stateFile { return &stateFile{path: defaultPath()} }
 
-// NewAt returns a File at an explicit path.
-func NewAt(path string) *File { return &File{path: path} }
+// NewAt returns a stateFile at an explicit path.
+func NewAt(path string) *stateFile { return &stateFile{path: path} }
 
 func defaultPath() string {
 	state := os.Getenv("XDG_STATE_HOME")
@@ -34,7 +34,7 @@ func defaultPath() string {
 }
 
 // Load returns the saved state (zero when missing, empty-path or corrupt).
-func (f *File) Load() (update.State, error) {
+func (f *stateFile) Load() (update.State, error) {
 	var s update.State
 	if f.path == "" {
 		return s, nil
@@ -53,7 +53,7 @@ func (f *File) Load() (update.State, error) {
 }
 
 // Save writes the state atomically.
-func (f *File) Save(s update.State) error {
+func (f *stateFile) Save(s update.State) error {
 	if f.path == "" {
 		return nil
 	}

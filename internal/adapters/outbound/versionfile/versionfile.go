@@ -10,17 +10,17 @@ import (
 	"regexp"
 )
 
-// File is a plugin.json on disk.
-type File struct{ path string }
-
-// New returns the version file at path.
-func New(path string) *File { return &File{path: path} }
-
 // The top-level version is the first "version" key at two-space indent.
 var versionRe = regexp.MustCompile(`(?m)^(  "version"\s*:\s*")([^"\\]*)(")`)
 
+// versionFile is a plugin.json on disk.
+type versionFile struct{ path string }
+
+// New returns the version file at path.
+func New(path string) *versionFile { return &versionFile{path: path} }
+
 // ReadVersion returns the "version" value.
-func (f *File) ReadVersion() (string, error) {
+func (f *versionFile) ReadVersion() (string, error) {
 	data, err := os.ReadFile(f.path)
 	if err != nil {
 		return "", err
@@ -38,7 +38,7 @@ func (f *File) ReadVersion() (string, error) {
 }
 
 // WriteVersion replaces the "version" value and validates the result.
-func (f *File) WriteVersion(v string) error {
+func (f *versionFile) WriteVersion(v string) error {
 	if !regexp.MustCompile(`^[0-9A-Za-z.+-]+$`).MatchString(v) {
 		return fmt.Errorf("versionfile: invalid version %q", v)
 	}

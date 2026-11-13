@@ -24,22 +24,39 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
-// Handler dispatches hook names.
-type Handler struct {
+var projectEnv = map[string][]string{
+	"cursor": {"CURSOR_PROJECT_DIR"}, "gemini": {"GEMINI_PROJECT_DIR"}, "windsurf": {"DEVIN_PROJECT_DIR"},
+}
+
+// maxBrief caps the run brief the session-start hook adds.
+const maxBrief = 2400
+
+var entryPoint = map[string]string{
+	"claude": "/loops:work", "copilot": "/loops:work", "gemini": "/loops:work",
+	"codex": "$work", "cursor": "/work", "opencode": "/loops/work", "windsurf": "the work skill",
+}
+
+// maxIdleBlocks is how many stop-gate blocks with no tool call between them
+// are tolerated before the gate releases the agent.
+const maxIdleBlocks = 3
+
+// handler dispatches hook names. It is unexported: New returns it for the
+// composition root to wire to cli.Hooks (specs/languages/go/RULES.md §56).
+type handler struct {
 	d        Deps
 	platform string
 	langs    *detection // per Handle call; nil until first needed
 }
 
-// New returns a Handler.
-func New(d Deps) *Handler {
+// New returns the hook dispatcher; document behaviour here, not on handler.
+func New(d Deps) *handler {
 	if d.Env == nil {
 		d.Env = func(string) string { return "" }
 	}
 	if d.Getwd == nil {
 		d.Getwd = func() (string, error) { return "", nil }
 	}
-	return &Handler{d: d}
+	return &handler{d: d}
 }
 
 // payload is the subset of the hook JSON we read.
@@ -94,7 +111,7 @@ func (in toolInput) path() string {
 // Handle runs hook name for platform ("" autodetects) and returns the
 // process exit code (2 = deny for PreToolUse; 0 otherwise). Hooks fail
 // open: output is buffered, so a panic anywhere exits 0 with no output.
-func (h *Handler) Handle(ctx context.Context, name, platform string, in io.Reader, out, errw io.Writer) (code int) {
+func (h *handler) Handle(ctx context.Context, name, platform string, in io.Reader, out, errw io.Writer) (code int) {
 	var o, e bytes.Buffer
 	defer func() {
 		if recover() != nil {
@@ -107,7 +124,7 @@ func (h *Handler) Handle(ctx context.Context, name, platform string, in io.Reade
 	return h.handle(ctx, name, platform, in, &o, &e)
 }
 
-func (h *Handler) handle(ctx context.Context, name, platform string, in io.Reader, out, errw io.Writer) int {
+func (h *handler) handle(ctx context.Context, name, platform string, in io.Reader, out, errw io.Writer) int {
 	raw, err := io.ReadAll(io.LimitReader(in, 8<<20))
 	if err != nil {
 		return 0
@@ -146,7 +163,7 @@ func (h *Handler) handle(ctx context.Context, name, platform string, in io.Reade
 
 // absolutize makes a relative file_path absolute (payload cwd, then project
 // dir) so guards see the real file whatever the platform sent.
-func (h *Handler) absolutize(p *payload) {
+func (h *handler) absolutize(p *payload) {
 	switch p.ToolName {
 	case "Read", "Edit", "Write", "MultiEdit":
 	default:
@@ -173,7 +190,7 @@ func (h *Handler) absolutize(p *payload) {
 	}
 }
 
-func (h *Handler) repo(p payload) string {
+func (h *handler) repo(p payload) string {
 	for _, k := range projectEnv[h.platform] {
 		if r := h.d.Env(k); r != "" {
 			return r
@@ -189,21 +206,9 @@ func (h *Handler) repo(p payload) string {
 	return wd
 }
 
-var projectEnv = map[string][]string{
-	"cursor": {"CURSOR_PROJECT_DIR"}, "gemini": {"GEMINI_PROJECT_DIR"}, "windsurf": {"DEVIN_PROJECT_DIR"},
-}
-
 func roleName(agentType string) string { return strings.TrimPrefix(agentType, "loops:") }
 
-// maxBrief caps the run brief the session-start hook adds.
-const maxBrief = 2400
-
-var entryPoint = map[string]string{
-	"claude": "/loops:work", "copilot": "/loops:work", "gemini": "/loops:work",
-	"codex": "$work", "cursor": "/work", "opencode": "/loops/work", "windsurf": "the work skill",
-}
-
-func (h *Handler) sessionStart(ctx context.Context, d dialect, p payload, out io.Writer) {
+func (h *handler) sessionStart(ctx context.Context, d dialect, p payload, out io.Writer) {
 	root := h.d.Env("LOOPS_PLUGIN_ROOT")
 	text := "loops plugin active."
 	if root != "" {
@@ -251,7 +256,7 @@ func (h *Handler) sessionStart(ctx context.Context, d dialect, p payload, out io
 
 // writePluginRoot records the plugin root for shells that lack
 // LOOPS_PLUGIN_ROOT. Best effort: it never fails the hook.
-func (h *Handler) writePluginRoot(root, repo string) {
+func (h *handler) writePluginRoot(root, repo string) {
 	write := h.d.WriteFile
 	if write == nil {
 		write = writeFileAtomic
@@ -294,13 +299,13 @@ func writeFileAtomic(path string, data []byte) error {
 	return err
 }
 
-func (h *Handler) deny(ctx context.Context, p payload, guardName, reason string, errw io.Writer) int {
+func (h *handler) deny(ctx context.Context, p payload, guardName, reason string, errw io.Writer) int {
 	fmt.Fprintln(errw, reason)
 	_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindGuardDeny, Name: guardName, Agent: p.AgentID, Note: reason})
 	return 2
 }
 
-func (h *Handler) readGuard(ctx context.Context, p payload, errw io.Writer) int {
+func (h *handler) readGuard(ctx context.Context, p payload, errw io.Writer) int {
 	cfg := guard.DefaultConfig()
 	cfg.Off = strings.EqualFold(h.d.Env("READ_GUARD"), "off")
 	for _, kv := range []struct {
@@ -327,7 +332,7 @@ func (h *Handler) readGuard(ctx context.Context, p payload, errw io.Writer) int 
 	return h.deny(ctx, p, "read-guard", reason, errw)
 }
 
-func (h *Handler) modelGuard(ctx context.Context, p payload, errw io.Writer) int {
+func (h *handler) modelGuard(ctx context.Context, p payload, errw io.Writer) int {
 	if p.ToolName != "" && p.ToolName != "Agent" {
 		return 0
 	}
@@ -352,7 +357,7 @@ func firstLine(s string, max int) string {
 	return s
 }
 
-func (h *Handler) target(p payload, in toolInput, repo string) string {
+func (h *handler) target(p payload, in toolInput, repo string) string {
 	switch p.ToolName {
 	case "Read", "Edit", "Write", "MultiEdit", "NotebookEdit":
 		f := in.path()
@@ -379,7 +384,7 @@ func (h *Handler) target(p payload, in toolInput, repo string) string {
 	return ""
 }
 
-func (h *Handler) trace(ctx context.Context, p payload, failed bool) {
+func (h *handler) trace(ctx context.Context, p payload, failed bool) {
 	if id, err := h.d.Rec.Current(ctx); err != nil || id == "" {
 		return
 	}
@@ -392,7 +397,7 @@ func (h *Handler) trace(ctx context.Context, p payload, failed bool) {
 	})
 }
 
-func (h *Handler) traceAgent(ctx context.Context, p payload) {
+func (h *handler) traceAgent(ctx context.Context, p payload) {
 	e := run.Event{Agent: p.AgentID, Role: roleName(p.AgentType)}
 	switch p.Event {
 	case "SubagentStart":
@@ -414,7 +419,7 @@ func (h *Handler) traceAgent(ctx context.Context, p payload) {
 
 // closestLane fills e.Agent for a stop that carries no agent id: the most
 // recently started, still-running lane with the same role.
-func (h *Handler) closestLane(ctx context.Context, e *run.Event) bool {
+func (h *handler) closestLane(ctx context.Context, e *run.Event) bool {
 	if e.Role == "" {
 		return false
 	}
@@ -435,13 +440,9 @@ func (h *Handler) closestLane(ctx context.Context, e *run.Event) bool {
 	return true
 }
 
-// maxIdleBlocks is how many stop-gate blocks with no tool call between them
-// are tolerated before the gate releases the agent.
-const maxIdleBlocks = 3
-
 // stalled reports whether the gate already blocked maxIdleBlocks times with
 // no step event since the first of those blocks.
-func (h *Handler) stalled(ctx context.Context) bool {
+func (h *handler) stalled(ctx context.Context) bool {
 	evs, err := h.d.Rec.Events(ctx, "")
 	if err != nil {
 		return false
@@ -459,7 +460,7 @@ scan:
 	return n >= maxIdleBlocks
 }
 
-func (h *Handler) stopGate(ctx context.Context, d dialect, p payload, out io.Writer) {
+func (h *handler) stopGate(ctx context.Context, d dialect, p payload, out io.Writer) {
 	if p.StopHookActive || strings.EqualFold(h.d.Env("LOOPS_GATE"), "off") {
 		return
 	}

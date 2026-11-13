@@ -526,6 +526,7 @@
       "install": "go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest"
     }
   ],
+  "security": {"checks": ["npm-audit", "osv-scanner"]},
   "test_commands": [
     {
       "argv_prefix": [

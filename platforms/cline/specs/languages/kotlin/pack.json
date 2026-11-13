@@ -147,6 +147,7 @@
       "install": "go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest"
     }
   ],
+  "security": {"checks": ["osv"]},
   "test_commands": [
     {
       "argv_prefix": [

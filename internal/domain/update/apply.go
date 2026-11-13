@@ -7,7 +7,8 @@ import (
 
 // ApplyRetry is how long a recorded attempt for one version suppresses
 // another attempt for the same version (backoff after a failure, pending
-// after a success).
+// after a success). A documented policy contract (specs/PLATFORMS.md §9),
+// not a tunable.
 const ApplyRetry = 24 * time.Hour
 
 // Step is what `loops update --apply` should do now.

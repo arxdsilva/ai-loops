@@ -14,6 +14,14 @@ const (
 	PhaseReflect   Phase = "reflect"   // 6: reflector writes reflection.md and ai-memory pages
 )
 
+// Loop limits (specs/WORKFLOW.md §4).
+const (
+	MaxPlanRounds    = 3 // planner ↔ plan-reviewer rounds before escalating to the user
+	MaxQARounds      = 3 // implementer ↔ qa-verifier rounds before escalating to the user
+	EscalateAfter    = 2 // failed QA rounds before the implementer is relaunched one model tier up
+	MaxProductRounds = 2 // product → implementer returns before escalating to the user
+)
+
 // Phases lists the phases in workflow order.
 var Phases = [...]Phase{PhaseIntake, PhaseResearch, PhasePlan, PhaseImplement, PhaseQA, PhaseProduct, PhaseReflect}
 
@@ -47,11 +55,3 @@ func (p Phase) Title() string {
 	}
 	return string(p)
 }
-
-// Loop limits (specs/WORKFLOW.md §4).
-const (
-	MaxPlanRounds    = 3 // planner ↔ plan-reviewer rounds before escalating to the user
-	MaxQARounds      = 3 // implementer ↔ qa-verifier rounds before escalating to the user
-	EscalateAfter    = 2 // failed QA rounds before the implementer is relaunched one model tier up
-	MaxProductRounds = 2 // product → implementer returns before escalating to the user
-)

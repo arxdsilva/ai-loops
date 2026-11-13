@@ -7,6 +7,19 @@ import (
 	"strings"
 )
 
+// SourceExts lists the file extensions of every pack's sources (lower case,
+// with the dot). The stop gate uses it to notice source edits without
+// loading packs; a test keeps it in step with the embedded packs' globs.
+var SourceExts = []string{
+	".go",
+	".py", ".pyi",
+	".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs",
+	".java", ".kt", ".kts", ".scala", ".sc", ".clj", ".cljs", ".cljc",
+	".cs", ".csproj", ".php", ".rb", ".rake", ".ru", ".gemspec", ".rs", ".swift",
+	".ex", ".exs", ".erl", ".hrl", ".app.src",
+	".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".ipp", ".ixx", ".cppm", ".tpp", ".inl",
+}
+
 // Expand fills the {name} placeholders of argv from vals.
 //   - An element that is exactly "{name}" expands to every value of name, in
 //     place (a list placeholder such as {pkgs} or {coverage_args} may expand
@@ -61,19 +74,6 @@ func Placeholders(argv []string) []string {
 		}
 	}
 	return out
-}
-
-// SourceExts lists the file extensions of every pack's sources (lower case,
-// with the dot). The stop gate uses it to notice source edits without
-// loading packs; a test keeps it in step with the embedded packs' globs.
-var SourceExts = []string{
-	".go",
-	".py", ".pyi",
-	".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs",
-	".java", ".kt", ".kts", ".scala", ".sc", ".clj", ".cljs", ".cljc",
-	".cs", ".csproj", ".php", ".rb", ".rake", ".ru", ".gemspec", ".rs", ".swift",
-	".ex", ".exs", ".erl", ".hrl", ".app.src",
-	".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".ipp", ".ixx", ".cppm", ".tpp", ".inl",
 }
 
 // LooksLikeSource reports whether the file name ends in a source extension

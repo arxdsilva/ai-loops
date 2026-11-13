@@ -7,12 +7,20 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/archrule"
+)
+
+var (
+	// generatedHeader matches the marker of a generated file (go.dev/s/generatedcode).
+	generatedHeader = regexp.MustCompile(`^// Code generated .* DO NOT EDIT\.$`)
+	// watched are the packages whose selected functions the domain rules need.
+	watched = map[string]bool{"time": true, "math/rand": true, "math/rand/v2": true}
 )
 
 // pkgScan gathers the facts of one package while its files are parsed.
@@ -39,7 +47,7 @@ func parsePackage(modPath string, d dirInfo) (archrule.Package, error) {
 		files = append(files, af)
 		s.pkg.Files = append(s.pkg.Files, s.rel(d, name))
 		s.pkg.Lines += strings.Count(string(src), "\n")
-		s.file(af)
+		s.file(af, src)
 		if name == "main.go" {
 			s.pkg.Main = s.mainFile(af, s.rel(d, name), src)
 		}
@@ -86,7 +94,9 @@ func (s *pkgScan) pos(p token.Pos) archrule.Pos {
 }
 
 // file gathers the facts of one non-test file.
-func (s *pkgScan) file(af *ast.File) {
+func (s *pkgScan) file(af *ast.File, src []byte) {
+	record := !generated(src)
+	seenFunc := false
 	for _, imp := range af.Imports {
 		ip, _ := strconv.Unquote(imp.Path.Value)
 		s.pkg.Imports = append(s.pkg.Imports, archrule.Import{Path: ip, Pos: s.pos(imp.Pos())})
@@ -94,6 +104,7 @@ func (s *pkgScan) file(af *ast.File) {
 	for _, d := range af.Decls {
 		switch d := d.(type) {
 		case *ast.FuncDecl:
+			seenFunc = true
 			if d.Recv != nil {
 				s.typ(receiverType(d.Recv), d.Pos()).Methods++
 			} else if d.Name.Name == "init" {
@@ -101,9 +112,41 @@ func (s *pkgScan) file(af *ast.File) {
 			}
 		case *ast.GenDecl:
 			s.typeDecls(d)
+			if record {
+				s.valueDecl(d, seenFunc)
+			}
 		}
 	}
 	s.uses(af)
+}
+
+// valueDecl records a package-level var or const declaration.
+func (s *pkgScan) valueDecl(d *ast.GenDecl, afterFunc bool) {
+	if d.Tok != token.VAR && d.Tok != token.CONST {
+		return
+	}
+	var names []string
+	for _, spec := range d.Specs {
+		for _, n := range spec.(*ast.ValueSpec).Names {
+			names = append(names, n.Name)
+		}
+	}
+	s.pkg.Decls = append(s.pkg.Decls, archrule.Decl{Kind: d.Tok.String(), Names: names, Pos: s.pos(d.Pos()), AfterFunc: afterFunc})
+}
+
+// generated reports a "Code generated ... DO NOT EDIT." line before the
+// package clause.
+func generated(src []byte) bool {
+	for _, line := range strings.Split(string(src), "\n") {
+		line = strings.TrimRight(line, "\r")
+		if strings.HasPrefix(line, "package ") {
+			return false
+		}
+		if generatedHeader.MatchString(line) {
+			return true
+		}
+	}
+	return false
 }
 
 // typ returns the type named name, creating it at p when first seen.
@@ -135,9 +178,6 @@ func (s *pkgScan) typeDecls(d *ast.GenDecl) {
 		}
 	}
 }
-
-// watched are the packages whose selected functions the domain rules need.
-var watched = map[string]bool{"time": true, "math/rand": true, "math/rand/v2": true}
 
 // importNames maps the local names of the watched imports of af to their
 // paths. Dot and blank imports are not tracked.

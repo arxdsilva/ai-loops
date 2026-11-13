@@ -21,6 +21,19 @@ const (
 	SourceText   = "text"
 )
 
+// Patterns that classify a ref and parse acceptance criteria from a body.
+var (
+	jiraKey     = regexp.MustCompile(`^[A-Z][A-Z0-9]+-\d+$`)
+	numericRef  = regexp.MustCompile(`^#?\d+$`)
+	repoIssue   = regexp.MustCompile(`^[\w.-]+(/[\w.-]+)+#\d+$`)
+	acPrefix    = regexp.MustCompile(`(?i)^AC-?\d+\s*[:.)-]\s*`)
+	listItem    = regexp.MustCompile(`^\s*(?:[-*+]|\d+[.)])\s+(.*)$`)
+	checkItem   = regexp.MustCompile(`^\s*[-*+]\s+\[[ xX]\]\s+(.*)$`)
+	acHeading   = regexp.MustCompile(`(?i)^\s*(?:#{1,6}\s*|\*\*)?(?:acceptance criteria|ac|acs|definition of done)\s*(?:\*\*)?:?\s*$`)
+	anyHeading  = regexp.MustCompile(`^\s*#{1,6}\s+\S`)
+	boldHeading = regexp.MustCompile(`^\s*\*\*[^*]+\*\*:?\s*$`)
+)
+
 // Issues fetches issues from a forge CLI.
 type Issues interface {
 	// GitHub runs `gh issue view <ref> --json number,title,body,labels,url`
@@ -41,23 +54,11 @@ type Ticket struct {
 	Criteria []string // acceptance criteria parsed from the body (checklists / "Acceptance criteria" section)
 }
 
-// Service fetches tickets.
-type Service struct{ issues Issues }
+// service fetches tickets.
+type service struct{ issues Issues }
 
-// New builds a Service.
-func New(issues Issues) *Service { return &Service{issues: issues} }
-
-var (
-	jiraKey     = regexp.MustCompile(`^[A-Z][A-Z0-9]+-\d+$`)
-	numericRef  = regexp.MustCompile(`^#?\d+$`)
-	repoIssue   = regexp.MustCompile(`^[\w.-]+(/[\w.-]+)+#\d+$`)
-	acPrefix    = regexp.MustCompile(`(?i)^AC-?\d+\s*[:.)-]\s*`)
-	listItem    = regexp.MustCompile(`^\s*(?:[-*+]|\d+[.)])\s+(.*)$`)
-	checkItem   = regexp.MustCompile(`^\s*[-*+]\s+\[[ xX]\]\s+(.*)$`)
-	acHeading   = regexp.MustCompile(`(?i)^\s*(?:#{1,6}\s*|\*\*)?(?:acceptance criteria|ac|acs|definition of done)\s*(?:\*\*)?:?\s*$`)
-	anyHeading  = regexp.MustCompile(`^\s*#{1,6}\s+\S`)
-	boldHeading = regexp.MustCompile(`^\s*\*\*[^*]+\*\*:?\s*$`)
-)
+// New builds a service.
+func New(issues Issues) *service { return &service{issues: issues} }
 
 // Detect classifies ref: "#123"/"123"/github.com URL → github; gitlab URL or
 // "group/proj#12" with a gitlab remote → gitlab; "ABC-123" → jira;
@@ -89,7 +90,7 @@ func Detect(ref, remoteURL string) string {
 // Fetch resolves ref into a Ticket. For jira, linear and text, body is the
 // text supplied by the caller (the lead fetched it via MCP or the user typed
 // it); Fetch only parses it.
-func (s *Service) Fetch(ctx context.Context, source, ref, body string) (Ticket, error) {
+func (s *service) Fetch(ctx context.Context, source, ref, body string) (Ticket, error) {
 	switch source {
 	case SourceGitHub, SourceGitLab:
 		if strings.TrimSpace(ref) == "" {

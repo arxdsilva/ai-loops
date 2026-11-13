@@ -1,6 +1,6 @@
 # Go rules (the Go pack's rule book)
 
-Mandatory Go coding standard for every human and AI contributor to a Go backend: idiomatic, explicit, measurable, consistent. This is the rule book of the Go language pack (`specs/languages/go/pack.json`). The architecture mapping is `specs/languages/go/ARCHITECTURE.md`; universal rules are `specs/ARCHITECTURE.md`, `specs/SOLID.md` and `specs/TESTING.md`. Cite by section (`specs/languages/go/RULES.md §8`); §1-§54 are stable because other docs cite them. Targets Go 1.26 and 1.27, as of 2026-11. The appendix maps the `GO-*` rule IDs of `research/languages/go.md` to sections.
+Mandatory Go coding standard for every human and AI contributor to a Go backend: idiomatic, explicit, measurable, consistent. This is the rule book of the Go language pack (`specs/languages/go/pack.json`). The architecture mapping is `specs/languages/go/ARCHITECTURE.md`; universal rules are `specs/ARCHITECTURE.md`, `specs/SOLID.md` and `specs/TESTING.md`. Cite by section (`specs/languages/go/RULES.md §8`); §1-§57 are stable because other docs cite them. Targets Go 1.26 and 1.27, as of 2026-11. The appendix maps the `GO-*` rule IDs of `research/languages/go.md` to sections.
 
 Project rules win: follow the project's own config (`.golangci.yml`, `go.mod`, framework conventions) over these defaults, and record each override with `loops run override`.
 
@@ -22,11 +22,11 @@ go mod tidy -diff   # non-zero when go.mod/go.sum need changes
 
 - Tests always run with the race detector, locally and in CI. `-race` needs cgo and a C compiler (§37).
 - CI enforces formatting; reviewers do not. Use `goimports` or `gofumpt` only if the project standardises on one, preferably through golangci-lint v2 `formatters:`. Re-run `gofmt` after moving to 1.27 (alignment changes can reflow files).
-- Linters: `staticcheck`, or golangci-lint **v2** (`version: "2"`, `linters.default: standard`, explicit `enable:`, `formatters:`, `exclusions.generated: lax`). Never mix v1 and v2 configs (`golangci-lint migrate`). Useful set: `errcheck govet staticcheck unused ineffassign errorlint revive gosec sloglint depguard`.
+- Linters: `staticcheck`, or golangci-lint **v2** (`version: "2"`, `linters.default: standard`, explicit `enable:`, `formatters:`, `exclusions.generated: lax`). Never mix v1 and v2 configs (`golangci-lint migrate`). Useful set: `errcheck govet staticcheck unused ineffassign errorlint revive gosec sloglint depguard`. The QA and security tools loops runs, with their pins, are §57.
 - Pin dev tools in `go.mod` with the `tool` directive (`go get -tool honnef.co/go/tools/cmd/staticcheck@<version>`, run as `go tool staticcheck`) instead of `tools.go` blank imports or `@latest` installs.
-- "When installed" is not a gate: in CI make `govulncheck` (`govulncheck ./...`, and `-mode=binary` on the release artifact; with `-format sarif`/`openvex` it exits 0, so gate on the findings yourself) and a SAST step (`gosec -exclude-generated ./...`, or the `gosec` linter) required (§38).
+- "When installed" is not a gate: in CI make `govulncheck` (`govulncheck ./...`, and `-mode=binary` on the release artifact; with `-format sarif`/`openvex` it exits 0, so gate on the findings yourself) and a SAST step (`gosec -exclude-generated ./...`, or the `gosec` linter) required (§38). `gosec` is also a pack check (`sast`, §57).
 - `go fix -diff ./...` runs the modernizers (1.26+); review the diff periodically.
-- `loops gate` runs the pack's checks in order (`specs/WORKFLOW.md §6`); `govulncheck` is off by default (`loops gate --vuln`).
+- `loops gate` runs the pack's checks in order (`specs/WORKFLOW.md §6`); `govulncheck` is off by default (`loops gate --vuln`). `loops gate --security` runs the pack's declared `vuln` and `sast` tools as the QA security pass (§57).
 
 ## 3. Package naming
 
@@ -37,7 +37,7 @@ Short, descriptive, lowercase names: `order`, `payment`, `ledger`, `clock`, `rat
 
 ## 4. Export only what is needed
 
-Default to unexported. Export only when another package has an architectural reason to use the symbol. A smaller API means less coupling, less documentation, less agent context and safer refactors.
+Default to unexported. Export only when another package has an architectural reason to use the symbol. A smaller API means less coupling, less documentation, less agent context and safer refactors. Struct export rules are §56.
 
 ## 5. Interfaces
 
@@ -65,6 +65,8 @@ func NewCheckout(pay PaymentCharger) CheckoutAPI // avoid
 ```
 
 Return an interface only when the API genuinely needs the abstraction.
+
+Reconciliation with §56: a constructor that returns the unexported concrete `*x` (§56 case a) is this rule. The interface return of §56 case (b) is the documented exception, used only when other packages call the type's methods and no consumer-owned port exists.
 
 ## 7. Constructors and zero values
 
@@ -174,7 +176,7 @@ IDs simplify deletion, persistence, replay, hashing and cross-service messages.
 
 ## 19. Constants
 
-Typed constants for meaningful values. No magic numbers in business logic. Tunable values (limits, rates, timeouts) come from validated config (§28).
+Typed constants for meaningful values. No magic numbers in business logic. Tunable values (limits, rates, timeouts) come from validated config (§28). Package-level declarations and tunable struct fields follow §55.
 
 ## 20. Time
 
@@ -331,7 +333,7 @@ Treat external input as untrusted: requests, webhooks, messages, uploaded files,
 - Cap request bodies (`http.MaxBytesReader`, `io.LimitReader`). Servers set `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, `IdleTimeout`; never a bare `http.ListenAndServe` (gosec G112). Outbound calls: allow-list URLs and block private ranges in a `net.Dialer.Control` hook (SSRF).
 - Paths: `os.Root` (§29). Crypto: `crypto/rand`, argon2id or bcrypt, `subtle.ConstantTimeCompare`, no MD5, SHA-1, DES or RC4; the FIPS 140-3 module where compliance asks. OWASP Go-SCP is the checklist.
 - Supply chain: `go mod verify`, the checksum database (`GOPRIVATE` only for private modules), GitHub Actions pinned by SHA.
-- Run `govulncheck` and `gosec` in CI as required steps, not "when installed" (§2).
+- Run `govulncheck` and `gosec` in CI as required steps, not "when installed" (§2). Their pins and reasons are §57; `loops gate --security` runs them locally.
 
 ## 39. Performance-friendly API design
 
@@ -399,7 +401,7 @@ Update deliberately: run tests (with `-race`), benchmarks for hot dependencies, 
 
 ## 50. Custom lint rules
 
-Project-specific checks should catch: `time.Now` in `domain`; global `math/rand` in authoritative packages; forbidden imports; `utils` packages; edits to generated code; `init()` registration; runtime-assigned package vars. `loops arch` implements as errors the import edges, third-party imports in core, `time.Now`, global `math/rand` and `go` statements in domain (`clock`, `rand`, `go`), `init()`, package-level mutable state and `cmd` wiring, and the size limits as warnings (`specs/SOLID.md §8`). Unchecked: `utils` packages, edits to generated code and `database/sql` in domain (review items). In golangci-lint v2 add `depguard` (deny lists per package glob), `forbidigo` and `sloglint`; `go/analysis` analyzers and `go fix` modernizers cover other project-specific rules.
+Project-specific checks should catch: `time.Now` in `domain`; global `math/rand` in authoritative packages; forbidden imports; `utils` packages; edits to generated code; `init()` registration; runtime-assigned package vars. `loops arch` implements as errors the import edges, third-party imports in core, `time.Now`, global `math/rand` and `go` statements in domain (`clock`, `rand`, `go`), `init()`, package-level mutable state and `cmd` wiring, the size limits (`specs/SOLID.md §8`) and `decls` (§55) as warnings. Unchecked: `utils` packages, edits to generated code and `database/sql` in domain (review items). In golangci-lint v2 add `depguard` (deny lists per package glob), `forbidigo` and `sloglint`; `go/analysis` analyzers and `go fix` modernizers cover other project-specific rules.
 
 ## 51. Review checklist
 
@@ -452,6 +454,96 @@ Procedure: `skills/performance`.
 ## 54. Final directive
 
 Prefer boring, explicit, measurable Go. The code should make obvious who owns state, when state changes, why ordering is deterministic, what an operation costs, how it is tested and where an external technology plugs in. If a clever abstraction makes those answers harder, remove it.
+
+## 55. Package-level declarations
+
+Declare each `const` and `var` at the narrowest scope that works, in this order:
+
+1. A `const` or `var` used by one function is declared inside that function.
+2. A tunable is a field of the struct that uses it, with its default set in the constructor. Callers and tests override the field (§27). Tunables are limits, timeouts, retry counts, sizes, depths, thresholds, default paths and polling intervals.
+3. A package-level declaration, and only for the exceptions below.
+
+Package-level exceptions:
+
+- sentinel errors (§9);
+- typed enum constants, declared with their named type (§18), iota continuations included;
+- compile-time interface assertions `var _ I = (*T)(nil)`;
+- `//go:embed` variables;
+- compiled regexps and immutable lookup tables, assigned at declaration and never written (`specs/languages/go/ARCHITECTURE.md §8`);
+- sync primitives guarding a cache, in the same `var (...)` group (`specs/languages/go/ARCHITECTURE.md §8`);
+- constants that name a fixed fact of an external or documented contract: a file name, a schema version, a protocol key, a spec path, an exit code, or a limit a spec documents (e.g. `update.Interval`).
+
+Never use an exported package-level `var` as configuration.
+
+Placement:
+
+- Every package-level `const` and `var` sits before the first `func` of its file, in `const (...)` or `var (...)` clusters. Each cluster holds one theme and opens with a comment.
+- A typed enum may follow its type declaration, still above the first `func`.
+- `loops arch` reports a violation as a `decls` warning (`specs/languages/go/ARCHITECTURE.md §5`).
+
+```go
+type Phase int
+
+const (
+	PhaseNew Phase = iota
+	PhaseDone
+)
+
+// stateFile is a documented on-disk contract, so it may be package-level.
+const stateFile = "state.json"
+
+type poller struct{ interval time.Duration } // tunable: a field
+
+func newPoller() *poller { return &poller{interval: 30 * time.Second} }
+```
+
+## 56. Unexported structs behind constructors
+
+- Structs are unexported by default.
+- Export a struct only when:
+  - the developer or the ticket says so; or
+  - another package strictly needs the type itself. That is data: commands, DTOs, events, value objects, read models, persisted or JSON schemas, a config or deps struct that the composition root fills field by field (`cli.App`, `hook.Deps`), or a type named in another package's declaration that an interface cannot replace.
+- A behaviour type (unexported fields, used through methods) stays unexported. The package exports `New<X>`, which establishes the invariants (§7). What `New<X>` returns depends on who uses the type:
+  - **(a) Only the composition root, same-package code and tests use the type.** The composition root wires it to a consumer-owned port. `New<X>` returns the unexported `*x`; this is "return concrete types" (§6).
+    - revive's `unexported-return` flags this. A project that runs revive disables that rule in its own config, citing this section:
+
+      ```yaml
+      linters:
+        settings:
+          revive:
+            rules:
+              - name: unexported-return
+                disabled: true
+      ```
+
+    - Never export a struct, or add a type alias, only to satisfy a lint.
+    - godoc hides the methods of an unexported type, so document the behaviour on `New<X>` and on the port.
+  - **(b) Other packages call its methods and no consumer-owned port exists.** Export a narrow interface named for the role, and `New<X>` returns that interface. This is the documented exception to §6; the Google Go style guide allows an interface return "for encapsulation".
+  - **(c) A zero-size, stateless type whose zero value is ready, and which the composition root must name** (e.g. `versionfile.PluginVersions{}`). It may stay exported, because a constructor that only returns `T{}` is banned (§7).
+- Tests: in-package tests use the unexported type. External `_test` packages go through `New<X>` and the interface.
+
+## 57. QA and security tools
+
+Audited 2026-11. The pinned versions are exact, never a floating latest tag; the pack's install hints and this repo's verification use the same pins.
+
+| Tool | Maintainer, licence | Where loops runs it | Pinned version | Decision |
+|---|---|---|---|---|
+| `go vet`, `gofmt` | Go team, BSD-3-Clause | gate `vet`, `gofmt`; per-lane QA | toolchain | Kept |
+| staticcheck | dominikh/go-tools, MIT; about two releases a year; 2026.2 supports Go 1.27 | gate lint; per-lane QA | `v0.8.2` (prints `2026.2.2`) | Kept |
+| govulncheck | Go team (golang.org/x/vuln), BSD-3-Clause | gate `vuln` (default off, `--vuln`); `loops gate --security` | `v1.9.0` | Kept |
+| gosec | securego, Apache-2.0 | gate `sast` (default off); `loops gate --security` | `v2.30.0` | Added |
+| golangci-lint | golangci org, GPL-3.0 | docs only; loops does not run it | `v2.15.0` | Not added: it bundles staticcheck, gosec and revive, so it duplicates the pack's checks. Its build Go version must be at least the module's (the installed 2.2.1 refuses go1.27). Use it when the project standardises on it (§2; project rules win), installed as a binary rather than `go install` |
+| errcheck, gocyclo | various | none | none | Not added. errcheck runs through golangci-lint; complexity is measured by crapper in the quality pass |
+| crapper, dryer, mutator | unclebob, 0BSD; young, one maintainer, no releases | quality pass only (`loops:quality`) | none (no releases) | Optional: best-effort and never blocking; recorded as optional, not proven |
+
+Why the pack runs PATH binaries rather than `go run pkg@v` in argv:
+
+- `go run pkg@v` needs the network on first use and would break offline gates.
+- A pack cannot assume the project's `tool` directive.
+- A missing or stale tool skips, with its pinned install hint.
+- To verify a pinned tool without installing it, `go run <module>@<version>` runs it from the module cache.
+
+In repos that can, pin tools with the `tool` directive (§2). This repo cannot: its `go.mod` is stdlib-only (see the repo's `AGENTS.md`).
 
 ## Appendix: rule ID index
 

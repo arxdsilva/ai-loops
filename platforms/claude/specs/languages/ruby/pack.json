@@ -42,6 +42,7 @@
     {"name": "bundler-audit", "kind": "vuln", "argv": ["bundle", "exec", "bundle-audit", "check", "--update"], "required": false,
      "tool": "bundler-audit", "default": "off", "when_file": ["Gemfile.lock"], "install": "bundle add bundler-audit --group development"}
   ],
+  "security": {"checks": ["brakeman", "bundler-audit"]},
   "test_commands": [
     {"argv_prefix": ["bundle", "exec", "rspec"]},
     {"argv_prefix": ["rspec"]},

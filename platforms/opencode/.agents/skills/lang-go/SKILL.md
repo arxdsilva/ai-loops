@@ -22,15 +22,16 @@ Follow the project's own config and conventions over everything below: `.golangc
 | build | `go build ./...` | yes |
 | gofmt | `gofmt -l .` (fails on any output; `vendor/`, `testdata/` ignored) | no |
 | vet | `go vet ./...` | yes |
-| staticcheck | `staticcheck ./...` (skipped if absent or too old; hint: `go install honnef.co/go/tools/cmd/staticcheck@latest`) | no |
+| staticcheck | `staticcheck ./...` (skipped if absent or too old; hint: `go install honnef.co/go/tools/cmd/staticcheck@v0.8.2`) | no |
 | arch | `loops arch` (internal, `specs/languages/go/ARCHITECTURE.md`) | no |
 | test | `go test -race -count=1 -covermode=atomic -coverprofile=<cov> ./...` | yes |
 | coverage | new-code coverage of the Go profile, min 70% (cannot be skipped) | yes |
-| govulncheck | `govulncheck ./...` (off unless `--vuln`; install: `go install golang.org/x/vuln/cmd/govulncheck@latest`) | no |
+| govulncheck | `govulncheck ./...` (off unless `--vuln`; install: `go install golang.org/x/vuln/cmd/govulncheck@v1.9.0`) | no |
+| sast (gosec) | `gosec -quiet -exclude-generated ./...` (off unless `--security`; install: `go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0`) | no |
 
 The pack's `post_edit` hook runs `gofmt -w <file>` and `go vet ./<dir>` after an edit. Source is `**/*.go`, tests `**/*_test.go`; generated files (`*.pb.go`, `*_gen.go`, `zz_generated*`, `// Code generated ... DO NOT EDIT.`) are never edited by hand and never counted.
 
-Beyond the gate, CI should also run `go mod tidy -diff`, `go mod verify`, `golangci-lint run` when configured, `gosec`, and `govulncheck` (RULES §2, §38). Prefer tools pinned with the `tool` directive: `go tool <name>`.
+Beyond the gate, CI should also run `go mod tidy -diff`, `go mod verify`, `golangci-lint run` when configured, `gosec`, and `govulncheck` (RULES §2, §38). Prefer tools pinned with the `tool` directive: `go tool <name>`. The QA and security tools, their pins and the reason for each are RULES §57; `loops gate --security` runs the `vuln` and `sast` tools and skips missing ones.
 
 Go commands run in the run-scoped Go environment: plain `go ...` is scoped by the `go-env` hook, or use `loops go ...` if it denies with a hint. Never set `GOCACHE`; build binaries into the run's tmp dir (`GOTMPDIR` from `loops run env`). `GOMODCACHE` and `GOPATH` stay shared. `GOFLAGS=-p=2` keeps parallel agents from starving each other.
 
@@ -71,6 +72,7 @@ Direction: domain <- application <- adapters <- compose <- cmd. `loops arch` enf
 8. Decisions on map iteration order, `append` to a sub-slice aliasing the parent: sort keys, `slices.Clone`.
 9. `time.Now()` or global rand in business code: inject `Clock` and `*rand.Rand`; `synctest` for timers.
 10. `AutoMigrate` on boot, hand-edited `*.pb.go` or sqlc output: versioned migration job, regenerate in CI.
+11. Package-level `const`/`var` after the first `func`, tunables as package consts, exported behaviour structs: RULES §55-§56 (`loops arch` warns `decls`).
 
 ## Load on demand
 

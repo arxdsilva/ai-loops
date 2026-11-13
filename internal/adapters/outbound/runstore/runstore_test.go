@@ -137,10 +137,10 @@ func TestCreateExclusive(t *testing.T) {
 // of git.
 func TestStoreKeepsLoopsOutOfGit(t *testing.T) {
 	ctx := context.Background()
-	for name, do := range map[string]func(s *Store) error{
-		"create":      func(s *Store) error { return s.Create(ctx, "r1") },
-		"append":      func(s *Store) error { return s.Append(ctx, "r1", run.Event{Kind: run.KindNote}) },
-		"set current": func(s *Store) error { return s.SetCurrent("r1") },
+	for name, do := range map[string]func(s *store) error{
+		"create":      func(s *store) error { return s.Create(ctx, "r1") },
+		"append":      func(s *store) error { return s.Append(ctx, "r1", run.Event{Kind: run.KindNote}) },
+		"set current": func(s *store) error { return s.SetCurrent("r1") },
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
@@ -162,7 +162,7 @@ func TestStoreKeepsLoopsOutOfGit(t *testing.T) {
 	}
 }
 
-func readStatus(t *testing.T, s *Store) run.StatusDoc {
+func readStatus(t *testing.T, s *store) run.StatusDoc {
 	t.Helper()
 	var doc run.StatusDoc
 	b, err := os.ReadFile(s.StatusPath())

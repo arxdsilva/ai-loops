@@ -426,6 +426,7 @@
       "default": "off"
     }
   ],
+  "security": {"checks": ["osv-scanner", "dependency-check"]},
   "test_commands": [
     {
       "argv_prefix": [

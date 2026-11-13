@@ -65,8 +65,8 @@ func TestGoldenGoArgv(t *testing.T) {
 		s := New(&fakeCmd{}, fakeArch{ok: true}, &fakeRec{}, &tick{})
 		pr := s.newPackRun(goOpts(Options{Root: "/p", Pkgs: tc.pkgs, CoverProfile: tc.prof}), goOpts(Options{}).Packs[0], 0, (&tick{}).Now())
 		for _, c := range p.Checks {
-			if c.Internal != "" {
-				continue
+			if c.Internal != "" || c.Name == CheckGosec {
+				continue // gosec is new: no legacy oracle (asserted in security_test.go)
 			}
 			got, err := s.argvFor(context.Background(), pr, c, c.Argv, "")
 			if err != nil {
@@ -108,10 +108,10 @@ func TestGoMissingToolsAndVuln(t *testing.T) {
 	f := &fakeCmd{}
 	s, rec := setup(f, fakeArch{ok: true})
 	res, _ := s.Run(context.Background(), opts(Options{}))
-	if c := res.Checks[3]; !c.Skipped || !strings.Contains(c.Output, "go install honnef.co/go/tools/cmd/staticcheck@latest") {
+	if c := res.Checks[3]; !c.Skipped || !strings.Contains(c.Output, "go install honnef.co/go/tools/cmd/staticcheck@v0.8.2") {
 		t.Fatalf("%+v", c)
 	}
-	if !res.OK || names(res) != "build:ok gofmt:ok vet:ok staticcheck:skip arch:ok test:ok coverage:ok govulncheck:skip" {
+	if !res.OK || names(res) != "build:ok gofmt:ok vet:ok staticcheck:skip arch:ok test:ok coverage:ok govulncheck:skip gosec:skip" {
 		t.Fatal(names(res))
 	}
 	for _, e := range rec.evs {
@@ -122,7 +122,7 @@ func TestGoMissingToolsAndVuln(t *testing.T) {
 	// --vuln without govulncheck: an enabled check whose tool is missing fails (D16).
 	s, _ = setup(&fakeCmd{}, fakeArch{ok: true})
 	res, _ = s.Run(context.Background(), opts(Options{Vuln: true}))
-	if c := res.Checks[7]; c.OK || c.Skipped || !strings.Contains(c.Output, "govulncheck not installed; install: go install golang.org/x/vuln/cmd/govulncheck@latest") {
+	if c := res.Checks[7]; c.OK || c.Skipped || !strings.Contains(c.Output, "govulncheck not installed; install: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0") {
 		t.Fatalf("%+v", c)
 	}
 	// --enable turns a default-off check on by name.

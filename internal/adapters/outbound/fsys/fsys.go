@@ -9,14 +9,14 @@ import (
 	"strings"
 )
 
-// FS implements guard.Files.
-type FS struct{}
+// fileSystem implements guard.Files.
+type fileSystem struct{}
 
-// New returns an FS.
-func New() *FS { return &FS{} }
+// New returns a fileSystem.
+func New() *fileSystem { return &fileSystem{} }
 
 // Lines counts lines; a final unterminated line counts.
-func (FS) Lines(path string) (int, error) {
+func (fileSystem) Lines(path string) (int, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return 0, err
@@ -44,14 +44,14 @@ func (FS) Lines(path string) (int, error) {
 }
 
 // Exists reports whether path is a regular file.
-func (FS) Exists(path string) bool {
+func (fileSystem) Exists(path string) bool {
 	st, err := os.Stat(path)
 	return err == nil && st.Mode().IsRegular()
 }
 
 // Glob expands pattern like a shell: a wildcard does not match a leading dot
 // unless the pattern element itself starts with one.
-func (FS) Glob(pattern string) ([]string, error) {
+func (fileSystem) Glob(pattern string) ([]string, error) {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, err

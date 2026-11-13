@@ -214,6 +214,7 @@
       "install": "https://google.github.io/osv-scanner/installation/"
     }
   ],
+  "security": {"checks": ["dependency-check", "osv"]},
   "test_commands": [
     {
       "argv_prefix": [

@@ -85,7 +85,7 @@ func TestRunUnknownCommand(t *testing.T) {
 }
 
 func TestRunInjectedLookup(t *testing.T) {
-	r := &Runner{lookPath: func(string) (string, error) { return "", errors.New("nope") }}
+	r := &runner{lookPath: func(string) (string, error) { return "", errors.New("nope") }}
 	_, err := r.Run(context.Background(), []string{"claude"})
 	if !errors.Is(err, updatecheck.ErrNoCommand) || !strings.Contains(err.Error(), "claude") {
 		t.Fatalf("err = %v", err)
@@ -109,7 +109,7 @@ func TestRunDeadlineKillsChildWithinBound(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v", err)
 	}
-	if bound := 200*time.Millisecond + waitDelay + 3*time.Second; elapsed > bound {
+	if bound := 200*time.Millisecond + New().waitDelay + 3*time.Second; elapsed > bound {
 		t.Fatalf("took %v, bound %v", elapsed, bound)
 	}
 }
@@ -129,8 +129,8 @@ func TestRunKeepsLastBytesOfLargeOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if len(out) > maxOutput {
-		t.Fatalf("len = %d, cap %d", len(out), maxOutput)
+	if len(out) > New().maxOutput {
+		t.Fatalf("len = %d, cap %d", len(out), New().maxOutput)
 	}
 	if !strings.HasSuffix(out, "END") {
 		t.Fatalf("tail = %q", out[len(out)-10:])

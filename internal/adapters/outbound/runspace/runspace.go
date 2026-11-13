@@ -49,18 +49,18 @@ const (
 	headerDirsV2 = "# loops baseline-dirs v2"
 )
 
-// Space is the scratch-space adapter for the project at root.
-type Space struct {
+// space is the scratch-space adapter for the project at root.
+type space struct {
 	root  string
 	packs func() []langpack.Detected
 }
 
-// New returns a Space for the project at root.
-func New(root string) *Space { return &Space{root: root} }
+// New returns a space for the project at root.
+func New(root string) *space { return &space{root: root} }
 
 // WithPacks sets the source of the detected language packs whose caches the
 // run scopes and whose artifacts cleanup removes (nil = Go only, as before).
-func (s *Space) WithPacks(detect func() []langpack.Detected) *Space {
+func (s *space) WithPacks(detect func() []langpack.Detected) *space {
 	s.packs = detect
 	return s
 }
@@ -68,7 +68,7 @@ func (s *Space) WithPacks(detect func() []langpack.Detected) *Space {
 // Prepare creates the run's go cache directories and each detected pack's
 // <run>/<id>/{cache,tmp}, and writes the baseline snapshots (untracked files
 // incl. ignored ones, and the directory list).
-func (s *Space) Prepare(ctx context.Context, runDir string) error {
+func (s *space) Prepare(ctx context.Context, runDir string) error {
 	// Caches go to a private folder outside the project; when the temp dir
 	// is unusable they stay in the run dir, as before (scratch.Dir).
 	_, _ = scratch.Create(runDir)
@@ -96,7 +96,7 @@ func (s *Space) Prepare(ctx context.Context, runDir string) error {
 
 // Env creates the run's GOCACHE and GOTMPDIR (go refuses a missing
 // GOTMPDIR) and returns the environment entries that select them.
-func (s *Space) Env(runDir string) ([]string, error) {
+func (s *space) Env(runDir string) ([]string, error) {
 	sd := scratch.Dir(runDir)
 	for _, d := range []string{workspace.GoCache(sd), workspace.GoTmp(sd)} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
@@ -145,7 +145,7 @@ func readLines(path string) (string, []string, error) {
 	return header, out, sc.Err()
 }
 
-func (s *Space) git(ctx context.Context, args ...string) ([]byte, error) {
+func (s *space) git(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", s.root}, args...)...)
 	var errb bytes.Buffer
 	cmd.Stderr = &errb
@@ -156,7 +156,7 @@ func (s *Space) git(ctx context.Context, args ...string) ([]byte, error) {
 	return out, nil
 }
 
-func (s *Space) isGit(ctx context.Context) bool {
+func (s *space) isGit(ctx context.Context) bool {
 	out, err := s.git(ctx, "rev-parse", "--is-inside-work-tree")
 	return err == nil && strings.TrimSpace(string(out)) == "true"
 }
@@ -173,7 +173,7 @@ func splitNUL(b []byte) []string {
 
 // untracked lists the files git does not track (ignored ones included),
 // relative to root, without .loops/; outside git it walks the tree.
-func (s *Space) untracked(ctx context.Context) ([]string, string, error) {
+func (s *space) untracked(ctx context.Context) ([]string, string, error) {
 	if !s.isGit(ctx) {
 		paths, err := s.walkFiles()
 		return paths, headerWalk, err
@@ -192,7 +192,7 @@ func (s *Space) untracked(ctx context.Context) ([]string, string, error) {
 	return paths, headerGit, nil
 }
 
-func (s *Space) tracked(ctx context.Context) (map[string]bool, error) {
+func (s *space) tracked(ctx context.Context) (map[string]bool, error) {
 	out, err := s.git(ctx, "ls-files", "-z")
 	if err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ func (s *Space) tracked(ctx context.Context) (map[string]bool, error) {
 
 // walk visits the tree under root without following symlinks, skipping
 // workspace.SkipDir trees; fn gets slash-relative paths.
-func (s *Space) walk(fn func(rel string, d fs.DirEntry)) error {
+func (s *space) walk(fn func(rel string, d fs.DirEntry)) error {
 	return filepath.WalkDir(s.root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if p == s.root {
@@ -230,7 +230,7 @@ func (s *Space) walk(fn func(rel string, d fs.DirEntry)) error {
 	})
 }
 
-func (s *Space) walkFiles() ([]string, error) {
+func (s *space) walkFiles() ([]string, error) {
 	var out []string
 	err := s.walk(func(rel string, d fs.DirEntry) {
 		if !d.IsDir() {
@@ -240,7 +240,7 @@ func (s *Space) walkFiles() ([]string, error) {
 	return out, err
 }
 
-func (s *Space) dirs() ([]string, error) {
+func (s *space) dirs() ([]string, error) {
 	var out []string
 	err := s.walk(func(rel string, d fs.DirEntry) {
 		if d.IsDir() {
@@ -254,7 +254,7 @@ func (s *Space) dirs() ([]string, error) {
 // directory and the new artifacts in the project (dryRun only reports).
 // Problems with single paths are reported in Report.Refused; the error is
 // for failures that stop the cleanup.
-func (s *Space) Clean(ctx context.Context, runDir string, dryRun bool) (workspace.Report, error) {
+func (s *space) Clean(ctx context.Context, runDir string, dryRun bool) (workspace.Report, error) {
 	r := workspace.Report{DryRun: dryRun, Removed: []workspace.Item{}, Kept: []string{}}
 	s.cleanGo(runDir, dryRun, &r)
 	s.cleanPacks(runDir, dryRun, &r)
@@ -348,7 +348,7 @@ func underAny(rel string, dirs []string) bool {
 }
 
 // prune removes the emptied directories that did not exist at run start.
-func (s *Space) prune(realRoot, runDir string, removed []string) []string {
+func (s *space) prune(realRoot, runDir string, removed []string) []string {
 	_, dirs, err := readLines(workspace.BaselineDirs(runDir))
 	if err != nil {
 		return nil // without a directory snapshot nothing is pruned
@@ -391,7 +391,7 @@ func contained(realRoot, rel string) (string, bool) {
 
 // inspect describes rel without following symlinks. The FileInfo is the
 // Lstat result used later to make sure the same file is removed.
-func (s *Space) inspect(realRoot, rel string) (workspace.Entry, os.FileInfo) {
+func (s *space) inspect(realRoot, rel string) (workspace.Entry, os.FileInfo) {
 	e := workspace.Entry{Rel: rel, Kind: workspace.KindOther}
 	if strings.HasSuffix(rel, "/") {
 		e.Kind = workspace.KindDir
@@ -431,7 +431,7 @@ func (s *Space) inspect(realRoot, rel string) (workspace.Entry, os.FileInfo) {
 
 // remove deletes rel after re-checking it is still the inspected regular
 // file inside the root.
-func (s *Space) remove(realRoot, rel string, inspected os.FileInfo) error {
+func (s *space) remove(realRoot, rel string, inspected os.FileInfo) error {
 	full, ok := contained(realRoot, rel)
 	if !ok || inspected == nil {
 		return errors.New("refusing a path outside the project root")
@@ -457,7 +457,7 @@ func unchanged(a, b os.FileInfo) bool {
 // cleanGo removes the run's go dir (in its scratch dir, scratch.Dir) after making its directories writable (go
 // cache entries can be read-only). It never follows symlinks and refuses a
 // go dir that is a symlink or resolves outside the run dir.
-func (s *Space) cleanGo(runDir string, dryRun bool, r *workspace.Report) {
+func (s *space) cleanGo(runDir string, dryRun bool, r *workspace.Report) {
 	sd := scratch.Dir(runDir)
 	files, size, _ := cleanRunSub(sd, workspace.GoDir(sd), dryRun, r)
 	r.CacheFiles += files
@@ -524,7 +524,7 @@ func measure(dir string, writable bool) (files int, size int64, nestedRepo bool)
 }
 
 // Go runs the go tool for the CLI (see the package-level Go).
-func (s *Space) Go(ctx context.Context, dir string, env, args []string, in io.Reader, out, errw io.Writer) int {
+func (s *space) Go(ctx context.Context, dir string, env, args []string, in io.Reader, out, errw io.Writer) int {
 	return Go(ctx, dir, env, args, in, out, errw)
 }
 
@@ -536,7 +536,7 @@ func Go(ctx context.Context, dir string, env, args []string, in io.Reader, out, 
 }
 
 // Exec runs argv in dir as Go runs the go tool (`loops exec`).
-func (s *Space) Exec(ctx context.Context, dir string, env, argv []string, in io.Reader, out, errw io.Writer) int {
+func (s *space) Exec(ctx context.Context, dir string, env, argv []string, in io.Reader, out, errw io.Writer) int {
 	if len(argv) == 0 {
 		fmt.Fprintln(errw, "loops exec: no command")
 		return 127
@@ -561,20 +561,20 @@ func runTool(ctx context.Context, who, dir string, env []string, name string, ar
 	return 127
 }
 
-// Runner runs the gate's external commands, optionally with extra
+// runner runs the gate's external commands, optionally with extra
 // environment (gate.Commander and gate.EnvCommander).
-type Runner struct{}
+type runner struct{}
 
-// NewRunner returns a Runner.
-func NewRunner() *Runner { return &Runner{} }
+// NewRunner returns a runner.
+func NewRunner() *runner { return &runner{} }
 
 // Run executes name with args in dir, returning combined output.
-func (r *Runner) Run(ctx context.Context, dir, name string, args ...string) (string, error) {
+func (r *runner) Run(ctx context.Context, dir, name string, args ...string) (string, error) {
 	return r.RunEnv(ctx, dir, nil, name, args...)
 }
 
 // RunEnv is Run with env appended to the process environment.
-func (r *Runner) RunEnv(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
+func (r *runner) RunEnv(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	if len(env) > 0 {
@@ -586,7 +586,7 @@ func (r *Runner) RunEnv(ctx context.Context, dir string, env []string, name stri
 
 // RunStdout is RunEnv returning stdout alone (stderr is discarded); the gate
 // uses it for pack placeholders and coverage export steps.
-func (r *Runner) RunStdout(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
+func (r *runner) RunStdout(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	if len(env) > 0 {
@@ -597,7 +597,7 @@ func (r *Runner) RunStdout(ctx context.Context, dir string, env []string, name s
 }
 
 // Has reports whether name is on PATH.
-func (r *Runner) Has(name string) bool {
+func (r *runner) Has(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
 }

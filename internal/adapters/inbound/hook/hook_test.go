@@ -56,7 +56,7 @@ func (c *fakeCmd) Run(_ context.Context, dir, name string, args ...string) (stri
 func (c *fakeCmd) Has(string) bool { return c.has }
 
 type env struct {
-	h    *Handler
+	h    *handler
 	rec  *fakeRec
 	cmd  *fakeCmd
 	vars map[string]string

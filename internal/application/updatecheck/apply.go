@@ -49,19 +49,16 @@ type Outcome struct {
 
 // WithRunner sets the runner for automatic update routes (nil = no
 // automatic route) and returns s.
-func (s *Service) WithRunner(r Runner) *Service {
+func (s *service) WithRunner(r Runner) *service {
 	s.runner = r
 	return s
 }
-
-// maxDetail is the longest Outcome.Detail in bytes.
-const maxDetail = 200
 
 // Apply checks now (ignoring the throttle) and, when the installed plugin
 // (version current) is behind on a platform with an automatic route, runs
 // that route and records the attempt. It never returns an error: every
 // failure is a Kind.
-func (s *Service) Apply(ctx context.Context, current, platform string) Outcome {
+func (s *service) Apply(ctx context.Context, current, platform string) Outcome {
 	st, _ := s.store.Load() // unreadable state behaves like a first run
 	now := s.clock.Now()
 	p := normPlatform(platform)
@@ -94,7 +91,7 @@ func checkFailed(out Outcome, err error) Outcome {
 }
 
 // decide fills out for the step and records a run attempt in st.
-func (s *Service) decide(ctx context.Context, out Outcome, st *update.State, d update.ApplyDecision, route [][]string, now time.Time) Outcome {
+func (s *service) decide(ctx context.Context, out Outcome, st *update.State, d update.ApplyDecision, route [][]string, now time.Time) Outcome {
 	switch d.Step {
 	case update.StepManual:
 		out.Kind = KindManual
@@ -118,7 +115,7 @@ func (s *Service) decide(ctx context.Context, out Outcome, st *update.State, d u
 
 // runRoute runs each step in order and returns "" on success or the
 // one-line failure detail of the first failing step.
-func (s *Service) runRoute(ctx context.Context, route [][]string) string {
+func (s *service) runRoute(ctx context.Context, route [][]string) string {
 	for _, argv := range route {
 		output, err := s.runner.Run(ctx, argv)
 		if err == nil {
@@ -156,6 +153,8 @@ func lastLine(s string) string {
 // oneLine collapses whitespace runs to single spaces and cuts to maxDetail
 // bytes on a rune boundary.
 func oneLine(s string) string {
+	// maxDetail is the longest Outcome.Detail in bytes.
+	const maxDetail = 200
 	s = strings.Join(strings.Fields(s), " ")
 	if len(s) <= maxDetail {
 		return s

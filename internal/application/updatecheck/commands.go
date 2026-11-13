@@ -4,11 +4,7 @@ import "strings"
 
 const installScript = "curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s --"
 
-// installer is the update route for platforms installed by `loops install`.
-func installer(platform string) string {
-	return installScript + " --target " + platform + " --force"
-}
-
+// commands is the one-line update command per platform (never written).
 var commands = map[string]string{
 	"claude":   joinRoute(routes["claude"]),
 	"copilot":  joinRoute(routes["copilot"]),
@@ -19,6 +15,11 @@ var commands = map[string]string{
 	"amp":      installer("amp"),
 	"windsurf": installer("windsurf"),
 	"cline":    installer("cline"),
+}
+
+// installer is the update route for platforms installed by `loops install`.
+func installer(platform string) string {
+	return installScript + " --target " + platform + " --force"
 }
 
 // Command returns the one-line update command for a platform. Unknown or

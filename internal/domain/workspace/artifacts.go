@@ -9,6 +9,25 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/glob"
 )
 
+// Reasons a path is authored work that cleanup keeps for review.
+const (
+	ReasonScript  = "a script"
+	ReasonDoc     = "a document"
+	ReasonSource  = "a source file"
+	ReasonTest    = "a test file"
+	ReasonFixture = "a test fixture"
+)
+
+// docExts are the documentation extensions cleanup never removes.
+var docExts = []string{".md", ".rst", ".adoc"}
+
+// fixtureNames are directory names that hold authored test data; the
+// strong ones also keep an artifact directory below them.
+var (
+	fixtureNames       = map[string]bool{"testdata": true, "fixtures": true, "__fixtures__": true, "test": true, "tests": true, "spec": true, "specs": true}
+	strongFixtureNames = map[string]bool{"testdata": true, "fixtures": true, "__fixtures__": true}
+)
+
 // PackArtifacts is one detected pack's cleanup data, scoped to the pack's
 // root ("." or "" = the project root): Globs are its artifact globs
 // (pack.json "artifacts"); Source, Test and Generated are its source_globs,
@@ -87,25 +106,6 @@ func ArtifactDirOf(rel string, packs []PackArtifacts) (string, bool) {
 	}
 	return "", false
 }
-
-// Reasons a path is authored work that cleanup keeps for review.
-const (
-	ReasonScript  = "a script"
-	ReasonDoc     = "a document"
-	ReasonSource  = "a source file"
-	ReasonTest    = "a test file"
-	ReasonFixture = "a test fixture"
-)
-
-// docExts are the documentation extensions cleanup never removes.
-var docExts = []string{".md", ".rst", ".adoc"}
-
-// fixtureNames are directory names that hold authored test data; the
-// strong ones also keep an artifact directory below them.
-var (
-	fixtureNames       = map[string]bool{"testdata": true, "fixtures": true, "__fixtures__": true, "test": true, "tests": true, "spec": true, "specs": true}
-	strongFixtureNames = map[string]bool{"testdata": true, "fixtures": true, "__fixtures__": true}
-)
 
 // generatedDir reports whether a directory segment of rel (not its base
 // name) starts with "generated" (target/generated-sources/, GeneratedSources/).

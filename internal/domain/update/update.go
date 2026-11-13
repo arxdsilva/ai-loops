@@ -9,7 +9,8 @@ import (
 	"time"
 )
 
-// Interval is the minimum time between network checks.
+// Interval is the minimum time between network checks. It is a documented
+// policy contract (specs/PLATFORMS.md §9), not a tunable.
 const Interval = 24 * time.Hour
 
 // State is persisted between runs (user-level, not per project).

@@ -260,6 +260,7 @@
       "note": "needs an NVD API key; the EDN strings are quoted on purpose (-T parses them)"
     }
   ],
+  "security": {"checks": ["nvd"]},
   "test_commands": [
     {
       "argv_prefix": [

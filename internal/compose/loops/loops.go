@@ -43,6 +43,9 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/platform/projroot"
 )
 
+// DevVersion is reported when the embedded plugin.json cannot be parsed.
+const DevVersion = "0.0.0-dev"
+
 type systemClock struct{}
 
 func (systemClock) Now() time.Time { return time.Now() }
@@ -100,7 +103,7 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 	langs := langpack.New(packfs.Embedded{FS: ailoops.Source}, packfs.OS{})
 	detected := &detector{svc: langs, root: root, overrides: cfg.Languages}
 	arch := archcheck.New(goparse.New()).WithScanner(importscan.New())
-	// runspace.Runner adds the active run's GOCACHE/GOTMPDIR to gate commands.
+	// runspace.NewRunner adds the active run's GOCACHE/GOTMPDIR to gate commands.
 	gates := gate.New(runspace.NewRunner(), archGate{svc: arch, layers: cfg.Layers, langs: detected}, trk, clock).
 		WithCoverage(gocover.New(), gate.CoverageConfig{
 			Min: cfg.Gate.CoverageMin, Exclude: cfg.Gate.CoverageExclude, Base: cfg.Gate.Base,
@@ -161,9 +164,6 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 func quiet(args []string) bool {
 	return len(args) > 0 && (args[0] == "hook" || args[0] == "status")
 }
-
-// DevVersion is reported when the embedded plugin.json cannot be parsed.
-const DevVersion = "0.0.0-dev"
 
 // embeddedVersion is the "version" of the embedded .claude-plugin/plugin.json,
 // the single source of truth for the loops version.

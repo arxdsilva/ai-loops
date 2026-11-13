@@ -40,7 +40,7 @@ type fakeClock struct{}
 
 func (fakeClock) Now() time.Time { return time.Date(2026, 11, 9, 15, 30, 5, 0, time.UTC) }
 
-func newSvc() (*Service, *fakeLog, *fakePtr) {
+func newSvc() (*service, *fakeLog, *fakePtr) {
 	l, p := &fakeLog{m: map[string][]run.Event{}, created: map[string]bool{}}, &fakePtr{}
 	return New(l, p, fakeClock{}), l, p
 }

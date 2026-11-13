@@ -18,9 +18,9 @@
      "fails_on": "output", "output_exclude": ["vendor/", "testdata/"], "note": "files need gofmt:"},
     {"name": "vet", "kind": "lint", "argv": ["go", "vet", "{pkgs}"], "required": true, "tool": "go"},
     {"name": "staticcheck", "kind": "lint", "argv": ["staticcheck", "{pkgs}"], "required": false, "tool": "staticcheck",
-     "install": "go install honnef.co/go/tools/cmd/staticcheck@latest",
+     "install": "go install honnef.co/go/tools/cmd/staticcheck@v0.8.2",
      "skip_on": {"output_regex": "unsupported version|internal error in importing",
-                 "note": "staticcheck too old for this Go toolchain — upgrade: go install honnef.co/go/tools/cmd/staticcheck@latest"}},
+                 "note": "staticcheck too old for this Go toolchain — upgrade: go install honnef.co/go/tools/cmd/staticcheck@v0.8.2"}},
     {"name": "arch", "kind": "arch", "internal": "arch", "required": false},
     {"name": "test", "kind": "test", "required": true, "tool": "go",
      "argv": ["go", "test", "-race", "-count=1", "{coverage_args}", "{pkgs}"],
@@ -28,8 +28,13 @@
      "signal_regex": "^FAIL|--- FAIL|panic|DATA RACE|_test\\.go:"},
     {"name": "coverage", "kind": "coverage", "internal": "coverage", "required": true, "skippable": false},
     {"name": "govulncheck", "kind": "vuln", "argv": ["govulncheck", "{pkgs}"], "required": false, "tool": "govulncheck",
-     "default": "off", "install": "go install golang.org/x/vuln/cmd/govulncheck@latest"}
+     "default": "off", "install": "go install golang.org/x/vuln/cmd/govulncheck@v1.9.0"},
+    {"name": "gosec", "kind": "sast", "argv": ["gosec", "-quiet", "-exclude-generated", "{pkgs}"], "required": false, "tool": "gosec",
+     "default": "off", "install": "go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0",
+     "skip_on": {"output_regex": "internal error|without types|unsupported version",
+                 "note": "gosec too old for this Go toolchain — upgrade: go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0"}}
   ],
+  "security": {"checks": ["govulncheck", "gosec"]},
   "test_commands": [{"argv_prefix": ["go", "test"]}, {"argv_prefix": ["gotestsum"]}, {"argv_prefix": ["richgo", "test"]}],
   "race": {
     "mode": "flag", "flags": ["-race"], "env": {"GOFLAGS": "-race"}, "checks": ["test"],

@@ -15,15 +15,15 @@ import (
 
 const cmdTimeout = 2 * time.Second
 
-// Probe measures the host.
-type Probe struct{}
+// probe measures the host.
+type probe struct{}
 
-// New returns a Probe.
-func New() *Probe { return &Probe{} }
+// New returns a probe.
+func New() *probe { return &probe{} }
 
 // Probe returns facts about the machine; dir is the project dir (for disk
 // free). Unknown values stay zero and are noted.
-func (p *Probe) Probe(ctx context.Context, dir string) (hw.Facts, error) {
+func (p *probe) Probe(ctx context.Context, dir string) (hw.Facts, error) {
 	f := hw.Facts{
 		OS:          runtime.GOOS,
 		Arch:        runtime.GOARCH,

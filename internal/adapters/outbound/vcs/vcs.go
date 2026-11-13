@@ -9,13 +9,13 @@ import (
 	"strings"
 )
 
-// CLI implements ticket.Issues.
-type CLI struct{ root string }
+// cli implements ticket.Issues.
+type cli struct{ root string }
 
-// New returns a CLI rooted at the project.
-func New(root string) *CLI { return &CLI{root: root} }
+// New returns a cli rooted at the project.
+func New(root string) *cli { return &cli{root: root} }
 
-func (c *CLI) run(ctx context.Context, name string, args ...string) ([]byte, error) {
+func (c *cli) run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = c.root
 	var out, errb bytes.Buffer
@@ -27,19 +27,19 @@ func (c *CLI) run(ctx context.Context, name string, args ...string) ([]byte, err
 }
 
 // GitHub returns `gh issue view <ref> --json number,title,body,labels,url`.
-func (c *CLI) GitHub(ctx context.Context, ref string) ([]byte, error) {
+func (c *cli) GitHub(ctx context.Context, ref string) ([]byte, error) {
 	args := append([]string{"issue", "view"}, repoRef(ref)...)
 	return c.run(ctx, "gh", append(args, "--json", "number,title,body,labels,url")...)
 }
 
 // GitLab returns `glab issue view <ref> --output json`.
-func (c *CLI) GitLab(ctx context.Context, ref string) ([]byte, error) {
+func (c *cli) GitLab(ctx context.Context, ref string) ([]byte, error) {
 	args := append([]string{"issue", "view"}, repoRef(strings.TrimPrefix(ref, "#"))...)
 	return c.run(ctx, "glab", append(args, "--output", "json")...)
 }
 
 // RemoteURL returns `git remote get-url origin`, "" when none.
-func (c *CLI) RemoteURL(ctx context.Context) string {
+func (c *cli) RemoteURL(ctx context.Context) string {
 	out, err := c.run(ctx, "git", "remote", "get-url", "origin")
 	if err != nil {
 		return ""

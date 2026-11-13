@@ -13,7 +13,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/update"
 )
 
-// Updater is the release check (updatecheck.Service).
+// Updater is the release check (the updatecheck.New service).
 type Updater interface {
 	Fetch(ctx context.Context) (update.State, error)
 }

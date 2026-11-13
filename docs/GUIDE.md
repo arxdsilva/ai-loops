@@ -150,7 +150,7 @@ Everything is recorded in `.loops/runs/<id>/events.jsonl`, written by the skills
 
 ## Languages
 
-Each language is a pack (`specs/languages/<id>/pack.json`) with its gate checks, race policy, coverage format, run-scoped caches and architecture rules, plus a `lang-<id>` skill and an `<id>-engineer` role. `loops lang detect` finds the packs that apply to your repo (several can, e.g. a Go service with a TypeScript front end); `"languages"` in `.loops/config.json` pins them.
+Each language is a pack (`specs/languages/<id>/pack.json`) with its gate checks, race policy, coverage format, run-scoped caches and architecture rules, plus a `lang-<id>` skill and an `<id>-engineer` role. `loops lang detect` finds the packs that apply to your repo (several can, e.g. a Go service with a TypeScript front end); `"languages"` in `.loops/config.json` pins them. A pack's optional `security` field names its vulnerability and SAST checks for `loops gate --security`; `loops lang show <id>` prints the pack, including that field. The Go rule book is [specs/languages/go/RULES.md](../specs/languages/go/RULES.md).
 
 | id | Race policy | Coverage format |
 |---|---|---|
@@ -194,6 +194,8 @@ The main session is the run's master agent (the lead). It runs every phase from 
 
 You are asked only at the phases you opt into: `--ask plan,pr` (or `all`), `"ask"` in `.loops/config.json`, or say "let me approve the plan" in the request. The full table of defaults is in [WORKFLOW §2.7](../specs/WORKFLOW.md).
 
+Unclear tickets go through the `clarify` skill at intake, which records each inference rather than guessing silently. With `--ask intake` (or `"ask": ["intake"]` in `.loops/config.json`) those open points are put to you before research starts.
+
 ## Project rules win
 
 Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs, existing layout) always beat loops' defaults. Whenever an agent follows one instead of a loops rule it logs it (`loops run override`). At the end the reflector writes `overrides.md` and posts it as a comment on the PR/MR (never in the description), so you see exactly where your rules were applied.
@@ -227,9 +229,11 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
   the lead (master agent) runs all seven, decides instead of asking, re-anchors with `loops run brief`
 ```
 
+In the QA phase, the `security-reviewer` runs the security pass once per round, after the quality pass: `loops gate --security` runs each pack's declared vulnerability and SAST checks (Go: `govulncheck`, `gosec`). A tool that is not installed is skipped and noted, not failed, and the pass records no gate events.
+
 ## Layout
 
-- `agents/`: the 32 roles (17 workflow and layer roles, 15 language roles), summarised in `ROLES.md`.
+- `agents/`: the 33 roles (18 workflow and layer roles, 15 language roles), summarised in `ROLES.md`.
 - `skills/`: the `work` orchestrator, `init`, `status`, `report`, the reference skills, and one `lang-<id>` skill per language.
 - `specs/`: the workflow spec, the engineering discipline (`ENGINEERING.md`), the language-neutral rules (architecture, SOLID, testing, repository practices), and `specs/languages/<id>/` (pack and rules) per language.
 - `templates/`: what the agents fill in.

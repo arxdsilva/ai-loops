@@ -21,6 +21,16 @@ var claudeVerbatim = []string{
 	"mod/view.js",
 }
 
+// claudeDisclosure is the part of the repository README's "What it runs on
+// your machine" section that holds for the directory package too: from the
+// hooks bullet up to (not including) the network bullet.
+const (
+	claudeDisclosureHeading = "## What it runs on your machine"
+	claudeDisclosureStart   = "- **Hooks**"
+	claudeDisclosureEnd     = "- **Network**"
+	repoBlob                = "https://github.com/arxdsilva/ai-loops/blob/main/"
+)
+
 // buildClaude emits platforms/claude/ (specs/PLATFORMS.md §3.1): the
 // plugin-directory package. The repository root stays the marketplace
 // plugin; this copy is the same plugin with a shim that downloads nothing
@@ -55,16 +65,6 @@ func buildClaude(p plugin.Plugin, src fs.FS, o Options) ([]plugin.File, []string
 	}
 	return putFile(files, plugin.File{Path: "README.md", Data: []byte(readme)}), nil, nil
 }
-
-// claudeDisclosure is the part of the repository README's "What it runs on
-// your machine" section that holds for the directory package too: from the
-// hooks bullet up to (not including) the network bullet.
-const (
-	claudeDisclosureHeading = "## What it runs on your machine"
-	claudeDisclosureStart   = "- **Hooks**"
-	claudeDisclosureEnd     = "- **Network**"
-	repoBlob                = "https://github.com/arxdsilva/ai-loops/blob/main/"
-)
 
 // claudeReadme is the directory package's README: install, then what the
 // plugin runs, sends and changes (the directory asks for both).

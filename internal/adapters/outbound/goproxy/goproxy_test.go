@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func client(module string, env map[string]string) *Client {
+func client(module string, env map[string]string) *proxyClient {
 	c := New(module)
 	c.getenv = func(k string) string { return env[k] }
 	return c

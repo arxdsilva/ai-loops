@@ -55,7 +55,7 @@ func (f *fakeFiles) WriteVersion(v string) error {
 	return f.err
 }
 
-func setup(g *fakeGit) (*Service, *int) {
+func setup(g *fakeGit) (*service, *int) {
 	regen := 0
 	f := &fakeFiles{v: "0.3.0", calls: &g.calls}
 	return New(g, f, func() error { regen++; g.calls = append(g.calls, "Regenerate"); return nil }), &regen

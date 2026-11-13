@@ -12,6 +12,11 @@ import (
 )
 
 const (
+	stdinWait = 300 * time.Millisecond
+	stdinCap  = 64 << 10
+)
+
+const (
 	ansiReset  = "\x1b[0m"
 	ansiDim    = "\x1b[2m"
 	ansiGreen  = "\x1b[32m"
@@ -39,11 +44,6 @@ func (a *App) readStatusInput() statusInput {
 	_ = json.Unmarshal(readBounded(a.In), &in) // empty or malformed stdin is fine
 	return in
 }
-
-const (
-	stdinWait = 300 * time.Millisecond
-	stdinCap  = 64 << 10
-)
 
 // readBounded reads r until EOF, a complete JSON document, the size cap or
 // stdinWait, whichever comes first. A blocked reader is abandoned.

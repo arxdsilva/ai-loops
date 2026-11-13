@@ -62,7 +62,7 @@ type tick struct{ t time.Time }
 
 func (c *tick) Now() time.Time { c.t = c.t.Add(time.Second); return c.t }
 
-func setup(f *fakeCmd, a fakeArch) (*Service, *fakeRec) {
+func setup(f *fakeCmd, a fakeArch) (*service, *fakeRec) {
 	r := &fakeRec{}
 	return New(f, a, r, &tick{}).WithCoverage(&fakeCov{module: "example.com/m"}, CoverageConfig{}), r
 }
@@ -121,7 +121,7 @@ func TestFullGreen(t *testing.T) {
 	if err != nil || !res.OK {
 		t.Fatal(res, err)
 	}
-	if got := names(res); got != "build:ok gofmt:ok vet:ok staticcheck:ok arch:ok test:ok coverage:ok govulncheck:skip" {
+	if got := names(res); got != "build:ok gofmt:ok vet:ok staticcheck:ok arch:ok test:ok coverage:ok govulncheck:skip gosec:skip" {
 		t.Fatal(got)
 	}
 	want := []string{"go build ./...", "gofmt -l .", "go vet ./...", "staticcheck ./...", "go test -race -count=1 -covermode=atomic -coverprofile=/tmp/cover.out ./..."}
@@ -149,7 +149,7 @@ func TestFailuresAndFailFast(t *testing.T) {
 	f := &fakeCmd{fail: map[string]string{"go vet": "vet: bad\n"}, out: map[string]string{"gofmt": "a.go\nvendor/x.go\ntestdata/y.go\n"}}
 	s, rec := setup(f, fakeArch{ok: true})
 	res, _ := s.Run(context.Background(), opts(Options{Root: "/p"}))
-	if res.OK || names(res) != "build:ok gofmt:FAIL vet:FAIL staticcheck:skip arch:ok test:ok coverage:ok govulncheck:skip" {
+	if res.OK || names(res) != "build:ok gofmt:FAIL vet:FAIL staticcheck:skip arch:ok test:ok coverage:ok govulncheck:skip gosec:skip" {
 		t.Fatal(names(res))
 	}
 	if !strings.Contains(res.Checks[1].Output, "a.go") || strings.Contains(res.Checks[1].Output, "vendor") {
@@ -171,7 +171,7 @@ func TestScopedNeverRecordsAll(t *testing.T) {
 	f := &fakeCmd{}
 	s, rec := setup(f, fakeArch{ok: true})
 	res, _ := s.Run(context.Background(), goOpts(Options{Pkgs: []string{"./internal/domain/..."}, Only: []string{"build", "gofmt", "vet"}}))
-	if !res.OK || names(res) != "build:ok gofmt:ok vet:ok staticcheck:skip arch:skip test:skip coverage:skip govulncheck:skip" {
+	if !res.OK || names(res) != "build:ok gofmt:ok vet:ok staticcheck:skip arch:skip test:skip coverage:skip govulncheck:skip gosec:skip" {
 		t.Fatal(names(res))
 	}
 	if f.calls[1] != "gofmt -l internal/domain" || f.calls[0] != "go build ./internal/domain/..." {
@@ -202,7 +202,7 @@ func TestSkipArchVulnAndRecorderError(t *testing.T) {
 	}
 	// coverage is required: --skip cannot drop it, and without the test
 	// check's profile it fails.
-	if got := names(res); got != "build:ok gofmt:ok vet:ok staticcheck:skip arch:FAIL test:skip coverage:FAIL govulncheck:ok" {
+	if got := names(res); got != "build:ok gofmt:ok vet:ok staticcheck:skip arch:FAIL test:skip coverage:FAIL govulncheck:ok gosec:skip" {
 		t.Fatal(got)
 	}
 	if res.Checks[4].Output != "arch bad" {

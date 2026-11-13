@@ -65,14 +65,14 @@ type CoverageConfig struct {
 }
 
 // WithCoverage sets the coverage port and policy; it returns s.
-func (s *Service) WithCoverage(c Coverage, cfg CoverageConfig) *Service {
+func (s *service) WithCoverage(c Coverage, cfg CoverageConfig) *service {
 	s.cov, s.covCfg = c, cfg
 	return s
 }
 
 // coverageCheck judges the new code's coverage from the pack's coverage
 // report (specs/WORKFLOW.md §6).
-func (s *Service) coverageCheck(ctx context.Context, o Options, pr *packRun) CheckResult {
+func (s *service) coverageCheck(ctx context.Context, o Options, pr *packRun) CheckResult {
 	start := s.clock.Now()
 	header, rep, err := s.evaluate(ctx, o, pr)
 	cr := CheckResult{Name: CheckCoverage, Duration: s.clock.Now().Sub(start)}
@@ -89,14 +89,14 @@ func (s *Service) coverageCheck(ctx context.Context, o Options, pr *packRun) Che
 
 // stalePending reports whether name is the pack's first producing check to
 // run, so stale reports must go first.
-func (s *Service) stalePending(pr *packRun, name string) bool {
+func (s *service) stalePending(pr *packRun, name string) bool {
 	return !pr.staleCleaned && slices.Contains(pr.p.Coverage.ProducedBy, name)
 }
 
 // removeStale deletes the reports a previous run left at coverage.path:
 // only files inside the run's coverage dir, the run dir or strictly below
 // the pack root (reportPaths refuses unsafe paths).
-func (s *Service) removeStale(ctx context.Context, pr *packRun) {
+func (s *service) removeStale(ctx context.Context, pr *packRun) {
 	pr.staleCleaned = true
 	f := s.fs()
 	if f == nil || pr.p.Coverage.Path == "" {
@@ -118,7 +118,7 @@ func (s *Service) removeStale(ctx context.Context, pr *packRun) {
 // placeholders are empty, that is the pack root itself, or that is (or
 // globs from) a filesystem root: such a path would read, and removeStale
 // delete, the project.
-func (s *Service) reportPaths(ctx context.Context, pr *packRun, f Files) ([]string, error) {
+func (s *service) reportPaths(ctx context.Context, pr *packRun, f Files) ([]string, error) {
 	v, err := pr.vals(pack.Check{}, "")
 	if err != nil {
 		return nil, err
@@ -200,7 +200,7 @@ func isFSRoot(p string) bool {
 	return filepath.Dir(c) == c
 }
 
-func (s *Service) noReportErr(pr *packRun) error {
+func (s *service) noReportErr(pr *packRun) error {
 	what, by := "coverage report", pr.p.Coverage.ProducedBy
 	if pr.p.Coverage.Format == pack.FormatGoCover || pr.p.Coverage.Format == "" {
 		what = "coverprofile"
@@ -214,7 +214,7 @@ type report struct{ path, text string }
 
 // readReports produces (coverage.produce) and reads the pack's coverage
 // reports.
-func (s *Service) readReports(ctx context.Context, pr *packRun) ([]report, error) {
+func (s *service) readReports(ctx context.Context, pr *packRun) ([]report, error) {
 	cp := pr.p.Coverage
 	for _, step := range cp.Produce {
 		if err := s.produce(ctx, pr, step); err != nil {
@@ -250,7 +250,7 @@ func (s *Service) readReports(ctx context.Context, pr *packRun) ([]report, error
 // profile parses the pack's reports and merges them. Line-based reports are
 // normalized one by one first, each against the source roots under its own
 // ancestors (a multi-module build writes one report per module).
-func (s *Service) profile(ctx context.Context, pr *packRun) (coverage.Profile, error) {
+func (s *service) profile(ctx context.Context, pr *packRun) (coverage.Profile, error) {
 	var none coverage.Profile
 	cp := pr.p.Coverage
 	reps, err := s.readReports(ctx, pr)
@@ -294,7 +294,7 @@ func (pr *packRun) reportDir(p string) string {
 
 // realPath resolves p's symlinks through the port ("" when unavailable or
 // unchanged).
-func (s *Service) realPath(p string) string {
+func (s *service) realPath(p string) string {
 	if p == "" {
 		return ""
 	}
@@ -310,7 +310,7 @@ func (s *Service) realPath(p string) string {
 }
 
 // produce runs one coverage export step; stdout_to writes its stdout.
-func (s *Service) produce(ctx context.Context, pr *packRun, step pack.Produce) error {
+func (s *service) produce(ctx context.Context, pr *packRun, step pack.Produce) error {
 	v, err := pr.vals(pack.Check{}, "")
 	if err != nil {
 		return err
@@ -346,7 +346,7 @@ func (s *Service) produce(ctx context.Context, pr *packRun, step pack.Produce) e
 	return f.WriteFile(dst, out)
 }
 
-func (s *Service) evaluate(ctx context.Context, o Options, pr *packRun) (string, coverage.Report, error) {
+func (s *service) evaluate(ctx context.Context, o Options, pr *packRun) (string, coverage.Report, error) {
 	var none coverage.Report
 	cp := pr.p.Coverage
 	switch {

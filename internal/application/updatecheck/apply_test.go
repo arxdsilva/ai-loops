@@ -33,7 +33,7 @@ type mutClock struct{ t time.Time }
 
 func (c *mutClock) Now() time.Time { return c.t }
 
-func applySetup(st update.State, v string, err error, r *fakeRunner) (*Service, *fakeSrc, *fakeStore) {
+func applySetup(st update.State, v string, err error, r *fakeRunner) (*service, *fakeSrc, *fakeStore) {
 	src, store := &fakeSrc{v: v, err: err}, &fakeStore{st: st}
 	s := New(src, store, fakeClock{now})
 	if r != nil {
@@ -214,7 +214,7 @@ func TestOneLine(t *testing.T) {
 	}
 	long := strings.Repeat("é", 150) // 300 bytes
 	got := oneLine(long)
-	if len(got) > maxDetail || !utf8.ValidString(got) || got == "" {
+	if len(got) > 200 || !utf8.ValidString(got) || got == "" {
 		t.Errorf("len=%d valid=%v", len(got), utf8.ValidString(got))
 	}
 	if lastLine("") != "" {

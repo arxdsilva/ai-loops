@@ -89,24 +89,15 @@ func (l langCmd) show(args []string) int {
 	return l.json(p)
 }
 
-// validate parses the given pack files, or every embedded pack.
+// validate parses the given pack files, or every embedded pack; each must
+// declare a security section (pack.RequireSecurity).
 func (l langCmd) validate(files []string) int {
 	if len(files) == 0 {
-		all, err := l.a.Langs.All()
-		if err != nil {
-			fmt.Fprintln(l.a.Err, err)
-			return 1
-		}
-		fmt.Fprintf(l.a.Out, "ok: %d packs\n", len(all))
-		return 0
+		return l.validateAll()
 	}
 	bad := 0
 	for _, f := range files {
-		b, err := os.ReadFile(f)
-		if err == nil {
-			_, err = pack.Parse(b)
-		}
-		if err != nil {
+		if err := validateFile(f); err != nil {
 			bad++
 			fmt.Fprintf(l.a.Err, "%s: %v\n", f, err)
 			continue
@@ -117,6 +108,40 @@ func (l langCmd) validate(files []string) int {
 		return 1
 	}
 	return 0
+}
+
+// validateAll checks every embedded pack.
+func (l langCmd) validateAll() int {
+	all, err := l.a.Langs.All()
+	if err != nil {
+		fmt.Fprintln(l.a.Err, err)
+		return 1
+	}
+	bad := 0
+	for _, p := range all {
+		if err := pack.RequireSecurity(p); err != nil {
+			bad++
+			fmt.Fprintln(l.a.Err, err)
+		}
+	}
+	if bad > 0 {
+		return 1
+	}
+	fmt.Fprintf(l.a.Out, "ok: %d packs\n", len(all))
+	return 0
+}
+
+// validateFile parses one pack file and requires its security section.
+func validateFile(f string) error {
+	b, err := os.ReadFile(f)
+	if err != nil {
+		return err
+	}
+	p, err := pack.Parse(b)
+	if err != nil {
+		return err
+	}
+	return pack.RequireSecurity(p)
 }
 
 func (l langCmd) detect(args []string) int {

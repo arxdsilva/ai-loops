@@ -29,6 +29,27 @@ var nodeBuiltins = map[string]bool{
 	"util": true, "v8": true, "vm": true, "wasi": true, "worker_threads": true, "zlib": true,
 }
 
+// cHeaders are the C and POSIX headers treated as the standard library;
+// extensionless headers (<vector>) are the C++ standard library.
+var cHeaders = map[string]bool{
+	"assert.h": true, "ctype.h": true, "errno.h": true, "fenv.h": true, "float.h": true, "inttypes.h": true,
+	"limits.h": true, "locale.h": true, "math.h": true, "setjmp.h": true, "signal.h": true, "stdarg.h": true,
+	"stdbool.h": true, "stddef.h": true, "stdint.h": true, "stdio.h": true, "stdlib.h": true, "string.h": true,
+	"time.h": true, "uchar.h": true, "wchar.h": true, "wctype.h": true, "unistd.h": true, "fcntl.h": true,
+	"pthread.h": true, "dirent.h": true, "dlfcn.h": true, "poll.h": true, "netdb.h": true,
+}
+
+// includeRoots are tried after the including file's directory.
+var includeRoots = []string{"include", "src", "."}
+
+// Source patterns of the tsconfig (JSON with comments) reader and the C#
+// project-reference resolver.
+var (
+	trailingComma = regexp.MustCompile(`,(\s*[}\]])`)
+	csNamespace   = regexp.MustCompile(`(?m)^\s*namespace\s+([A-Za-z_][\w.]*)`)
+	csProjectRef  = regexp.MustCompile(`<ProjectReference\s+Include\s*=\s*"([^"]+)"`)
+)
+
 // relativePath resolves relative specifiers against the importing file,
 // tsconfig.json compilerOptions.paths aliases (exact keys and one "*") and
 // baseUrl, trying the TypeScript extensions and index files. Node core
@@ -214,8 +235,6 @@ func stripJSONC(s string) string {
 	return trailingComma.ReplaceAllString(b.String(), "$1")
 }
 
-var trailingComma = regexp.MustCompile(`,(\s*[}\]])`)
-
 // --- namespace-psr4: PHP ---------------------------------------------------
 
 // psr4 maps a namespaced name through composer.json autoload(-dev).psr-4 to
@@ -297,19 +316,6 @@ func (r *psr4) resolve(_, imp, _ string) (string, string) {
 
 // --- include-path: C++ ---------------------------------------------------------
 
-// cHeaders are the C and POSIX headers treated as the standard library;
-// extensionless headers (<vector>) are the C++ standard library.
-var cHeaders = map[string]bool{
-	"assert.h": true, "ctype.h": true, "errno.h": true, "fenv.h": true, "float.h": true, "inttypes.h": true,
-	"limits.h": true, "locale.h": true, "math.h": true, "setjmp.h": true, "signal.h": true, "stdarg.h": true,
-	"stdbool.h": true, "stddef.h": true, "stdint.h": true, "stdio.h": true, "stdlib.h": true, "string.h": true,
-	"time.h": true, "uchar.h": true, "wchar.h": true, "wctype.h": true, "unistd.h": true, "fcntl.h": true,
-	"pthread.h": true, "dirent.h": true, "dlfcn.h": true, "poll.h": true, "netdb.h": true,
-}
-
-// includeRoots are tried after the including file's directory.
-var includeRoots = []string{"include", "src", "."}
-
 // includePath resolves a quoted include relative to the including file,
 // then (quoted or angled) against include/, src/ and the pack root.
 type includePath struct {
@@ -339,11 +345,6 @@ func (r *includePath) resolve(from, imp, raw string) (string, string) {
 }
 
 // --- project-reference: C# -----------------------------------------------------
-
-var (
-	csNamespace  = regexp.MustCompile(`(?m)^\s*namespace\s+([A-Za-z_][\w.]*)`)
-	csProjectRef = regexp.MustCompile(`<ProjectReference\s+Include\s*=\s*"([^"]+)"`)
-)
 
 // projectRef makes the project directory (the nearest one holding a
 // .csproj) the unit. A using directive resolves through the namespaces the

@@ -98,6 +98,7 @@ func TestFixturesEndToEnd(t *testing.T) {
 			"internal/domain/sim/sim.go:15 go error",
 			"internal/domain/sim/sim.go:19 rand error",
 			"internal/domain/sim/sim.go:19 rand error",
+			"internal/domain/sim/sim.go:22 decls warn", // var draw declared after a func (RULES §55)
 			"internal/domain/sim/sim.go:22 rand error", // var draw = rand.Intn
 			"internal/domain/sim/sim.go:26 rand error", // f := r2.Float64
 		},

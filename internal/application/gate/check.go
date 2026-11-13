@@ -27,6 +27,11 @@ const (
 // whenFileDepth bounds the walk for a glob when_file entry.
 const whenFileDepth = 6
 
+// runnerSeedRe finds the seed a test runner printed: pytest-randomly
+// "Using --randomly-seed=N", ExUnit "with seed: N", RSpec/Minitest
+// "Randomized with seed N", PHPUnit "Random Seed: N", Kaocha "--seed N".
+var runnerSeedRe = regexp.MustCompile(`(?i)(?:randomly-seed=|with seed:? |random seed:\s*|--seed[ =])(\d+)`)
+
 // raceUnavailable heads the failure of a race check that cannot run on
 // this host (D24): it fails, it never skips silently.
 const raceUnavailable = "race policy unavailable: "
@@ -41,7 +46,7 @@ func enabled(o Options, c pack.Check) bool {
 }
 
 // check runs one selected check of pr.
-func (s *Service) check(ctx context.Context, o Options, pr *packRun, c pack.Check) CheckResult {
+func (s *service) check(ctx context.Context, o Options, pr *packRun, c pack.Check) CheckResult {
 	if !enabled(o, c) {
 		return CheckResult{Skipped: true}
 	}
@@ -52,53 +57,13 @@ func (s *Service) check(ctx context.Context, o Options, pr *packRun, c pack.Chec
 		return s.archCheck(ctx, pr)
 	}
 	race := pr.p.RaceCheck(c.Name)
-	// A check that must run: required, a race check, or a default-off
-	// check someone enabled (D12, D16, D24).
-	must := c.Required || race || c.OffByDefault()
-
-	argv, override := c.Argv, ""
-	if len(c.WhenFile) > 0 && !s.anyExists(pr, c.WhenFile) {
-		if len(c.FallbackArgv) == 0 {
-			return CheckResult{Skipped: true, Output: "skipped: none of " + strings.Join(c.WhenFile, ", ") + " present"}
-		}
-		argv, override = c.FallbackArgv, "override: fallback_argv (no "+strings.Join(c.WhenFile, ", ")+")"
-	}
-	if len(argv) == 0 {
-		return s.failed(c, "no argv")
-	}
-	if !s.available(pr, argv[0]) {
-		if len(c.FallbackArgv) > 0 && !slices.Equal(argv, c.FallbackArgv) && s.available(pr, c.FallbackArgv[0]) {
-			argv, override = c.FallbackArgv, "override: fallback_argv ("+argv[0]+" not installed)"
-		} else {
-			msg := argv[0] + " not installed"
-			if c.Install != "" {
-				msg += "; install: " + c.Install
-			}
-			if race {
-				return s.failed(c, raceUnavailable+msg)
-			}
-			if must {
-				return s.failed(c, msg)
-			}
-			return CheckResult{Skipped: true, Output: msg}
-		}
+	argv, override, early := s.resolveArgv(pr, c, race, o.Missing)
+	if early != nil {
+		return *early
 	}
 	env := mergeEnv(pr.env, sortedEnv(c.Env))
-	for _, k := range c.EnvRequired {
-		if _, ok := envValue(env, k); ok {
-			continue
-		}
-		if _, ok := s.lookupEnv(k); ok {
-			continue
-		}
-		msg := "missing env " + k
-		switch {
-		case race:
-			return s.failed(c, raceUnavailable+msg)
-		case must:
-			return s.failed(c, msg)
-		}
-		return CheckResult{Skipped: true, Output: msg}
+	if early := s.requireEnv(pr, c, env, race, o.Missing); early != nil {
+		return *early
 	}
 	if s.stalePending(pr, c.Name) {
 		s.removeStale(ctx, pr)
@@ -106,13 +71,80 @@ func (s *Service) check(ctx context.Context, o Options, pr *packRun, c pack.Chec
 	return s.runArgv(ctx, pr, c, argv, env, override, race)
 }
 
-func (s *Service) failed(c pack.Check, msg string) CheckResult {
+// resolveArgv picks the argv to run (when_file, fallback_argv, tool
+// availability); a non-nil result ends the check early.
+func (s *service) resolveArgv(pr *packRun, c pack.Check, race bool, m MissingPolicy) (argv []string, override string, early *CheckResult) {
+	argv, override, early = s.whenFileArgv(pr, c)
+	if early != nil {
+		return nil, "", early
+	}
+	if len(argv) == 0 {
+		r := s.failed(c, "no argv")
+		return nil, "", &r
+	}
+	if s.available(pr, argv[0]) {
+		return argv, override, nil
+	}
+	if len(c.FallbackArgv) > 0 && !slices.Equal(argv, c.FallbackArgv) && s.available(pr, c.FallbackArgv[0]) {
+		return c.FallbackArgv, "override: fallback_argv (" + argv[0] + " not installed)", nil
+	}
+	msg := argv[0] + " not installed"
+	if c.Install != "" {
+		msg += "; install: " + c.Install
+	}
+	r := s.missing(c, msg, race, m)
+	return nil, "", &r
+}
+
+// whenFileArgv applies when_file: the check's argv, the fallback_argv when
+// no listed file exists, or an early skip when there is no fallback.
+func (s *service) whenFileArgv(pr *packRun, c pack.Check) (argv []string, override string, early *CheckResult) {
+	if len(c.WhenFile) == 0 || s.anyExists(pr, c.WhenFile) {
+		return c.Argv, "", nil
+	}
+	files := strings.Join(c.WhenFile, ", ")
+	if len(c.FallbackArgv) == 0 {
+		return nil, "", &CheckResult{Skipped: true, Output: "skipped: none of " + files + " present"}
+	}
+	return c.FallbackArgv, "override: fallback_argv (no " + files + ")", nil
+}
+
+// requireEnv checks the env_required entries; a non-nil result ends the
+// check early.
+func (s *service) requireEnv(pr *packRun, c pack.Check, env []string, race bool, m MissingPolicy) *CheckResult {
+	for _, k := range c.EnvRequired {
+		if _, ok := envValue(env, k); ok {
+			continue
+		}
+		if _, ok := s.lookupEnv(k); ok {
+			continue
+		}
+		r := s.missing(c, "missing env "+k, race, m)
+		return &r
+	}
+	return nil
+}
+
+// missing is the outcome of a missing tool or env: race checks fail as
+// unavailable (D24); a check that must run (required or enabled default-off,
+// D12, D16) fails unless m is MissingSkip; any other skips with msg.
+func (s *service) missing(c pack.Check, msg string, race bool, m MissingPolicy) CheckResult {
+	switch {
+	case race:
+		return s.failed(c, raceUnavailable+msg)
+	case m != MissingSkip && (c.Required || c.OffByDefault()):
+		return s.failed(c, msg)
+	}
+	return CheckResult{Skipped: true, Output: msg}
+}
+
+func (s *service) failed(c pack.Check, msg string) CheckResult {
 	return CheckResult{Name: c.Name, Output: msg, note: firstLine(msg)}
 }
 
 // available decides by the resolved argv[0]: a path-like tool must exist
 // under the pack root, any other is looked up on PATH.
-func (s *Service) available(pr *packRun, tool string) bool {
+func (s *service) available(pr *packRun, tool string) bool {
 	if strings.ContainsAny(tool, `/\`) {
 		f := s.fs()
 		return f != nil && f.Exists(pr.abs(tool))
@@ -122,7 +154,7 @@ func (s *Service) available(pr *packRun, tool string) bool {
 
 // anyExists reports whether one of the when_file entries exists under the
 // pack root: plain paths by existence, globs by a bounded walk.
-func (s *Service) anyExists(pr *packRun, entries []string) bool {
+func (s *service) anyExists(pr *packRun, entries []string) bool {
 	f := s.fs()
 	if f == nil {
 		return false
@@ -146,7 +178,7 @@ func (s *Service) anyExists(pr *packRun, entries []string) bool {
 	return false
 }
 
-func (s *Service) archCheck(ctx context.Context, pr *packRun) CheckResult {
+func (s *service) archCheck(ctx context.Context, pr *packRun) CheckResult {
 	if s.arch == nil {
 		return CheckResult{Output: "arch: not configured", note: "arch: not configured"}
 	}
@@ -165,7 +197,7 @@ func (s *Service) archCheck(ctx context.Context, pr *packRun) CheckResult {
 }
 
 // runArgv runs c (× race variants × repeat) and judges the outcome.
-func (s *Service) runArgv(ctx context.Context, pr *packRun, c pack.Check, argv, env []string, override string, race bool) CheckResult {
+func (s *service) runArgv(ctx context.Context, pr *packRun, c pack.Check, argv, env []string, override string, race bool) CheckResult {
 	variants := []map[string]string{nil}
 	if race && len(pr.p.Race.Variants) > 0 {
 		variants = pr.p.Race.Variants
@@ -250,7 +282,7 @@ func (s *Service) runArgv(ctx context.Context, pr *packRun, c pack.Check, argv, 
 	return cr
 }
 
-func (s *Service) argvFor(ctx context.Context, pr *packRun, c pack.Check, argv []string, seed string) ([]string, error) {
+func (s *service) argvFor(ctx context.Context, pr *packRun, c pack.Check, argv []string, seed string) ([]string, error) {
 	v, err := pr.vals(c, seed)
 	if err != nil {
 		return nil, err
@@ -314,11 +346,6 @@ func raceFlagsPresent(r pack.Race, argv, env []string) error {
 	}
 	return errors.New(raceUnavailable + "the race check runs without " + missing)
 }
-
-// runnerSeedRe finds the seed a test runner printed: pytest-randomly
-// "Using --randomly-seed=N", ExUnit "with seed: N", RSpec/Minitest
-// "Randomized with seed N", PHPUnit "Random Seed: N", Kaocha "--seed N".
-var runnerSeedRe = regexp.MustCompile(`(?i)(?:randomly-seed=|with seed:? |random seed:\s*|--seed[ =])(\d+)`)
 
 // judge reads one run's outcome from its output and error: exit_codes,
 // fails_on output (after output_exclude), fail_regex, skip_on.

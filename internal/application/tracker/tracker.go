@@ -49,22 +49,22 @@ type StartInput struct {
 	Source string // github | gitlab | jira | linear | text
 }
 
-// Service is the tracker use case.
-type Service struct {
+// service is the tracker use case.
+type service struct {
 	log   EventLog
 	ptr   Pointer
 	clock Clock
 }
 
-// New builds a Service.
-func New(log EventLog, ptr Pointer, clock Clock) *Service {
-	return &Service{log: log, ptr: ptr, clock: clock}
+// New builds a service.
+func New(log EventLog, ptr Pointer, clock Clock) *service {
+	return &service{log: log, ptr: ptr, clock: clock}
 }
 
 // Start creates a run (ID = UTC timestamp + slug of Title, e.g.
 // "20261109-1530-add-orders"), makes it current, records KindRun and enters
 // PhaseIntake. It returns the run ID.
-func (s *Service) Start(ctx context.Context, in StartInput) (string, error) {
+func (s *service) Start(ctx context.Context, in StartInput) (string, error) {
 	now := s.clock.Now().UTC()
 	base := now.Format("20060102-1504") + "-" + slug(in.Title)
 	id := base
@@ -115,7 +115,7 @@ func slug(title string) string {
 
 // Record appends e to the current run, filling Run and Time when empty.
 // Returns ErrNoActiveRun when no run is current.
-func (s *Service) Record(ctx context.Context, e run.Event) error {
+func (s *service) Record(ctx context.Context, e run.Event) error {
 	id, err := s.Current(ctx)
 	if err != nil {
 		return err
@@ -130,7 +130,7 @@ func (s *Service) Record(ctx context.Context, e run.Event) error {
 }
 
 // End records KindEnd with outcome and clears the current pointer.
-func (s *Service) End(ctx context.Context, outcome string) error {
+func (s *service) End(ctx context.Context, outcome string) error {
 	if err := s.Record(ctx, run.Event{Kind: run.KindEnd, Status: outcome}); err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (s *Service) End(ctx context.Context, outcome string) error {
 }
 
 // Current returns the current run ID or ErrNoActiveRun.
-func (s *Service) Current(ctx context.Context) (string, error) {
+func (s *service) Current(ctx context.Context) (string, error) {
 	id, err := s.ptr.Current()
 	if err != nil {
 		return "", err
@@ -149,7 +149,7 @@ func (s *Service) Current(ctx context.Context) (string, error) {
 	return id, nil
 }
 
-func (s *Service) resolve(ctx context.Context, runID string) (string, error) {
+func (s *service) resolve(ctx context.Context, runID string) (string, error) {
 	if runID != "" {
 		return runID, nil
 	}
@@ -157,7 +157,7 @@ func (s *Service) resolve(ctx context.Context, runID string) (string, error) {
 }
 
 // State folds the run's events; runID "" means the current run.
-func (s *Service) State(ctx context.Context, runID string) (run.State, error) {
+func (s *service) State(ctx context.Context, runID string) (run.State, error) {
 	evs, err := s.Events(ctx, runID)
 	if err != nil {
 		return run.State{}, err
@@ -166,7 +166,7 @@ func (s *Service) State(ctx context.Context, runID string) (run.State, error) {
 }
 
 // Events returns the run's raw events; runID "" means the current run.
-func (s *Service) Events(ctx context.Context, runID string) ([]run.Event, error) {
+func (s *service) Events(ctx context.Context, runID string) ([]run.Event, error) {
 	id, err := s.resolve(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -175,7 +175,7 @@ func (s *Service) Events(ctx context.Context, runID string) ([]run.Event, error)
 }
 
 // Dir returns the run's directory; runID "" means the current run.
-func (s *Service) Dir(ctx context.Context, runID string) (string, error) {
+func (s *service) Dir(ctx context.Context, runID string) (string, error) {
 	id, err := s.resolve(ctx, runID)
 	if err != nil {
 		return "", err

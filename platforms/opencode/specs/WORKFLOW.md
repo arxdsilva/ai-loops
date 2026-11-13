@@ -25,11 +25,11 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 
 | # | Phase (`run.Phase`) | Agents | Output in the run dir | Exit criteria |
 |---|---|---|---|---|
-| 0 | `intake` | lead | `ticket.md`, `charter.md` | The ticket is normalised and has a source; the charter and the checkpoints are recorded |
+| 0 | `intake` | lead (with `loops:clarify`) | `ticket.md`, `clarifications.md`, `charter.md` | The ticket is normalised and has a source; its open points are clarified; the charter and the checkpoints are recorded |
 | 1 | `research` | `web-researcher`, `practices-researcher`, `code-researcher`, `hardware-researcher` (parallel) | `research/web.md`, `research/practices.md`, `research/code.md`, `research/hardware.{json,md}` | All four outputs are written |
 | 2 | `plan` | `planner` ↔ `plan-reviewer` (+ the user at a `plan` checkpoint) | `plan.v<N>.md`, `plan-review.r<N>.md` | The latest review is `APPROVE` (and the user approved, at a checkpoint) |
 | 3 | `implement` | `architect` (wave 0), then role engineers in waves 1…n | `reports/<agent-id>.md` (claims reports) | Every lane has reported |
-| 4 | `qa` | one `qa-verifier` per implementer (pipelined), one `qa-quality` pass, then the lead runs the gates | `qa/<agent-id>.r<N>.md`, `qa/quality.r<N>.md` | Every claim is `VERIFIED`, the quality pass is `VERIFIED`, and `loops gate` is green |
+| 4 | `qa` | one `qa-verifier` per implementer (pipelined), one `qa-quality` pass, one `qa-security` pass (`security-reviewer`), then the lead runs the gates | `qa/<agent-id>.r<N>.md`, `qa/quality.r<N>.md`, `qa/security.r<N>.md` | Every claim is `VERIFIED`, the quality pass and the security pass are `VERIFIED`, and `loops gate` is green |
 | 5 | `product` | `product-reviewer` | `proofs/AC-<n>.md`, `pr.md`, `report.html` | Every AC is `VERIFIED` with a proof, and the PR/MR is opened (or the PR body is written under `--no-pr`) |
 | 6 | `reflect` | `reflector` | `reflection.md` (+ ai-memory pages) | Reflection is written; `loops run end` |
 
@@ -45,7 +45,8 @@ QA starts pipelined: a verifier launches as soon as its implementer reports, eve
    - Free text: `loops ticket fetch --source text --body-file -`.
 3. If ai-memory is connected (§7), call `memory_briefing` and one `memory_query` with the ticket's key terms. Save the hits to `research/memory.md` and record `loops run event --kind memory --name briefing`.
 4. Record the checkpoints: `loops run ask [<list>]` (§2.7). With no list it applies `.loops/config.json`.
-5. Write `charter.md` from `templates/CHARTER.md` (§2.7): the goal, the ACs as the ticket states them, what is in and out of scope, constraints, and the assumptions taken where the ticket is unclear. The ACs are final when the plan is approved.
+5. **Clarify**: load `loops:clarify` (`skills/clarify`). It scans the ticket for open points, infers each one with a recommended answer and records it in `clarifications.md`. Infer by default and record every inference: `clarifications.md`, a charter assumption that cites its item, and `loops run decide --topic assumption`. Ask only when the `intake` checkpoint is `ask`, the user asked, or an inference would be hard to undo; then ask a reachable user and record the answer with `--by user`. Open points beyond the 5-question cap are inferred (§2.7).
+6. Write `charter.md` from `templates/CHARTER.md` (§2.7): the goal, the ACs as the ticket states them, what is in and out of scope, constraints, and the assumptions taken where the ticket is unclear. The ACs are final when the plan is approved.
 
 Flags on `/loops:work`:
 - `--ask <phases>`: the phases where the lead stops for the user (§2.7), e.g. `--ask plan,pr` or `--ask all`.
@@ -136,6 +137,11 @@ Flags on `/loops:work`:
   - It measures CRAP, structural duplication and mutation survivors (`specs/ENGINEERING.md §13`) and writes `qa/quality.r<N>.md` (`templates/QUALITY.md`).
   - Each finding names its owning lane. The lead records `loops run verdict --name quality:Q<n> …` and sends the findings back to that lane like a failed claim (`loopback --from qa-quality --to <agent-id>`), with the same limits (§4). That lane's verifier then re-verifies, and the pass runs again.
   - A tool that isn't installed is recorded and never blocks.
+- **Security pass.** Once per QA round, after the quality pass, one `security-reviewer` runs as Agent id `qa-security` and writes `qa/security.r<N>.md` (`templates/SECURITY.md`, `agents/security-reviewer.md`).
+  - It runs `loops gate --security`: each pack's security tools (its `security.checks`; `loops lang show <id>`), for this pass only. A pack with no tools is noted with its reason.
+  - The lead passes the run base as a `Base: <commit>` prompt line: the commit the run started from (`git merge-base HEAD <default branch>`, or the HEAD recorded at `loops run start`).
+  - Only a finding absent from the run base blocks. The lead records `loops run verdict --name security:S<n> …` and sends the finding to its lane like a failed claim (`loopback --from qa-security --to <id>`), with the same limits (§4).
+  - A tool that isn't installed is recorded and never blocks.
 - Then the lead runs the full `loops gate`. Gate failures go back to the owning lane the same way.
 
 ### 2.5 Product
@@ -171,6 +177,7 @@ The `reflector`:
    - the outcome;
    - each loop-back and its root cause, and every premise attacked (`specs/ENGINEERING.md §11`);
    - the quality pass: findings fixed, tools that did not run, and pre-existing debt noted;
+   - the security pass: new findings fixed, tools skipped, and notes;
    - gate failures;
    - what the plan missed;
    - gotchas worth remembering;
@@ -245,7 +252,7 @@ The lead records them once at intake with `loops run ask [<list>]`; with no list
 
 | Situation | The lead's default |
 |---|---|
-| The ticket is unclear | Take the narrowest reading that meets the stated goal, write it under the charter's `## Assumptions`, and record it. |
+| The ticket is unclear | Clarify at intake (§2.0 step 5, `loops:clarify`): infer and record each open point. Otherwise take the narrowest reading that meets the stated goal, write it under the charter's `## Assumptions`, and record it. Asking applies only as §2.0 step 5 allows. |
 | No language pack detected | Continue; the gate checks nothing. Note it in the charter's constraints. |
 | Plan rounds run out (§4) | Rule on each open blocking item, accepting or rejecting it with a reason. The planner writes the final version with the rulings; the reviewer does not re-open a ruled item. |
 | QA rounds run out (§4) | Do one of three things. If the premise (ENGINEERING §11) shows the design is wrong, go back to `plan` for that lane. If no AC needs the claim, move it to Open follow-ups. If an AC cannot be met, end the run `failed` with the evidence. Never weaken a test, the gate or the race policy. |
@@ -267,6 +274,8 @@ Each decision is recorded: `loops run decide --topic <what> --note "<decision; r
 - **language roles**, one `<id>-engineer` for each pack in `specs/languages/` (`python-engineer`, `typescript-engineer`, `go-engineer`, …: 15 in all), which own the toolchain and repo files in wave 0 and take language-level lanes (version upgrades, dependency bumps, build migrations).
 
 A lane is a layer role plus a language: the lead passes the `Language:` line, and the agent loads that pack's skill (`loops:lang-<id>`) for the toolchain, the race policy, coverage and idioms. In a repo with several packs, each lane has one language.
+
+The QA roles are `qa-verifier` (claims and the quality pass, §2.4) and `security-reviewer` (the security pass, §2.4).
 
 Every spawn names its role (the platform's syntax is in `skills/work/platforms/<p>.md`), and a `model` only when it overrides the role default (escalation, `--models=cheap`).
 
@@ -360,7 +369,7 @@ Language packs (`specs/languages/<id>/pack.json`):
 - `loops lang detect [--json] [--write] [--root dir]`: the packs that apply to the project (id, root, variant). `--write` saves `research/language.json` in the run dir (§2.1). `languages` in `.loops/config.json` pins them instead.
 
 Gates:
-- `loops gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--fail-fast]`: runs every detected pack's checks (§6). `--only`/`--skip`/`--enable` take check names; `--enable` turns on `default: off` checks; `--vuln` enables the vuln checks.
+- `loops gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--security] [--fail-fast]`: runs every detected pack's checks (§6). `--only`/`--skip`/`--enable` take check names; `--enable` turns on `default: off` checks; `--vuln` enables the vuln checks; `--security` runs only each pack's security tools (`security.checks`), skips the missing ones and records no gate events (the security pass, §2.4).
 - `loops arch [--json] [--root dir]`: the architecture lint (`specs/ARCHITECTURE.md §25`).
 
 Updates:
@@ -378,9 +387,9 @@ Updates:
 3. `arch`: `loops arch`, and the pack's native architecture check if it has one; only error findings fail (`specs/ARCHITECTURE.md §25`).
 4. `test`: the pack's test checks, which also produce coverage and carry the race policy.
 5. `coverage` (required, never skippable): at least 70% of new code is covered (`specs/TESTING.md §8.1`). `gate.coverage_min` in config may only raise the floor; `gate.coverage_exclude` adds exclusions to the pack's `coverage.exclude` (Go: `cmd/**`, `internal/compose/**`, `testdata`, generated files). It also fails when a changed file's new lines are all untested, and, for Go, when a changed package has no tests. The output lists uncovered `file:line` ranges.
-6. `vuln`, `sast`, `sbom`: off by default (`default: off`); on with `--enable <check>`, `--vuln` or `gate.vuln` in config, and required in CI (`specs/REPO_PRACTICES.md §11`).
+6. `vuln`, `sast`, `sbom`: off by default (`default: off`); on with `--enable <check>`, `--vuln` or `gate.vuln` in config, and required in CI (`specs/REPO_PRACTICES.md §11`). `--security` runs a pack's `security.checks` only (§2.4).
 
-The Go pack reproduces the original gate exactly: `build` (`go build ./...`), `gofmt`, `vet`, `staticcheck` (if on PATH), `arch`, `test` (`go test -race -count=1 ./...`), `coverage`, `govulncheck` (with `--vuln`). `loops lang show <id>` prints any pack's checks.
+The Go pack runs `build` (`go build ./...`), `gofmt`, `vet`, `staticcheck` (if installed), `arch`, `test` (`go test -race -count=1 ./...`), `coverage`, then `govulncheck` (with `--vuln`) and `gosec` (`--enable gosec`) when enabled. `--security` runs `govulncheck` and `gosec` only. `loops lang show <id>` prints any pack's checks.
 
 QA scopes the same checks to one agent with `loops gate --only <checks> --pkgs <owned>` (Go: `--only test,coverage`).
 
@@ -402,7 +411,7 @@ A required race or substitute check that is skipped fails the full gate, as a sk
 - **`toolchain-env`** (PreToolUse on Bash; alias `go-env`) scopes every agent's toolchain command to the run's caches and tmp dirs (the pack's `cache_env`, `cache_argv`). For Go it rewrites the command where the platform's hooks can, and otherwise denies with a hint to use `loops go <args>` (or `loops exec -- <cmd>`) or `loops exec -- <cmd>`: the command is rewritten on Claude Code, Gemini CLI and Windsurf/Devin; on Codex and Cursor only a lone `go build|test|vet|list` is rewritten, and anything else is denied; on Copilot and OpenCode it is always denied (`specs/PLATFORMS.md` §5). For every other pack it only rewrites, on Claude Code, Gemini CLI and Windsurf/Devin, and otherwise fails open; it never denies. Agents there run toolchain commands through `loops exec -- <cmd>`. `loops gate` uses the run environment automatically. Agents never set cache variables themselves.
 - **`post-edit`** (PostToolUse on Edit/Write/MultiEdit; alias `go-post-edit`) runs the pack's `post_edit` on the edited file: its single-file formatter, then its lint on the file's directory (Go: gofmt/goimports, then `go vet`). A failure is sent back to the agent. A pack with no single-file formatter has no post-edit step.
 
-A full pass records `gate all ok`, which clears the dirty flags (`run.State.SourceDirty` for any pack's sources; `GoDirty` for `.go` files, kept for compatibility). A scoped run (`--pkgs`, `--only` or `--enable`) never records `all`.
+A full pass records `gate all ok`, which clears the dirty flags (`run.State.SourceDirty` for any pack's sources; `GoDirty` for `.go` files, kept for compatibility). A scoped run (`--pkgs`, `--only`, `--enable` or `--security`) never records `all`, and `--security` records no `gate` events at all.
 
 The **Stop gate** (`stop-gate`) stops the lead from ending its turn while the run is active, a source file of any pack has changed since the last full pass (`run.State.SourceDirty`, JSON `source_dirty`; not only `.go` files), and no agent lane is running. The escape hatches are `LOOPS_GATE=off` and `loops run end --outcome abandoned`.
 
@@ -424,7 +433,7 @@ A run is done when every item below holds. (Adapted from the rimworld-go MASTER_
 1. Every AC is `VERIFIED` with a proof.
 2. Behaviour is implemented in its owning layer (`specs/ARCHITECTURE.md`), and `loops arch` reports no errors.
 3. Every new or changed module has unit tests, including failure paths; new-code coverage is at least 70% (`loops gate` coverage, `specs/TESTING.md §8.1`); all tests run under the pack's race policy (§6).
-4. Every claim is verified by QA, the quality pass is `VERIFIED` (`specs/ENGINEERING.md §13`; a tool that isn't installed is noted, not required), and `loops gate` is green for every detected pack.
+4. Every claim is verified by QA, the quality pass is `VERIFIED` (`specs/ENGINEERING.md §13`; a tool that isn't installed is noted, not required), the security pass is `VERIFIED` (§2.4), and `loops gate` is green for every detected pack.
 5. Consistency impact is stated (ordering, idempotency, clock and RNG, migrations), with `skills/consistency` followed where it applies.
 6. Performance is measured (a benchmark before and after) if a hot path changed.
 7. Compatibility is analysed: API, persisted schema, config, migrations, and the manifest and lockfile when dependencies changed (`specs/REPO_PRACTICES.md §3`).

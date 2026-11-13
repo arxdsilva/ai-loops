@@ -14,7 +14,7 @@ import (
 )
 
 // Packs returns the detected language packs (none without WithPacks).
-func (s *Space) Packs() []langpack.Detected {
+func (s *space) Packs() []langpack.Detected {
 	if s.packs == nil {
 		return nil
 	}
@@ -23,7 +23,7 @@ func (s *Space) Packs() []langpack.Detected {
 
 // uniquePacks returns one pack per id (the first detected), dropping ids
 // that cannot name a run directory.
-func (s *Space) uniquePacks() []pack.Pack {
+func (s *space) uniquePacks() []pack.Pack {
 	var ps []pack.Pack
 	for _, d := range s.Packs() {
 		ps = append(ps, d.Pack)
@@ -33,7 +33,7 @@ func (s *Space) uniquePacks() []pack.Pack {
 
 // PackEnv creates p's <run>/<id>/{cache,tmp} and returns the environment
 // that scopes its tools to the run (workspace.RunEnv).
-func (s *Space) PackEnv(runDir string, p pack.Pack) ([]string, error) {
+func (s *space) PackEnv(runDir string, p pack.Pack) ([]string, error) {
 	if !workspace.ValidPackID(p.ID) {
 		return nil, errors.New("pack id " + p.ID + ": not a valid directory name")
 	}
@@ -48,7 +48,7 @@ func (s *Space) PackEnv(runDir string, p pack.Pack) ([]string, error) {
 
 // cleanPacks removes <run>/<id> of every detected pack other than Go (whose
 // dir cleanGo removes), recording each in Report.PackCaches.
-func (s *Space) cleanPacks(runDir string, dryRun bool, r *workspace.Report) {
+func (s *space) cleanPacks(runDir string, dryRun bool, r *workspace.Report) {
 	for _, p := range s.uniquePacks() {
 		if p.ID == workspace.GoPack {
 			continue
@@ -62,7 +62,7 @@ func (s *Space) cleanPacks(runDir string, dryRun bool, r *workspace.Report) {
 
 // artifacts returns every detected pack's artifact globs, with the source,
 // test and generated globs that guard authored files, scoped to its root.
-func (s *Space) artifacts() []workspace.PackArtifacts {
+func (s *space) artifacts() []workspace.PackArtifacts {
 	var out []workspace.PackArtifacts
 	for _, d := range s.Packs() {
 		if len(d.Pack.Artifacts) > 0 {
@@ -86,7 +86,7 @@ func (e *keptError) Error() string { return e.reason }
 // directory snapshot (header, base); each directory must still be a real
 // directory inside the root that DecideDir accepts, and be the one inspected
 // when it is removed.
-func (s *Space) cleanArtifactDirs(realRoot, header string, base map[string]bool, tracked []string, arts []workspace.PackArtifacts, dryRun bool, r *workspace.Report) (gone, kept []string) {
+func (s *space) cleanArtifactDirs(realRoot, header string, base map[string]bool, tracked []string, arts []workspace.PackArtifacts, dryRun bool, r *workspace.Report) (gone, kept []string) {
 	if len(arts) == 0 || header != headerDirsV2 {
 		return nil, nil // no trustworthy directory snapshot: directories are never removed
 	}

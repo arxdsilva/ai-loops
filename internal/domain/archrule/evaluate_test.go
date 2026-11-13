@@ -443,3 +443,49 @@ func TestEvaluateDoesNotMutateInput(t *testing.T) {
 		t.Fatal("Evaluate must not mutate its arguments")
 	}
 }
+
+func TestDeclsRule(t *testing.T) {
+	grouped := Decl{Kind: DeclConst, Names: []string{"A", "B", "C"}, Pos: at("internal/domain/x/x.go", 30), AfterFunc: true}
+	single := Decl{Kind: DeclConst, Names: []string{"Max"}, Pos: at("internal/domain/x/x.go", 20), AfterFunc: true}
+	top := Decl{Kind: DeclVar, Names: []string{"Top"}, Pos: at("internal/domain/x/x.go", 3)}
+	p := pkg("internal/domain/x")
+	p.Decls = []Decl{top, single, grouped}
+
+	t.Run("one finding per AfterFunc decl, warn, cited", func(t *testing.T) {
+		q := pkg("internal/domain/x")
+		q.Decls = []Decl{single}
+		r := eval(q)
+		got := only(r, "decls")
+		if len(got) != 1 || got[0].Severity != SeverityWarn || got[0].File != "internal/domain/x/x.go" || got[0].Line != 20 {
+			t.Fatalf("got %+v", got)
+		}
+		if !strings.Contains(got[0].Msg, "specs/languages/go/RULES.md §55") || !strings.Contains(got[0].Msg, "const Max") {
+			t.Fatalf("msg %q", got[0].Msg)
+		}
+		if !r.OK() {
+			t.Fatal("warnings must not fail the report")
+		}
+	})
+	t.Run("decl before the first func is clean", func(t *testing.T) {
+		q := pkg("internal/domain/x")
+		q.Decls = []Decl{top}
+		if got := only(eval(q), "decls"); len(got) != 0 {
+			t.Fatalf("got %+v", got)
+		}
+	})
+	t.Run("non-Go module is skipped", func(t *testing.T) {
+		m := Module{Path: "example.com/m", Parser: "regex", Packages: []Package{p}}
+		if got := only(Evaluate(m, Layers{}), "decls"); len(got) != 0 {
+			t.Fatalf("got %+v", got)
+		}
+	})
+	t.Run("grouped decl is one finding naming all names", func(t *testing.T) {
+		got := only(eval(p), "decls")
+		if len(got) != 2 {
+			t.Fatalf("got %+v", got)
+		}
+		if !strings.Contains(got[1].Msg, "A, B, C") {
+			t.Fatalf("msg %q", got[1].Msg)
+		}
+	})
+}

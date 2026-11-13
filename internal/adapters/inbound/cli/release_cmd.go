@@ -10,7 +10,7 @@ import (
 
 const releaseUsage = "usage: loops release [auto|patch|minor|major] [--dry-run] [--push]"
 
-// Releaser is the release use case (release.Service).
+// Releaser is the release use case (release.New).
 type Releaser interface {
 	Release(ctx context.Context, o release.Options) (release.Result, error)
 }

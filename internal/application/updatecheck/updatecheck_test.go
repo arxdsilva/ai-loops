@@ -33,7 +33,7 @@ func (c fakeClock) Now() time.Time { return c.t }
 
 var now = time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
 
-func setup(st update.State, v string, err error) (*Service, *fakeSrc, *fakeStore) {
+func setup(st update.State, v string, err error) (*service, *fakeSrc, *fakeStore) {
 	src, store := &fakeSrc{v: v, err: err}, &fakeStore{st: st}
 	return New(src, store, fakeClock{now}), src, store
 }

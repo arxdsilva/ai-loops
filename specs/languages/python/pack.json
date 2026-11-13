@@ -249,6 +249,7 @@
       "install": "uv tool install pip-audit"
     }
   ],
+  "security": {"checks": ["bandit", "pip-audit"]},
   "test_commands": [
     {
       "argv_prefix": [

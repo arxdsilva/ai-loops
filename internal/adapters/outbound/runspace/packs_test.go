@@ -25,7 +25,7 @@ func goPack() pack.Pack {
 	return pack.Pack{ID: "go", CacheEnv: map[string]string{"GOCACHE": "cache", "GOTMPDIR": "tmp"}, Artifacts: []string{"*.test"}}
 }
 
-func withPacks(s *Space, ds ...langpack.Detected) *Space {
+func withPacks(s *space, ds ...langpack.Detected) *space {
 	return s.WithPacks(func() []langpack.Detected { return ds })
 }
 

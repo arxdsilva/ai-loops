@@ -22,6 +22,14 @@ const (
 	resolverCSharp     = "project-reference"
 )
 
+// Source patterns of the package-dir (Java, Kotlin, Scala), crate-path (Rust)
+// and dotted-module-underscore (Clojure) resolvers.
+var (
+	packageLine      = regexp.MustCompile(`^\s*package\s+([A-Za-z_][\w.]*)\s*;?\s*$`)
+	cratePackageName = regexp.MustCompile(`(?m)^\s*name\s*=\s*"([^"]+)"`)
+	nsForm           = regexp.MustCompile(`\(\s*ns\s+(?:\^\S+\s+)*([^\s()\[\]{}]+)`)
+)
+
 // resolver maps an import string to a pack-root-relative directory.
 type resolver interface {
 	// index reads what resolution needs: package headers, config files.
@@ -108,8 +116,6 @@ func addIndex(idx map[string][]string, k, v string) {
 
 // --- package-dir: Java, Kotlin, Scala --------------------------------------
 
-var packageLine = regexp.MustCompile(`^\s*package\s+([A-Za-z_][\w.]*)\s*;?\s*$`)
-
 // packageDir indexes the package header of every file, because Kotlin does
 // not enforce directory = package, and maps an imported fully-qualified name
 // to the directory of the files declaring its longest known package prefix.
@@ -154,8 +160,6 @@ func (r *packageDir) resolve(_, imp, _ string) (string, string) {
 }
 
 // --- crate-path: Rust -------------------------------------------------------
-
-var cratePackageName = regexp.MustCompile(`(?m)^\s*name\s*=\s*"([^"]+)"`)
 
 // cratePath maps crate::a::b, super:: and self:: to the module directory
 // src/a/b (the module lives in src/a/b.rs or src/a/b/mod.rs) and workspace
@@ -254,8 +258,6 @@ func (r *targetName) resolve(_, imp, _ string) (string, string) {
 }
 
 // --- dotted-module-underscore: Clojure ---------------------------------------
-
-var nsForm = regexp.MustCompile(`\(\s*ns\s+(?:\^\S+\s+)*([^\s()\[\]{}]+)`)
 
 // clojureNS maps a namespace to the unit of the file declaring it (ns form),
 // or by path: a.b-c is src/a/b_c.clj, .cljc or .cljs. A namespace is its

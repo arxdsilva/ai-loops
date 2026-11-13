@@ -20,6 +20,15 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/plugin"
 )
 
+// installHints are the per-platform next steps printed after an install.
+var installHints = map[plugin.Platform]string{
+	plugin.Codex:    "Codex: restart Codex, then trust the plugin hooks with /hooks",
+	plugin.OpenCode: "OpenCode: restart OpenCode; commands appear as /loops/<name>",
+	plugin.Amp:      "Amp: start a new thread; skills load from .agents/skills",
+	plugin.Windsurf: "Windsurf: reload the window; run the work skill in solo mode",
+	plugin.Cline:    "Cline: reload the window; run the work skill in solo mode",
+}
+
 const installUsage = "usage: loops install --target <platform> [--scope project|user] [--project dir] [--force] [--dry-run]"
 
 // packageBuilder builds target's package from the canonical sources.
@@ -34,15 +43,6 @@ func buildPackage(src fs.FS, target plugin.Platform) ([]plugin.File, []string, e
 	return port.Build(p, src, target, port.Options{
 		Module: "github.com/arxdsilva/ai-loops",
 	})
-}
-
-// installHints are the per-platform next steps printed after an install.
-var installHints = map[plugin.Platform]string{
-	plugin.Codex:    "Codex: restart Codex, then trust the plugin hooks with /hooks",
-	plugin.OpenCode: "OpenCode: restart OpenCode; commands appear as /loops/<name>",
-	plugin.Amp:      "Amp: start a new thread; skills load from .agents/skills",
-	plugin.Windsurf: "Windsurf: reload the window; run the work skill in solo mode",
-	plugin.Cline:    "Cline: reload the window; run the work skill in solo mode",
 }
 
 // cmdInstall implements `loops install`.

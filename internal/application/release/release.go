@@ -78,22 +78,22 @@ type Result struct {
 // maxTaken bounds the walk past existing tags.
 const maxTaken = 100
 
-// Service is the release use case.
-type Service struct {
+// service is the release use case.
+type service struct {
 	git        Git
 	files      Files
 	regenerate func() error
 }
 
-// New returns a Service; regenerate rebuilds the platform packages from the
+// New returns a service; regenerate rebuilds the platform packages from the
 // (just rewritten) sources.
-func New(g Git, f Files, regenerate func() error) *Service {
-	return &Service{git: g, files: f, regenerate: regenerate}
+func New(g Git, f Files, regenerate func() error) *service {
+	return &service{git: g, files: f, regenerate: regenerate}
 }
 
 // Release runs the flow. It skips (no error) when HEAD is already released
 // or there is nothing new, and refuses a dirty tree unless DryRun.
-func (s *Service) Release(ctx context.Context, o Options) (Result, error) {
+func (s *service) Release(ctx context.Context, o Options) (Result, error) {
 	res := Result{DryRun: o.DryRun}
 	last, err := s.git.LastTag(ctx)
 	if err != nil {
@@ -165,7 +165,7 @@ func (s *Service) Release(ctx context.Context, o Options) (Result, error) {
 
 // skipTaken moves res.Next past versions whose tag already exists, one
 // patch at a time, so a stale tag never blocks the next release.
-func (s *Service) skipTaken(ctx context.Context, res *Result) error {
+func (s *service) skipTaken(ctx context.Context, res *Result) error {
 	for range maxTaken {
 		taken, err := s.git.TagExists(ctx, "v"+res.Next)
 		if err != nil || !taken {

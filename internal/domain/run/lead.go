@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// briefDecisions is how many recent decisions Brief shows.
+const briefDecisions = 5
+
 // Who made a decision (Event.From for KindDecision).
 const (
 	ByLead = "lead"
@@ -204,9 +207,6 @@ func gateSuffix(s State, p Phase) string {
 	}
 	return ""
 }
-
-// briefDecisions is how many recent decisions Brief shows.
-const briefDecisions = 5
 
 // Brief renders the lead's re-anchor (`loops run brief`, the session-start
 // hook): who it is, the scope files, where the run stands, what is owed and

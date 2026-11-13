@@ -12,6 +12,13 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/glob"
 )
 
+// Pack id and placeholder syntax.
+var (
+	idRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+	// placeholderRe finds {name} placeholders in argv elements.
+	placeholderRe = regexp.MustCompile(`\{([a-z_]+)\}`)
+)
+
 // Parse decodes and validates one pack. Unknown fields are errors, so a
 // typo never silently drops a rule.
 func Parse(b []byte) (Pack, error) {
@@ -27,11 +34,6 @@ func Parse(b []byte) (Pack, error) {
 	return p, nil
 }
 
-var idRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
-
-// placeholderRe finds {name} placeholders in argv elements.
-var placeholderRe = regexp.MustCompile(`\{([a-z_]+)\}`)
-
 // Validate returns every problem in p, joined (nil when the pack is valid).
 func Validate(p Pack) error {
 	v := &validator{p: p}
@@ -43,6 +45,7 @@ func Validate(p Pack) error {
 	v.globs("generated.globs", p.Generated.Globs, false)
 	v.regex("generated.header_regex", p.Generated.HeaderRegex)
 	v.checks("checks", p.Checks)
+	v.security()
 	v.race(p.Race)
 	v.coverage(p.Coverage)
 	v.cacheEnv(p.CacheEnv)
@@ -334,4 +337,45 @@ func trimDirSlash(gs []string) []string {
 		out = append(out, strings.TrimSuffix(g, "/"))
 	}
 	return out
+}
+
+// security validates the optional security declaration against the base
+// pack's checks (variants only overlay checks by name).
+func (v *validator) security() {
+	s := v.p.Security
+	if s == nil || !v.securityShape(s) {
+		return
+	}
+	seen := map[string]bool{}
+	for _, name := range s.Checks {
+		v.securityCheck(name)
+		if seen[name] {
+			v.fail("security.checks: duplicate %q", name)
+		}
+		seen[name] = true
+	}
+}
+
+// securityShape reports whether exactly one of checks or none is set.
+func (v *validator) securityShape(s *Security) bool {
+	if len(s.Checks) > 0 && s.None != "" {
+		v.fail("security: set checks or none, not both")
+		return false
+	}
+	if len(s.Checks) == 0 && strings.TrimSpace(s.None) == "" {
+		v.fail("security: empty (set checks or none)")
+		return false
+	}
+	return true
+}
+
+// securityCheck validates one named check: it exists and is vuln or sast.
+func (v *validator) securityCheck(name string) {
+	c, ok := v.p.CheckByName(name)
+	switch {
+	case !ok:
+		v.fail("security.checks: unknown check %q", name)
+	case c.Kind != "vuln" && c.Kind != "sast":
+		v.fail("security.checks: %q is kind %q, want vuln or sast", name, c.Kind)
+	}
 }

@@ -29,7 +29,7 @@ func TestGoPackParses(t *testing.T) {
 	for _, c := range p.Checks {
 		names = append(names, c.Name)
 	}
-	want := []string{"build", "gofmt", "vet", "staticcheck", "arch", "test", "coverage", "govulncheck"}
+	want := []string{"build", "gofmt", "vet", "staticcheck", "arch", "test", "coverage", "govulncheck", "gosec"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("checks %v, want %v", names, want)
 	}

@@ -18,7 +18,7 @@ const sample = `{
 }
 `
 
-func tmp(t *testing.T, data string) (*File, string) {
+func tmp(t *testing.T, data string) (*versionFile, string) {
 	p := filepath.Join(t.TempDir(), "plugin.json")
 	if err := os.WriteFile(p, []byte(data), 0o644); err != nil {
 		t.Fatal(err)

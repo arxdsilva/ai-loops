@@ -15,11 +15,14 @@ The rules and bars are `specs/ENGINEERING.md §12-§14`; the place in the run is
 ## Tools
 
 [crapper](https://github.com/unclebob/crapper), [dryer](https://github.com/unclebob/dryer) and [mutator](https://github.com/unclebob/mutator) cover Clojure, Java, Go, TypeScript, Rust and Python.
+- **Best-effort.** They are young, single-maintainer projects. A tool that fails to run is recorded as such and never patched in place (Go: `specs/languages/go/RULES.md` §57).
 - **Install.** Each is a checkout whose launcher creates its own `.venv` on first use. Clone them side by side (mutator reads `../crapper`), and put each checkout directory on `PATH`. A symlink to the launcher breaks its `.venv` lookup.
 - **Detect.** Run `command -v crapper dryer mutator`. A missing tool is recorded as `not installed: <tool> (install: git clone https://github.com/unclebob/<tool>)` and does not block.
 - **Run in the run's environment:** `loops exec --pack <id> -- <tool> …`. The tools run the project's tests and coverage, and `loops exec` gives them the run's caches and tmp dir, never the user's. Name the pack explicitly: these tools belong to no pack, so without `--pack` they would run with the user's own caches. In a repo with several packs, run each tool once per pack, on that pack's changed files.
 
 Other packs: use the project's configured native tool from `skills/lang-<id>/testing.md` (PIT, Stryker, Stryker.NET, cargo-mutants, mutant, Infection, Mull). Never add one to the project here: the `<id>-engineer` owns tool config. With no tool, record `review only` and apply the hollow-test rule (ENGINEERING §12) by reading the changed tests.
+
+**Lint and security are not here.** Lint runs in per-lane QA (the pack's lint checks; Go: `vet`, `staticcheck`). Security tools run in the security pass (`agents/security-reviewer.md`).
 
 ## Scope
 
@@ -44,7 +47,7 @@ The run's changed source files: tracked and untracked changes against the run's 
    - Later rounds are differential: mutator reruns survivors and changed functions only.
    - Never delete `target/mutator-backup/`. The next run restores from it.
 4. **Native tools** (other packs): run the configured goal scoped to the changed classes or modules, and read its report the same way.
-5. **Map each finding to its lane** with the plan's `Owns` globs, the same lookup as a gate failure (`skills/work` §4.6).
+5. **Map each finding to its lane** with the plan's `Owns` globs, the same lookup as a gate failure (`skills/work` §4, step 7).
 6. Write `<Run dir>/qa/quality.r<N>.md` from `templates/QUALITY.md`, at most 500 words excluding output excerpts of up to 20 lines. Each finding is `Q<n>` with these fields:
    - `file:line`;
    - the function;
