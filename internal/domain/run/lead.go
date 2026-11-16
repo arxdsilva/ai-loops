@@ -10,6 +10,13 @@ import (
 // briefDecisions is how many recent decisions Brief shows.
 const briefDecisions = 5
 
+// The memory-store decision (WORKFLOW §7): the lead records it with
+// `loops run decide --topic memory-store --note "files: <why>"`.
+const (
+	MemoryStoreTopic = "memory-store"
+	MemoryStoreFiles = "files"
+)
+
 // Who made a decision (Event.From for KindDecision).
 const (
 	ByLead = "lead"
@@ -138,11 +145,17 @@ func Next(s State) string {
 		if len(open) > 0 {
 			return fmt.Sprintf("%s is %s: send its proof to the owning lane (product round %d of %d)", open[0].Name, open[0].Status, productRounds(s)+1, MaxProductRounds)
 		}
+		if s.PR != "" && reflectFirst(s) && visited(s, PhaseReflect) {
+			return "the PR is open and reflect ran: loops run end --outcome done" + gateSuffix(s, PhaseProduct)
+		}
 		if s.PR != "" {
 			return "the PR is open: enter reflect" + gateSuffix(s, PhaseProduct)
 		}
 		return "have the product-reviewer prove every AC, then open the PR" + gateSuffix(s, PhaseProduct)
 	case PhaseReflect:
+		if reflectFirst(s) && !visited(s, PhaseProduct) {
+			return "when reflection.md and the memory pages are written: enter product (the PR commit carries the pages)" + gateSuffix(s, PhaseReflect)
+		}
 		return "when reflection.md is written: loops run end --outcome done" + gateSuffix(s, PhaseReflect)
 	}
 	return "continue the phase"
@@ -184,10 +197,37 @@ func nextQA(s State, open []VerdictInfo) string {
 	}
 	for _, g := range s.Gates {
 		if g.Name == GateAll && g.OK && !s.SourceDirty {
+			if reflectFirst(s) && !visited(s, PhaseReflect) {
+				return "the gate is green: enter reflect (file store: the memory pages go in the PR commit)" + gateSuffix(s, PhaseQA)
+			}
 			return "the gate is green: enter product" + gateSuffix(s, PhaseQA)
 		}
 	}
 	return "every claim is verified: run the quality pass, then loops gate"
+}
+
+// reflectFirst reports whether the latest memory-store decision picked the
+// file store, which runs reflect before product.
+func reflectFirst(s State) bool {
+	for i := len(s.Decisions) - 1; i >= 0; i-- {
+		d := s.Decisions[i]
+		if d.Topic != MemoryStoreTopic {
+			continue
+		}
+		f := strings.Fields(d.Note)
+		return len(f) > 0 && strings.TrimRight(f[0], ":,") == MemoryStoreFiles
+	}
+	return false
+}
+
+// visited reports whether the run has entered phase p.
+func visited(s State, p Phase) bool {
+	for _, e := range s.PhaseLog {
+		if e.Phase == p {
+			return true
+		}
+	}
+	return false
 }
 
 func productRounds(s State) int {

@@ -54,12 +54,17 @@ export function phaseStrip(st) {
     if (ph === 'product') { const n = lb.filter(l => l.phase === 'product').length; return n ? ' ↺' + n : '' }
     return ''
   }
+  const log = (st.phase_log || []).map(p => p.phase)
+  const firstReflect = log.indexOf('reflect')
+  const reflectFirst = firstReflect >= 0 && log.indexOf('product', firstReflect) >= 0
   const row = []
   PHASES.forEach((ph, i) => {
     if (i) row.push(seg(' › ', { dim: true }))
     const label = PHASE_NAME[ph] + loopsOf(ph)
     const cur = ph === st.phase && !st.ended
-    const done = st.ended || i < idx || (visited.has(ph) && i < idx)
+    const done = log.length === 0
+      ? st.ended || i < idx
+      : visited.has(ph) && (st.ended || i < idx || (ph === 'reflect' && reflectFirst))
     if (cur) row.push(seg('[' + label + ']', { bold: true, color: 'cyan' }))
     else if (done) row.push(seg('✓' + label, { dim: true }))
     else row.push(seg(label, { dim: true }))

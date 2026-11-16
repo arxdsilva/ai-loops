@@ -30,14 +30,14 @@ Written by the `reflector` as `reflection.md` from `loops status --json` and the
 - <durable fact, with path:line or spec ref>
 
 ## Overrides
-<count of project rules applied over loops rules; details in `overrides.md` (posted as a PR comment), or: none>
+<count of project rules applied over loops rules; details in `overrides.md` (posted as a PR comment by the reflector, or by the product-reviewer when reflect ran first), or: none>
 
 ## Cleanup
 <Cleanup: N files, X MB freed; kept for review: <paths or none>>
 
 ## Memory writes
-- <path / kind / tier> | or: ai-memory not connected
+- <path / kind / store> | or: no memory store
 
 ## Suggested harness changes
-- <role, skill, spec or template change>
+- <role, skill, spec or template change: the issue URL on the loops plugin repo, the text elsewhere>
 ```

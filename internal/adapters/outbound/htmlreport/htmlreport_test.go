@@ -316,3 +316,15 @@ func TestFmtTokens(t *testing.T) {
 		}
 	}
 }
+
+func TestPhaseViewsReflectFirst(t *testing.T) {
+	t0 := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
+	var log []run.PhaseEntry
+	for i, p := range []run.Phase{run.PhaseIntake, run.PhaseResearch, run.PhasePlan, run.PhaseImplement, run.PhaseQA, run.PhaseReflect} {
+		log = append(log, run.PhaseEntry{Phase: p, At: t0.Add(time.Duration(i) * time.Minute)})
+	}
+	pv := phaseViews(run.State{Phase: run.PhaseReflect, PhaseLog: log, Updated: t0.Add(10 * time.Minute)})
+	if pv[5].Class != "todo" || pv[6].Class != "cur" {
+		t.Errorf("product %q reflect %q", pv[5].Class, pv[6].Class)
+	}
+}

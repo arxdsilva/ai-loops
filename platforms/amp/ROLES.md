@@ -6,9 +6,9 @@ The "Owns (default)" column is the default scope, written for the layer homes of
 
 | Role | Phase | Model | Edits code | Owns (default) | Can | Cannot |
 |---|---|---|---|---|---|---|
-| web-researcher | research | sonnet | no | `research/web.md` | WebSearch, WebFetch, ai-memory query | Edit the repo |
-| practices-researcher | research | sonnet | no | `research/practices.md` | Read plugin specs, skills and repo docs, the detected packs' `config_files`; ai-memory query; official language docs | Edit the repo |
-| code-researcher | research | haiku | no | `research/code.md`, `research/language.json` | `loops lang detect --write`; grep, find, ranged Read, LSP; ai-memory query | Edit the repo, judge correctness |
+| web-researcher | research | sonnet | no | `research/web.md` | WebSearch, WebFetch, memory query (WORKFLOW §7) | Edit the repo |
+| practices-researcher | research | sonnet | no | `research/practices.md` | Read plugin specs, skills and repo docs, the detected packs' `config_files`; memory query; official language docs | Edit the repo |
+| code-researcher | research | haiku | no | `research/code.md`, `research/language.json` | `loops lang detect --write`; grep, find, ranged Read, LSP; memory query | Edit the repo, judge correctness |
 | hardware-researcher | research | haiku | no | `research/hardware.{json,md}` | Run `loops hw --write`, then reply with the one-line recommendation | Anything else (3 turns max) |
 | planner | plan | opus | no | `plan.v<N>.md` | Read the briefs and repo; write the plan | Edit code |
 | plan-reviewer | plan | opus | no | `plan-review.r<N>.md` | Read; write the review | Edit the plan or code |
@@ -37,8 +37,8 @@ The "Owns (default)" column is the default scope, written for the layer homes of
 | docs-writer | implement | haiku | docs only | Package `AGENTS.md`, `README.md` sections, `docs/adr/**` | Write docs from facts the lead supplies | Edit code; invent facts |
 | qa-verifier | qa | sonnet | no | `qa/<agent-id>.r<N>.md`; as `qa-quality`, `qa/quality.r<N>.md` | Read; run tests, `loops gate --only <test checks>,coverage --pkgs <owned>`, `loops arch`; check test honesty (`specs/ENGINEERING.md §12`); as `qa-quality`, run crapper, dryer and mutator over the run's changed code (`loops:quality`); put counterexample test snippets in its QA file (never in the repo). Runs tools hook-scoped or through `loops exec` (Go: `loops go`), never sets cache variables, leaves no binaries | Edit repo code (it reports; the owner fixes). It FAILS a claim set when new-code coverage is below 70% or new code lacks tests, and puts the uncovered `file:line` list in the repro |
 | security-reviewer | qa | sonnet | no | `qa/security.r<N>.md` | Read; run `loops gate --security`, `loops lang show <id>`; scan the run base with `git archive` to tell new findings from old; map findings to lanes | Edit repo code; install tools; block on a missing tool |
-| product-reviewer | product | opus | no | `proofs/**`, `pr.md`, `report.html` | Run the service; curl, grpcurl, CLI; `loops report`; branch, commit, push; `gh` or `glab` PR when the lead's `PR:` line is `open` or `draft` | Edit code (unmet ACs go back); push to the main line, force-push, merge |
-| reflector | reflect | sonnet | no | `reflection.md` | Read the run dir; ai-memory query and write | Edit code; store secrets in memory |
+| product-reviewer | product | opus | no | `proofs/**`, `pr.md`, `report.html` | Run the service; curl, grpcurl, CLI; `loops report`; branch, commit, push (the reflector's memory pages with `git add -f`, last, when the file store is active); post `overrides.md` as a PR comment when reflect ran first; `gh` or `glab` PR when the lead's `PR:` line is `open` or `draft` | Edit code (unmet ACs go back); push to the main line, force-push, merge |
+| reflector | reflect | sonnet | no | `reflection.md`, memory pages in the active store (WORKFLOW §7), `overrides.md` | Read the run dir; memory store read and write; `gh issue` on the loops plugin repo only (WORKFLOW §2.6) | Edit code; store secrets in memory |
 
 ## Language × layer
 
@@ -55,7 +55,7 @@ The lead is the main session, not a plugin agent: the run's master agent, which 
 
 ## Project rules first (every role)
 
-The target project's own rules always take precedence over loops rules (WORKFLOW §1). When you follow one instead of a loops rule, record it right away with `loops run override --rule … --project … --note …`. The reflector reports every override to the user as a PR comment.
+The target project's own rules always take precedence over loops rules (WORKFLOW §1). When you follow one instead of a loops rule, record it right away with `loops run override --rule … --project … --note …`. The reflector writes `overrides.md`; it, or the product-reviewer when reflect ran first, posts it as a PR comment (WORKFLOW §2.6).
 
 ## Rules shared by every implementer (architect and the engineers)
 

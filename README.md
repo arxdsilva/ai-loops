@@ -65,7 +65,7 @@ Cursor: import `arxdsilva/ai-loops` from the marketplace. Every platform, its ca
 3. **Build.** An architect fixes the shared contracts, then specialist engineers work in parallel, each in its own files.
 4. **Verify.** A separate QA agent per engineer re-runs every claim and sends failures back with a reproduction. Then the gate runs: build, lint, architecture rules, tests under the race detector, ≥70% coverage of new code.
 5. **Prove.** A product reviewer tries every acceptance criteria by hand and opens the PR with the evidence attached.
-6. **Reflect.** Lessons are saved for the next run.
+6. **Reflect.** Lessons are saved for the next run, to ai-memory or to `.loops/memory/` (committed with the PR) after `loops memory init`. Nothing is written without one of them.
 
 One **master agent** (your main session) runs all six. It keeps the scope in a charter, re-reads the run's recorded state at every phase, and decides instead of asking. Each decision is recorded and listed in the PR. You are asked only where you opt in, for example `--ask plan,pr`.
 
@@ -152,8 +152,8 @@ Everything goes through one file, `bin/loops`. It runs the `loops` binary that m
   - *What it reads from Claude Code:* only that `/loops-pane` was typed (`command.run`). It reads no conversation text and no tool calls.
   - *What it sends, and where:* nothing leaves your machine. The command's output is drawn in the pane and kept nowhere else.
 - **Status line** (`settings.json`): `bin/loops status --subagent`.
-- **Programs**: `git`; `gh` or `glab` for tickets and PRs; your language's formatter, linter and test runner during `loops gate` and post-edit; the language pack's security scanners (Go: govulncheck, gosec) when installed, in the QA security pass (`loops gate --security`); and, at the start of `/loops:work`, the `claude` or `copilot` plugin update commands (`claude plugin update`, `copilot plugin update`) through `loops update --apply`.
-- **Network**: the one-time binary download from github.com; an update check against proxy.golang.org at most once a day, plus a fresh check and the plugin update at the start of `/loops:work` (turn both off with `"update_check": false` in `.loops/config.json` or `LOOPS_NO_UPDATE_CHECK=1`); and whatever your agents do in a run (ticket and PR APIs, web research). Run records stay in `.loops/runs/` in your repository, which git ignores (loops writes `.loops/.gitignore`).
+- **Programs**: `git`; `gh` or `glab` for tickets and PRs (`gh` also files the reflector's harness suggestions as issues, only on the loops plugin repo itself, searching open issues first; if `gh` fails the text stays in `reflection.md`); your language's formatter, linter and test runner during `loops gate` and post-edit; the language pack's security scanners (Go: govulncheck, gosec) when installed, in the QA security pass (`loops gate --security`); and, at the start of `/loops:work`, the `claude` or `copilot` plugin update commands (`claude plugin update`, `copilot plugin update`) through `loops update --apply`.
+- **Network**: the one-time binary download from github.com; an update check against proxy.golang.org at most once a day, plus a fresh check and the plugin update at the start of `/loops:work` (turn both off with `"update_check": false` in `.loops/config.json` or `LOOPS_NO_UPDATE_CHECK=1`); and whatever your agents do in a run (ticket and PR APIs, web research). Run records stay in `.loops/runs/` in your repository, which git ignores (except `.loops/memory/` once you run `loops memory init`; loops writes `.loops/.gitignore`).
 
 ## FAQ
 

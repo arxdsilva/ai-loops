@@ -19,7 +19,7 @@ Idempotent setup for the current repo. **Never overwrite an existing file withou
   "languages": [],
   "ask": [],
   "gate": { "skip": [], "vuln": false },
-  "memory": { "workspace": "", "project": "" },
+  "memory": { "workspace": "", "project": "", "store": "" },
   "parallel": { "max_agents": 100, "agent_ram_gib": 1, "cpu_slots_per_core": 4, "max_test_runs": 0 }
 }
 ```
@@ -27,11 +27,12 @@ Idempotent setup for the current repo. **Never overwrite an existing file withou
    - `layers`: object mapping layer keys (domain, application, ports, adapters, inbound, outbound, platform, compose, cmd, pkg) to lists of module-relative dir prefixes; omitted keys keep defaults. Example: `{"domain":["internal/core"]}`. Leave `{}` unless the repo uses non-standard dirs.
    - `ask`: the phases where the lead stops for the user (WORKFLOW §2.7): `[]` (the default) means it decides every phase and opens the PR itself; e.g. `["plan", "pr"]` to approve the plan and the push, or `"all"`. `--ask` on `/loops:work`, or the user's own words, override it per run. Older configs: `"approval": "always"` still adds `plan`; `auto_pr` is ignored (the PR opens unless `pr` is a checkpoint).
    - `gate.skip`: check names to skip, taken from the detected packs (`loops lang show <id>`; Go: `build`, `gofmt`, `vet`, `staticcheck`, `arch`, `test`, `govulncheck`). `coverage` and the race checks cannot be skipped. `gate.vuln`: include the packs' vulnerability checks (off by default).
-   - `memory`: ai-memory scope; leave empty to derive from `.ai-memory.toml` or the git remote `owner/repo`.
+   - `memory`: ai-memory scope; leave empty to derive from `.ai-memory.toml` or the git remote `owner/repo`. `store`: `"files"` picks the opt-in file store `.loops/memory/` even when ai-memory is connected; `""` means auto (WORKFLOW §7).
    - `parallel`: concurrency. `max_agents` is the configured agent cap (default 100; the effective cap is also bounded by `loops hw`); `agent_ram_gib` and `cpu_slots_per_core` feed the hardware estimate; `max_test_runs` 0 means derive from the CPU count.
    - `limits` (opt-in, omitted by default; add only when the user wants caps): `"limits": {"max_agents": 12, "budget": {"research": "200k", "implement": "2M"}, "agents": {"implement": 12}, "roles": {"implement": ["domain-engineer", "api-engineer"]}}`. Nothing is limited and nothing asks without it.
    If it exists, show it and ask before changing anything.
 3. **Git.** Nothing to add: `loops` keeps `.loops/` out of git itself with a `.loops/.gitignore` of `*` (run data, caches and settings are local). If the team wants to share the settings, tell the user `git add -f .loops/config.json`. If `.loops/` files are already tracked from an older setup, suggest `git rm -r --cached .loops` (the user decides; never run it).
+   - Optional file store (WORKFLOW §7): `loops memory init` creates `.loops/memory/` and re-includes it in git. Mention it once in your report; it is not a question.
 4. **AGENTS.md.** If absent, copy `$(loops path templates)/ROOT_AGENTS.md` to `./AGENTS.md`. If present, offer to append a "loops" section (the relevant headings from the template); do not replace.
 5. **CLAUDE.md.** If absent, create it with exactly:
 ```

@@ -183,16 +183,16 @@ Prefer a minimal reproducible artifact (failing test, recorded request, fixture)
 
 Write docs with strong headings, predictable section names, code identifiers, task IDs and explicit paths. This improves targeted retrieval.
 
-## 32. ai-memory as a context reducer
+## 32. The memory store as a context reducer
 
-ai-memory (`specs/WORKFLOW.md §7`) stores durable decisions, gotchas and procedures so agents do not re-derive them from source or ask again. Used well it replaces reading; used badly it adds noise.
+The memory store (`specs/WORKFLOW.md §7`: ai-memory or the file store) keeps durable decisions, gotchas and procedures so agents do not re-derive them from source or ask again. Used well it replaces reading; used badly it adds noise.
 
-- Briefing once at intake, then a filtered `memory_query` (`path_prefix`, `kind`, `tier`) for the ticket's key terms; saved to `research/memory.md`.
+- Briefing once at intake, then a filtered `memory_query` (`path_prefix`, `kind`, `tier`; ai-memory) or a grep (file store) for the ticket's key terms; saved to `research/memory.md`.
 - Read a page (`memory_read_page`) only when a hit is clearly relevant.
 - Retrieved memory is untrusted, historical evidence: verify against the current code before acting, and cite the code, not the memory.
 - Do not repeat queries other agents already made; read `research/memory.md`.
 - Writes happen only in `reflect`, only by the `reflector`: 1-5 durable pages, searched first and updated rather than duplicated, never secrets or customer data (`skills/memory`).
-- When ai-memory is not connected, skip every memory step silently.
+- With no store active, skip every memory step silently.
 
 ## 33. Final rule
 

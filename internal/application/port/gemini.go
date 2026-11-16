@@ -61,7 +61,9 @@ Roles inherit the session model unless the package was built with
 ` + "`loops port build --models <file.json>`" + ` mapping tiers to Gemini model ids.
 `
 
-const readOnlyLine = "You may write only your own file under the run dir; never edit repo code.\n\n"
+// readOnlyLine reuses readOnlyNote so Gemini and OpenCode read-only roles
+// carry the same text, including the reflector's file-store pages.
+const readOnlyLine = readOnlyNote + "\n\n"
 
 // buildGemini emits platforms/gemini/ (specs/PLATFORMS.md §3.4).
 func buildGemini(p plugin.Plugin, src fs.FS, o Options) ([]plugin.File, []string, error) {

@@ -25,6 +25,9 @@ Written by the `planner` as `plan.v<N>.md` (`specs/WORKFLOW.md §2.2`). Run `loo
 ## Research highlights
 - <fact> (<path:line | URL | spec section>)
 
+## Recurring lessons
+- <page: handle (lane/AC) | not, and why; or: none>
+
 ## Concurrency
 - Hardware cap: <max_parallel_agents> (source: research/hardware.json)
 - Configured cap: <parallel.max_agents from .loops/config.json, default 100>

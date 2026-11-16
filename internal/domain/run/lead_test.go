@@ -111,11 +111,30 @@ func verdict(name, status string, round int) Event {
 func TestNext(t *testing.T) {
 	ask := func(list string) Event { return Event{Kind: KindAsk, Note: list} }
 	gateAll := func(ok bool) Event { return Event{Kind: KindGate, Name: GateAll, OK: Bool(ok)} }
+	files := func(note string) Event {
+		return Event{Kind: KindDecision, From: ByLead, Name: MemoryStoreTopic, Note: note}
+	}
+	prEv := Event{Kind: KindPR, Ref: "u"}
 	cases := []struct {
 		name string
 		s    State
 		want string
 	}{
+		{"qa green files", state(files("files: folder present"), phase(PhaseQA), gateAll(true)), "the gate is green: enter reflect (file store: the memory pages go in the PR commit)"},
+		{"qa green files comma", state(files("files, why"), phase(PhaseQA), gateAll(true)), "enter reflect (file store"},
+		{"qa green files asks", state(ask("qa"), files("files: x"), phase(PhaseQA), gateAll(true)), "pages go in the PR commit) (checkpoint"},
+		{"qa green switched", state(files("files: x"), files("ai-memory: user switched"), phase(PhaseQA), gateAll(true)), "the gate is green: enter product"},
+		{"qa green files, reflect visited", state(files("files: x"), phase(PhaseQA), phase(PhaseReflect), phase(PhaseProduct), Event{Kind: KindLoopBack, Phase: PhaseProduct, From: "product-reviewer", To: "W1"}, phase(PhaseQA), gateAll(true)), "the gate is green: enter product"},
+		{"qa green other topic", state(Event{Kind: KindDecision, Name: "scope", Note: "files: x"}, phase(PhaseQA), gateAll(true)), "the gate is green: enter product"},
+		{"qa green empty note", state(files(""), phase(PhaseQA), gateAll(true)), "the gate is green: enter product"},
+		{"reflect files", state(files("files: x"), phase(PhaseQA), phase(PhaseReflect)), "when reflection.md and the memory pages are written: enter product (the PR commit carries the pages)"},
+		{"reflect files asks", state(ask("reflect"), files("files: x"), phase(PhaseQA), phase(PhaseReflect)), "carries the pages) (checkpoint"},
+		{"reflect classic after product", state(files("files: x"), phase(PhaseProduct), phase(PhaseReflect)), "loops run end --outcome done"},
+		{"product pr files", state(files("files: x"), phase(PhaseQA), phase(PhaseReflect), phase(PhaseProduct), prEv), "the PR is open and reflect ran: loops run end --outcome done"},
+		{"product pr files asks", state(ask("pr"), files("files: x"), phase(PhaseQA), phase(PhaseReflect), phase(PhaseProduct), prEv), "reflect ran: loops run end --outcome done (checkpoint"},
+		{"product pr files no reflect", state(files("files: x"), phase(PhaseQA), phase(PhaseProduct), prEv), "the PR is open: enter reflect"},
+		{"product pr switched", state(files("files: x"), files("ai-memory: y"), phase(PhaseQA), phase(PhaseReflect), phase(PhaseProduct), prEv), "the PR is open: enter reflect"},
+		{"product failure keeps precedence", state(files("files: x"), phase(PhaseReflect), phase(PhaseProduct), prEv, verdict("AC-2", StatusFailed, 0)), "AC-2 is FAILED"},
 		{"ended", state(Event{Kind: KindEnd, Status: OutcomeFailed}), "has ended (failed)"},
 		{"running", state(phase(PhaseResearch), Event{Kind: KindAgentStart, Agent: "a"}), "wait for the 1 running"},
 		{"intake", state(phase(PhaseIntake)), "write charter.md"},

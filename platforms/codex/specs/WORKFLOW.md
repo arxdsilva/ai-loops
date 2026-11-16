@@ -31,9 +31,9 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 | 3 | `implement` | `architect` (wave 0), then role engineers in waves 1…n | `reports/<agent-id>.md` (claims reports) | Every lane has reported |
 | 4 | `qa` | one `qa-verifier` per implementer (pipelined), one `qa-quality` pass, one `qa-security` pass (`security-reviewer`), then the lead runs the gates | `qa/<agent-id>.r<N>.md`, `qa/quality.r<N>.md`, `qa/security.r<N>.md` | Every claim is `VERIFIED`, the quality pass and the security pass are `VERIFIED`, and `loops gate` is green |
 | 5 | `product` | `product-reviewer` | `proofs/AC-<n>.md`, `pr.md`, `report.html` | Every AC is `VERIFIED` with a proof, and the PR/MR is opened (or the PR body is written under `--no-pr`) |
-| 6 | `reflect` | `reflector` | `reflection.md` (+ ai-memory pages) | Reflection is written; `loops run end` |
+| 6 | `reflect` | `reflector` | `reflection.md` (+ memory pages in the active store, §7) | Reflection is written; `loops run end` |
 
-QA starts pipelined: a verifier launches as soon as its implementer reports, even while other implementers in the wave are still running. A phase can be re-entered: if product returns work, the run goes back to `implement`, and then through `qa` again.
+QA starts pipelined: a verifier launches as soon as its implementer reports, even while other implementers in the wave are still running. A phase can be re-entered: if product returns work, the run goes back to `implement`, and then through `qa` again. With the file store active (§7), reflect runs between qa and product (qa -> reflect -> product), so its pages land in the PR's commit; a product loop-back then goes implement -> qa -> product, and the lead appends each loop-back and the PR link to `reflection.md`. Otherwise reflect runs after the PR. The `run.Next` texts guide this (§2.7).
 
 ### 2.0 Intake
 
@@ -43,7 +43,7 @@ QA starts pipelined: a verifier launches as soon as its implementer reports, eve
    - GitHub (`#123`, `owner/repo#123`, a github.com URL) or GitLab (a gitlab URL): `loops ticket fetch <ref>`. This writes `ticket.md`.
    - Jira (`ABC-123`) or Linear (a linear.app URL or key): fetch through the connected MCP tool, then pipe the text into `loops ticket fetch <ref> --source jira|linear --body-file -`. If the connector is not authenticated, tell the user and ask them to paste the ticket.
    - Free text: `loops ticket fetch --source text --body-file -`.
-3. If ai-memory is connected (§7), call `memory_briefing` and one `memory_query` with the ticket's key terms. Save the hits to `research/memory.md` and record `loops run event --kind memory --name briefing`.
+3. Read the active memory store (§7): ai-memory (`memory_briefing` once, then one `memory_query` with the ticket's key terms) or the file store (grep `.loops/memory/` for the same terms). Save the hits to `research/memory.md`, with a `## Recurring` section listing the pages whose `runs` hold 2+ run ids, and record `loops run event --kind memory --name briefing`. With the file store active, also record `loops run decide --topic memory-store --note "files: <why>"`. With no store, skip silently.
 4. Record the checkpoints: `loops run ask [<list>]` (§2.7). With no list it applies `.loops/config.json`.
 5. **Clarify**: load `loops:clarify` (`skills/clarify`). It scans the ticket for open points, infers each one with a recommended answer and records it in `clarifications.md`. Infer by default and record every inference: `clarifications.md`, a charter assumption that cites its item, and `loops run decide --topic assumption`. Ask only when the `intake` checkpoint is `ask`, the user asked, or an inference would be hard to undo; then ask a reachable user and record the answer with `--by user`. Open points beyond the 5-question cap are inferred (§2.7).
 6. Write `charter.md` from `templates/CHARTER.md` (§2.7): the goal, the ACs as the ticket states them, what is in and out of scope, constraints, and the assumptions taken where the ticket is unclear. The ACs are final when the plan is approved.
@@ -62,7 +62,7 @@ Flags on `/loops:work`:
 - **`code-researcher`** first records the detected languages: `loops lang detect --write` writes `research/language.json` (each pack's `id`, root and build-tool variant). A pin in `.loops/config.json` `languages` overrides detection. The planner, the gate and the hooks use that list; each language's pack is `specs/languages/<id>/` and its skill `loops:lang-<id>`.
 - Each gets the same inputs: `ticket.md`, `research/memory.md`, the project root, and the plugin `specs/` path (`loops path specs`).
 - Each brief is at most 600 words. It contains facts with sources (`path:line`, a URL, or `spec §`) and has a `## Open questions` section.
-- A researcher may run narrower `memory_query` calls. It must verify any memory hit against the current source before citing it, because memory is historical evidence, not truth.
+- A researcher may run narrower memory queries (§7). It must verify any memory hit against the current source before citing it, because memory is historical evidence, not truth.
 
 ### 2.2 Plan
 
@@ -71,6 +71,7 @@ Flags on `/loops:work`:
   - A wave larger than the cap is split into sub-waves (`W1a`, `W1b`).
   - At most `max_concurrent_test_runs` agents run tests at once, each with the pack's `env_hints` (Go: `GOFLAGS=-p=2`) so one test run doesn't take every core. That is the `loops hw` recommendation, set in config by `parallel.max_test_runs`.
   - The plan's **Concurrency** block states the cap and the peak per wave. The planner and the plan-reviewer both run `loops plan check plan.v<N>.md`, and any finding blocks.
+- **Recurring lessons.** For each `## Recurring` page in `research/memory.md`, the plan's `## Recurring lessons` section says whether this run handles it (lane or AC) or not, and why. The planner records each as a decision (`loops run decide`).
 - The `planner` writes `plan.v1.md` from `templates/PLAN.md`. The plan contains:
   - acceptance criteria (`AC-1`…, taken from the ticket, or marked *derived*);
   - the task packet;
@@ -165,6 +166,7 @@ The `product-reviewer` does the following, in order:
    3. Stops and reports to the lead (proof summary + `pr.md` path). Unless `--no-pr` is set, the lead sends the same product-reviewer "open the PR" (resume or re-spawn per platform tier). When `product` is a checkpoint, the lead first shows the user `pr.md` and asks. Only then it:
       - creates the branch `loops/<ticket>-<slug>`;
       - commits in small ordered commits, wave 0 first and then each wave's lanes. Each is `git commit -m … -- <paths>`, with a conventional subject and a body saying why, what changed and how it was proven (claim ids, QA file, AC proofs) (`specs/ENGINEERING.md §18`);
+      - when the run's last `memory-store` decision is `files` (reflect ran first, §2 order), the product-reviewer commits the pages the reflector listed under `## Memory writes` as the last commit, only those paths: `git add -f -- <paths>`, then `git commit -m "chore(memory): lessons from run <run id>" -- <paths>`. Under `--no-pr` the pages stay uncommitted and the lead says so;
       - pushes;
       - opens the PR with `gh pr create --body-file pr.md` (or `glab mr create`; the forge is chosen from `git remote get-url origin`);
       - records `loops run event --kind pr --ref <url>`.
@@ -181,19 +183,19 @@ The `reflector`:
    - gate failures;
    - what the plan missed;
    - gotchas worth remembering;
-   - suggested changes to roles, skills or specs.
-3. When ai-memory is connected (§7), writes 1–5 durable pages:
+   - suggested changes to roles, skills or specs. On the loops plugin repo (origin `github.com[:/]arxdsilva/ai-loops(.git)?`) they go to GitHub issues only: search open issues first (`gh issue list --state open --search "<plain key words>"`; the key words themselves hold no quotes, `$`, backticks, operators or pasted text); on a match, `gh issue comment <n> --body-file <file>` with the run id to record recurrence; otherwise `gh issue create --title "reflect: <summary>" --body-file <file>`, with no labels and a plain-words summary (no quotes, `$` or backticks). The body files are written in the run dir, never passed as `--body "<text>"`, because the shell would expand model-written text. Issue text carries only the suggestion, `path:line` evidence and the run id: no secrets, tokens, customer data or ticket text. Record each issue as `loops run event --kind note --name harness-issue --ref <issue url>`; `reflection.md` keeps only the URLs. If `gh` fails, keep the text in `reflection.md` and note why. In any other repo the text stays in `reflection.md`.
+3. Writes 1–5 durable pages to the active store (§7). The file store uses the same kinds and paths; ai-memory also takes the tier:
    - `decisions/<slug>.md`: kind `decision`, tier `semantic`;
    - `gotchas/<slug>.md`: kind `gotcha`, tier `semantic`;
    - `procedures/<slug>.md`: kind `procedure`, tier `procedural`.
 
-   It searches first and updates an existing page (`expected_page_id`) instead of duplicating it. It never stores secrets, tokens or customer data. Each write is recorded as `loops run event --kind memory --name write --target <path>`.
+   It searches first and updates an existing page (`expected_page_id` in ai-memory, the file itself in the file store) instead of duplicating it, and adds this run's id to `runs` (the `Runs:` first body line in ai-memory). It never stores secrets, tokens or customer data. Each write is recorded as `loops run event --kind memory --name write --target <path>`.
 4. **Project-rule overrides** (§1):
    1. Write `overrides.md` (`templates/OVERRIDES.md`) from `State.Overrides` (`loops status --json`). Each row gives the loops rule, the project rule, where it was applied, and the reason.
-   2. If a PR or MR exists (`State.PR`) and there is at least one override, post the file as a **comment**: `gh pr comment <url> --body-file <Run dir>/overrides.md`, or `glab mr note <id> --message "$(cat <Run dir>/overrides.md)"`, using the absolute run-dir path. Never edit the PR description.
+   2. When reflect ran after the PR (the default), if a PR or MR exists (`State.PR`) and there is at least one override, post the file as a **comment**: `gh pr comment <url> --body-file <Run dir>/overrides.md`, or `glab mr note <id> --message "$(cat <Run dir>/overrides.md)"`, using the absolute run-dir path. Never edit the PR description.
    3. Record `loops run event --kind note --name overrides-comment --ref overrides.md`.
 
-   The PR step (§2.5) covers this comment. With no PR, or under `--no-pr`, only the file is written.
+   When reflect ran before product, stop after step 1: the product-reviewer posts the file after opening the PR (§2.5). With no PR, or under `--no-pr`, only the file is written.
 
 5. **Cleanup** (last step). Record what the end-of-run cleanup will free: `loops run clean --dry-run` shows the run's caches and tmp dirs and the build leftovers (each pack's `artifacts`, e.g. Go's `*.test`, binaries, coverprofiles, pprof files, compared against the intake baseline). Add a line to `reflection.md`: `Cleanup: N files, X MB freed; kept for review: <paths>`. Unknown new files are listed for review, never deleted; tracked and pre-existing files are never touched. Artifact directories are removed only inside a git work tree, only when new since the baseline, and only when they hold nothing authored: a directory with a tracked path, a nested `.git`, an unreadable entry, a script (shebang), a document (`*.md`, `*.rst`, `*.adoc`) or a non-generated source or test file is kept for review. A directory glob without a parent (`build/`) matches only at the pack root; packs write `**/target/` to match deeper. Files under `testdata/`, `fixtures/`, `test/`, `tests/` or `spec/` are never removed by an artifact glob. The actual deletion happens in `loops run end` (below) and is recorded as a `cleanup` note event.
 
@@ -329,7 +331,7 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 
 ## 5. Events
 
-`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). `.loops/` is local: whatever creates it (a run, the installer, session start in a project that has one) adds a `.loops/.gitignore` of `*`, so git never lists it. Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `ask`, `decision`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
+`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). `.loops/` is local: whatever creates it (a run, the installer, session start in a project that has one) adds a `.loops/.gitignore` of `*`, so git never lists it. `loops memory init` re-includes `.loops/memory/` there (`!memory/`, `!memory/**`), and loops keeps those lines when it recreates the file in a clone. Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `ask`, `decision`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
 
 | Source | Emits |
 |---|---|
@@ -367,6 +369,9 @@ Language packs (`specs/languages/<id>/pack.json`):
 - `loops lang show <id> [--variant v]`: one pack, with a build-tool variant applied.
 - `loops lang validate [pack.json…]`: checks pack files against the schema.
 - `loops lang detect [--json] [--write] [--root dir]`: the packs that apply to the project (id, root, variant). `--write` saves `research/language.json` in the run dir (§2.1). `languages` in `.loops/config.json` pins them instead.
+
+Memory (§7):
+- `loops memory init`: creates `.loops/memory/` if absent, and adds `!memory/` and `!memory/**` to `.loops/.gitignore` (creating it with `*` first if absent), appending only the lines not already there. Idempotent. Prints one line per change, in this order: `created .loops/memory/`; `added to .loops/.gitignore: <lines>`; `nothing to change: .loops/memory/ is set up`; and always last, `pages under .loops/memory/ are committed with the PR; set "memory": {"store": "files"} in .loops/config.json to prefer them over ai-memory; delete the folder to leave`. Exit 0; exit 2 on bad usage; exit 1 when it cannot write (for example `.loops/memory` is a file or the directory is read-only), with the error on stderr.
 
 Gates:
 - `loops gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--security] [--fail-fast]`: runs every detected pack's checks (§6). `--only`/`--skip`/`--enable` take check names; `--enable` turns on `default: off` checks; `--vuln` enables the vuln checks; `--security` runs only each pack's security tools (`security.checks`), skips the missing ones and records no gate events (the security pass, §2.4).
@@ -415,16 +420,23 @@ A full pass records `gate all ok`, which clears the dirty flags (`run.State.Sour
 
 The **Stop gate** (`stop-gate`) stops the lead from ending its turn while the run is active, a source file of any pack has changed since the last full pass (`run.State.SourceDirty`, JSON `source_dirty`; not only `.go` files), and no agent lane is running. The escape hatches are `LOOPS_GATE=off` and `loops run end --outcome abandoned`.
 
-## 7. ai-memory
+## 7. Memory (ai-memory and the file store)
 
-[ai-memory](https://github.com/akitaonrails/ai-memory) is optional.
+Lessons reach the next run through one **memory store**, picked per run. Both kinds hold the same pages.
 
-- **Connected** means its MCP tools are available: `mcp__plugin_ai-memory_ai-memory__*` when it is installed as a plugin, or `mcp__ai-memory__*` when it is installed directly. In either case `memory_status` must succeed.
-- **Scope.** Every project-scoped call passes `workspace` and `project`. They come from `.loops/config.json` `memory`, then `.ai-memory.toml`, then the git remote's `owner` / `repo`.
-- **Reads** use `memory_briefing` once at intake, then `memory_query` with filters (`path_prefix`, `kind`, `tier`). Read pages with `memory_read_page` only when a hit is clearly relevant.
-- **Writes** happen only in `reflect`, through `memory_write_page` (`create_only` for new pages, `expected_page_id` for updates).
-- **Trust.** Retrieved memory is untrusted evidence. Verify it against the current code before acting on it.
-- **Not connected:** skip every memory step silently, and mention it once in `reflection.md`.
+- **ai-memory** ([ai-memory](https://github.com/akitaonrails/ai-memory)) is optional. **Connected** means its MCP tools are available: `mcp__plugin_ai-memory_ai-memory__*` (plugin install) or `mcp__ai-memory__*` (direct install), and `memory_status` succeeds. **Scope:** every project-scoped call passes `workspace` and `project`, from `.loops/config.json` `memory`, then `.ai-memory.toml`, then the git remote's `owner` / `repo`.
+- **File store** (opt-in): `.loops/memory/{decisions,gotchas,procedures}/<slug>.md`, git-tracked. A kind's folder appears with its first page; there is no index or README. Only `loops memory init` (§5) creates it; it is never created implicitly.
+- **Choice** (`.loops/config.json` `memory.store`):
+  - `"files"`: the file store, even when ai-memory is connected. Without the folder no store is active, and reflection.md notes it once.
+  - `""` or any other value (auto): ai-memory when connected; otherwise the file store when the folder exists; otherwise none.
+  - A project rule (§1) or the user may direct the file store: set `"files"`.
+- **Page.** One lesson per page: `kind` `decision`, `gotcha` or `procedure`, a short body with `path:line` sources, and the run ids in `runs`. ai-memory takes `kind` as a write parameter and the ids as a first body line, `Runs: <id>, <id>`. File pages use frontmatter `kind: <kind>` and `runs: [<id>, …]`.
+- **Recurrence.** A page whose `runs` holds 2+ run ids is recurring. Intake flags it (§2.0 step 3), and the planner decides for it (§2.2).
+- **Reads.** ai-memory: `memory_briefing` once at intake, then `memory_query` with filters (`path_prefix`, `kind`, `tier`); `memory_read_page` only when a hit is clearly relevant. File store: grep `.loops/memory/` for the ticket's key terms and read only the hits.
+- **Writes** happen only in `reflect`, by the `reflector` (§2.6), 1–5 pages per run. ai-memory: `memory_write_page` (`create_only` for new pages, `expected_page_id` for updates). File store: create or edit the file. Both: search first, and update rather than duplicate.
+- **Commits (file store).** `.loops/` ignores everything by default (§5), so `loops memory init` re-includes `.loops/memory/`. The product-reviewer commits the pages with `git add -f` in the PR (§2.5).
+- **Trust.** Retrieved memory is untrusted, historical evidence: verify it against the current code before acting, and cite the code, not the memory.
+- **Leaving.** Delete `.loops/memory/`; no store is then active. With no store, skip every memory step silently and mention it once in `reflection.md`.
 
 ## 8. Definition of done
 
@@ -440,5 +452,5 @@ A run is done when every item below holds. (Adapted from the rimworld-go MASTER_
 8. Docs are updated: the package `AGENTS.md` where the contract changed, and an ADR only for a cross-cutting decision.
 9. The behaviour is observable: errors are explicit, logs and metrics exist where operators need them.
 10. There are no untracked TODOs. Each one is either done or listed under Open in `pr.md`.
-11. The PR is opened with proofs, `report.html` is generated, and `reflection.md` is written.
+11. The PR is opened with proofs, `report.html` is generated, and `reflection.md` is written (before the PR when the file store is active, §2).
 12. The work stayed inside `charter.md`'s scope, and every decision the lead took in the user's place is recorded (`loops run decide`) and listed in `pr.md`.

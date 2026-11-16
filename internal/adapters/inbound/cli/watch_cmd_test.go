@@ -122,3 +122,42 @@ func TestWatchNoLimitsNoExtras(t *testing.T) {
 		}
 	}
 }
+
+func logOf(ps ...run.Phase) []run.PhaseEntry {
+	t0 := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
+	out := make([]run.PhaseEntry, len(ps))
+	for i, p := range ps {
+		out[i] = run.PhaseEntry{Phase: p, At: t0.Add(time.Duration(i) * time.Minute)}
+	}
+	return out
+}
+
+func TestPhaseStripVisitAware(t *testing.T) {
+	I, R, P, Im, Q, Pr, Rf := run.PhaseIntake, run.PhaseResearch, run.PhasePlan, run.PhaseImplement, run.PhaseQA, run.PhaseProduct, run.PhaseReflect
+	tests := []struct {
+		name  string
+		log   []run.PhaseEntry
+		phase run.Phase
+		ended bool
+		want  []string
+	}{
+		{"reflect-first at reflect", logOf(I, R, P, Im, Q, Rf), Rf, false, []string{"◉ Reflect", "○ Product"}},
+		{"reflect-first at product", logOf(I, R, P, Im, Q, Rf, Pr), Pr, false, []string{"● Reflect", "◉ Product"}},
+		{"classic loop-back", logOf(I, R, P, Im, Q, Pr, Im), Im, false, []string{"◉ Implement", "○ QA", "○ Product"}},
+		{"reflect-first loop-back", logOf(I, R, P, Im, Q, Rf, Pr, Im), Im, false, []string{"● Reflect", "○ QA", "○ Product"}},
+		{"ended in product after reflect", logOf(I, R, P, Im, Q, Rf, Pr), Pr, true, []string{"● Reflect", "● Product"}},
+		{"classic ended at reflect", logOf(I, R, P, Im, Q, Pr, Rf), Rf, true, []string{"● Product", "● Reflect"}},
+		{"empty log keeps old rule", nil, Rf, true, []string{"● Product", "● Reflect"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := run.State{Phase: tc.phase, Ended: tc.ended, PhaseLog: tc.log}
+			got := phaseStrip(s, false)
+			for _, w := range tc.want {
+				if !strings.Contains(got, w) {
+					t.Errorf("missing %q in %s", w, got)
+				}
+			}
+		})
+	}
+}

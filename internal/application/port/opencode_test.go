@@ -20,6 +20,7 @@ func TestOpenCode(t *testing.T) {
 		t.Fatal("allow .loops/** must follow the deny (last match wins)")
 	}
 	p2Has(t, qa, "write only your own file under the run dir")
+	p2Has(t, qa, ".loops/memory/")
 	if m["agents/qa.md"] == "" || !strings.Contains(m["agents/dev.md"], "Dev body") {
 		t.Fatal("role files missing at package root")
 	}

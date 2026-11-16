@@ -39,7 +39,7 @@ loops run dir; loops path specs; loops path templates
 Note the three printed absolute paths: below, `$RUN`, `$SPECS` and `$TEMPLATES` mean those literal paths (shell variables do not persist between Bash calls).
 3. Fetch the ticket per WORKFLOW §2.0: GitHub/GitLab `loops ticket fetch <ref>`; Jira/Linear via the connected MCP tool, then `... | loops ticket fetch <ref> --source jira|linear --body-file -`; free text `loops ticket fetch --source text --body-file -`. If a connector is unauthenticated and there is no ticket text, tell the user what is missing and wait: the one stop you cannot decide away.
 4. **Languages.** `loops lang detect` prints the detected packs and their roots. Each implementation lane is a layer role plus one pack (ROLES.md). Nothing detected: continue (the gate will check nothing), put that under the charter's Constraints, and tell the user in one line that `languages` in `.loops/config.json` pins packs (`/loops:init` step 1a).
-5. **ai-memory, once** (only if its tools exist and `memory_status` succeeds; else skip silently): call `memory_briefing`, then one `memory_query` on the ticket's key terms (pass `workspace`/`project` per WORKFLOW §7). Write hits to `$RUN/research/memory.md` (mark as unverified evidence) and run `loops run event --kind memory --name briefing`.
+5. **Memory, once** (WORKFLOW §2.0 step 3; the store is §7's Choice). No store (§7): skip silently. The file store: `grep -rilE "<term>|<term>" .loops/memory`; ai-memory: `memory_briefing`, then one `memory_query` on the ticket's key terms (scope per §7). With the file store, record `loops run decide --topic memory-store --note "files: <why>"`. Write the hits to `$RUN/research/memory.md` (mark as unverified evidence) with a `## Recurring` section listing the pages whose runs hold 2+ ids (file store: `grep -rlE '^runs: \[[^]]*,' .loops/memory`; ai-memory: the `Runs:` line). ai-memory also records `loops run event --kind memory --name briefing`. Skill `loops:memory` has the calls.
 6. **Checkpoints.** `loops run ask [<list from step 1>]` records them (no list = the config) and prints them.
 7. **Clarify.** Load `loops:clarify` (WORKFLOW §2.0 step 5). It records the ticket's open points in `$RUN/clarifications.md`; its inferred answers become charter assumptions.
 8. **Charter.** Write `$RUN/charter.md` from `$TEMPLATES/CHARTER.md`: goal, ACs from `ticket.md`, in and out of scope, constraints, assumptions (each also `loops run decide --topic assumption …`). Then `loops run checkpoint intake`; `ask`: show it and ask Continue / Edit scope / Stop.
@@ -147,13 +147,14 @@ Spawn `product-reviewer` with the plan, reports, QA files and a `PR:` line: `non
 - Gap found (FAILED AC): it records a loopback and returns proof paths. Run `loops run phase implement`, send the owning implementer the proof file (resume or re-spawn), then redo QA and the gate. After 2 product rounds (`MaxProductRounds`): at a `product` checkpoint ask the user; otherwise decide per WORKFLOW §2.7 (resume it with `PR: draft`, or end `failed`) and record it.
 - `open`: it commits, pushes the branch `loops/<ticket>-<slug>`, opens the PR and records the `pr` event. `none`: it writes `pr.md` only.
 - `hold`: show the user `pr.md` (title, summary, decisions, Open follow-ups) and ask: "Push branch loops/<ticket>-<slug> and open the PR/MR (PR + overrides comment)?" Record the answer (`--by user`). On yes, resume the same reviewer with `PR: open`.
+- Reflect ran first (file store, WORKFLOW §2.5, §2.6 step 4): when the reviewer finishes, the lead appends its PR link and any product loop-back line to `$RUN/reflection.md`.
 
 ## 6. Reflect and end (§2.6)
 
 ```
 loops run phase reflect
 ```
-Spawn `reflector`; it also reviews the run's decisions (`loops run brief --json`). Besides `reflection.md` it writes `overrides.md` and, when a PR exists and at least one project-rule override was recorded, posts it as a PR comment (never editing the description) and records the note event (WORKFLOW §2.6 step 4). When it finishes, `loops run checkpoint reflect`; `ask`: show `reflection.md` and ask End / Edit. Then:
+With the file store, reflect runs before §5 (WORKFLOW §2.5, §2.6 step 4) and `loops run end` follows product. Spawn `reflector`; it also reviews the run's decisions (`loops run brief --json`). Besides `reflection.md` it writes `overrides.md` and, when a PR exists and at least one project-rule override was recorded, posts it as a PR comment (never editing the description) and records the note event (WORKFLOW §2.6 step 4). Reflect-first there is no PR yet: the reflector writes the file only and product-reviewer posts it after the PR. Its harness-issue step files or comments `loops` defects on the loops plugin repo (when this run's repo is that repo). When it finishes, `loops run checkpoint reflect`; `ask`: show `reflection.md` and ask End / Edit. Then:
 ```
 loops run end --outcome done
 ```

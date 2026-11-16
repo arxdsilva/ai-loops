@@ -178,8 +178,13 @@ func TestCursorAgents(t *testing.T) {
 			t.Errorf("%s = %#v body %q", name, fm, body)
 		}
 	}
-	if !strings.Contains(readOnlyNote, "own file under the run dir") || !strings.Contains(readOnlyNote, "never edit repo code") {
-		t.Errorf("readOnlyNote = %q", readOnlyNote)
+	for _, want := range []string{"own file under the run dir", "never edit repo code", ".loops/memory/", "reflector"} {
+		if !strings.Contains(readOnlyNote, want) {
+			t.Errorf("readOnlyNote lacks %q: %q", want, readOnlyNote)
+		}
+	}
+	if strings.Contains(readOnlyNote, "write any") || strings.Count(readOnlyNote, ".loops/") != 1 {
+		t.Errorf("readOnlyNote grants more than the memory pages: %q", readOnlyNote)
 	}
 	if !containsAll(warns, "read-only is an instruction only for planner") || containsAll(warns, "for domain-engineer") {
 		t.Errorf("read-only warning = %q", warns)

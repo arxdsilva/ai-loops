@@ -90,6 +90,7 @@ func TestGemini(t *testing.T) {
 	p2Has(t, qa, "  - read_file\n")
 	p2Has(t, qa, "  - write_file\n")
 	p2Has(t, qa, "write only your own file under the run dir")
+	p2Has(t, qa, ".loops/memory/")
 	if strings.Contains(qa, "- replace") {
 		t.Fatal("read-only role has replace")
 	}

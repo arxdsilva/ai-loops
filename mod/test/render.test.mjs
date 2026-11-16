@@ -89,3 +89,44 @@ test('a later limits event clears the budget pause', () => {
   c.state.limits_at = '2026-11-09T10:02:00Z'
   assert.match(toPlain(buildRows(c, NOW)), /⏸/)
 })
+
+const strip = (phase, log, ended = false) => toPlain(buildRows({ active: true, state: { ...base, phase, ended, phase_log: log.map(p => ({ phase: p, at: T0 })) } }, NOW))
+const CL = ['intake', 'research', 'plan', 'implement', 'qa']
+test('reflect-first: reflect current leaves product pending', () => {
+  const out = strip('reflect', [...CL, 'reflect'])
+  assert.match(out, /\[Reflect\]/)
+  assert.doesNotMatch(out, /✓Product/)
+})
+test('reflect-first: product current shows reflect done', () => {
+  const out = strip('product', [...CL, 'reflect', 'product'])
+  assert.match(out, /✓Reflect/)
+  assert.match(out, /\[Product\]/)
+})
+test('classic loop-back keeps QA and Product pending', () => {
+  const out = strip('implement', [...CL, 'product', 'implement'])
+  assert.match(out, /\[Implement\]/)
+  assert.doesNotMatch(out, /✓QA|✓Product/)
+})
+test('reflect-first loop-back keeps reflect done', () => {
+  const out = strip('implement', [...CL, 'reflect', 'product', 'implement'])
+  assert.match(out, /✓Reflect/)
+  assert.match(out, /\[Implement\]/)
+  assert.doesNotMatch(out, /✓QA|✓Product/)
+})
+test('ended with a log marks only visited phases done', () => {
+  const out = strip('product', [...CL, 'reflect', 'product'], true)
+  assert.match(out, /✓Reflect/)
+  assert.match(out, /✓Product/)
+  const classic = strip('product', [...CL, 'product'], true)
+  assert.match(classic, /✓Product/)
+  assert.doesNotMatch(classic, /✓Reflect/)
+})
+test('empty log falls back to position', () => {
+  const mid = strip('qa', [])
+  assert.match(mid, /✓Implement/)
+  assert.match(mid, /\[QA\]/)
+  assert.doesNotMatch(mid, /✓Product/)
+  const end = strip('reflect', [], true)
+  assert.match(end, /✓Product/)
+  assert.match(end, /✓Reflect/)
+})

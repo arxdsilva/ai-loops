@@ -229,6 +229,25 @@ func limitsLine(s run.State) string {
 // loop counters (plan rounds, QA / product loop-backs) against their limits.
 func phaseStrip(s run.State, color bool) string {
 	cur := s.Phase.Index()
+	count := phaseCounts(s)
+	done := phaseDone(s)
+	parts := make([]string, len(run.Phases))
+	for i, p := range run.Phases {
+		label := p.Title() + count[p]
+		switch {
+		case i == cur && !s.Ended:
+			parts[i] = paint(color, ansiYellow, "◉ "+label)
+		case done(i, p):
+			parts[i] = paint(color, ansiGreen, "● "+label)
+		default:
+			parts[i] = paint(color, ansiDim, "○ "+label)
+		}
+	}
+	return strings.Join(parts, "  ")
+}
+
+// phaseCounts returns the per-phase loop counter suffixes.
+func phaseCounts(s run.State) map[run.Phase]string {
 	count := map[run.Phase]string{}
 	if s.PlanRounds > 0 {
 		count[run.PhasePlan] = fmt.Sprintf(" r%d/%d", s.PlanRounds, run.MaxPlanRounds)
@@ -243,19 +262,40 @@ func phaseStrip(s run.State, color bool) string {
 	if n := lb[run.PhaseProduct]; n > 0 {
 		count[run.PhaseProduct] = fmt.Sprintf(" ↺%d/%d", n, run.MaxProductRounds)
 	}
-	parts := make([]string, len(run.Phases))
-	for i, p := range run.Phases {
-		label := p.Title() + count[p]
+	return count
+}
+
+// phaseDone returns the done-mark rule: a phase counts only when the run
+// visited it; an empty log falls back to position alone.
+func phaseDone(s run.State) func(i int, p run.Phase) bool {
+	cur := s.Phase.Index()
+	if len(s.PhaseLog) == 0 {
+		return func(i int, _ run.Phase) bool { return i < cur || s.Ended && i <= cur }
+	}
+	visited := map[run.Phase]bool{}
+	for _, e := range s.PhaseLog {
+		visited[e.Phase] = true
+	}
+	reflectFirst := productAfterReflect(s.PhaseLog)
+	return func(i int, p run.Phase) bool {
+		return visited[p] && (s.Ended || i < cur || p == run.PhaseReflect && reflectFirst)
+	}
+}
+
+// productAfterReflect reports whether the log has a product entry after a
+// reflect entry: the reflect-first order (WORKFLOW §7), which the classic
+// order never produces.
+func productAfterReflect(log []run.PhaseEntry) bool {
+	seen := false
+	for _, e := range log {
 		switch {
-		case i == cur && !s.Ended:
-			parts[i] = paint(color, ansiYellow, "◉ "+label)
-		case i < cur || s.Ended && i <= cur:
-			parts[i] = paint(color, ansiGreen, "● "+label)
-		default:
-			parts[i] = paint(color, ansiDim, "○ "+label)
+		case e.Phase == run.PhaseReflect:
+			seen = true
+		case e.Phase == run.PhaseProduct && seen:
+			return true
 		}
 	}
-	return strings.Join(parts, "  ")
+	return false
 }
 
 func qaCell(l run.Lane, color bool) string {

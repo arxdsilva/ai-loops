@@ -22,8 +22,9 @@ const DefaultModule = "github.com/arxdsilva/ai-loops"
 // readOnlyNote opens the body of a read-only role on platforms that cannot
 // enforce it per agent (or whose switch would also block the role's own
 // run-dir file): the role still writes research/*.md, plan.v*.md, qa/*.md,
-// proofs/ or reflection.md.
-const readOnlyNote = "You are a read-only role: you may write only your own file under the run dir (the one your brief names); never edit repo code."
+// proofs/ or reflection.md. The reflector also writes its .loops/memory/
+// pages when its brief says the file store is active (WORKFLOW §7).
+const readOnlyNote = "You are a read-only role: you may write only your own file under the run dir (the one your brief names), and the reflector also its .loops/memory/ pages when its brief says the file store is active; never edit repo code."
 
 // withDefaults fills Options.Module (DefaultModule) and Options.Version
 // ("v" + p.Version) when empty, and makes sure Version carries a "v".

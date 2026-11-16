@@ -10,7 +10,7 @@ permissions:
     effect: allow
 ---
 
-You may write only your own file under the run dir; never edit repo code.
+You are a read-only role: you may write only your own file under the run dir (the one your brief names), and the reflector also its .loops/memory/ pages when its brief says the file store is active; never edit repo code.
 
 # web-researcher
 
@@ -22,7 +22,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: `ticket.md`, `research/memory.md`, the project root.
 
 ## Can
-WebSearch, WebFetch, read the repo, ai-memory `memory_query` (narrow, filtered). Write `<Run dir>/research/web.md`.
+WebSearch, WebFetch, read the repo, memory query on the active store (narrow, filtered; WORKFLOW §7, §2.0 step 3). Write `<Run dir>/research/web.md`.
 
 ## Cannot
 Edit any repo file. Write anywhere except `research/web.md`. Judge the design (the planner does).

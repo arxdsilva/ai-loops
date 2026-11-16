@@ -30,7 +30,8 @@ type Config struct {
 	AutoPR bool `json:"auto_pr,omitempty"`
 	// Gate tunes `loops gate`.
 	Gate GateConfig `json:"gate"`
-	// Memory overrides the ai-memory scope; empty = .ai-memory.toml or git remote owner/repo.
+	// Memory is the ai-memory scope and the memory store; an empty scope =
+	// .ai-memory.toml or git remote owner/repo.
 	Memory MemoryConfig `json:"memory"`
 	// Parallel is the always-on parallelism default (max_agents 100 when unset)
 	// and the hardware-formula knobs (specs/WORKFLOW.md §2.2).
@@ -87,10 +88,12 @@ type GateConfig struct {
 	Base string `json:"base,omitempty"`
 }
 
-// MemoryConfig scopes ai-memory pages.
+// MemoryConfig scopes ai-memory pages and picks the memory store.
 type MemoryConfig struct {
 	Workspace string `json:"workspace,omitempty"`
 	Project   string `json:"project,omitempty"`
+	// Store picks the memory store (WORKFLOW §7): "files" = .loops/memory/ even when ai-memory is connected; "" or any other value = auto.
+	Store string `json:"store,omitempty"`
 }
 
 // LoadConfig reads <root>/.loops/config.json; a missing file is the zero Config.

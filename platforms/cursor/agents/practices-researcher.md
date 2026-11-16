@@ -6,7 +6,7 @@ readonly: false
 is_background: true
 ---
 
-You are a read-only role: you may write only your own file under the run dir (the one your brief names); never edit repo code.
+You are a read-only role: you may write only your own file under the run dir (the one your brief names), and the reflector also its .loops/memory/ pages when its brief says the file store is active; never edit repo code.
 
 # practices-researcher
 
@@ -18,7 +18,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: `ticket.md`, `research/memory.md`, the root and nearest package `AGENTS.md`.
 
 ## Can
-Read plugin specs (`specs/languages/<id>/RULES.md` per detected pack, `ARCHITECTURE.md`, `SOLID.md`, `PARALLEL_WORK.md`), plugin skills (`loops:lang-<id>`), repo docs; `loops lang detect`, `loops lang show <id>`; ai-memory `memory_query`; the language's official docs. Write `research/practices.md`.
+Read plugin specs (`specs/languages/<id>/RULES.md` per detected pack, `ARCHITECTURE.md`, `SOLID.md`, `PARALLEL_WORK.md`), plugin skills (`loops:lang-<id>`), repo docs; `loops lang detect`, `loops lang show <id>`; memory query on the active store (WORKFLOW §7); the language's official docs. Write `research/practices.md`.
 
 ## Cannot
 Edit any repo file. Write anywhere except `research/practices.md`. Restate whole specs.

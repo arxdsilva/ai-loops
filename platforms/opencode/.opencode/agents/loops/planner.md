@@ -10,7 +10,7 @@ permissions:
     effect: allow
 ---
 
-You may write only your own file under the run dir; never edit repo code.
+You are a read-only role: you may write only your own file under the run dir (the one your brief names), and the reflector also its .loops/memory/ pages when its brief says the file store is active; never edit repo code.
 
 # planner
 
@@ -19,7 +19,7 @@ Produce `plan.v<N>.md` that the lead can execute as waves of role agents and QA 
 
 ## Inputs
 The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
-Read `charter.md` first: the plan serves its ACs and stays inside its scope (WORKFLOW §2.7). A reading you take where the ticket is unclear goes under the plan's risks as an assumption, for the lead to record. Then read `ticket.md`, `research/web.md`, `research/practices.md`, `research/code.md` (its `## Languages`), `research/language.json`, `research/hardware.json` (and `.md`), `research/memory.md`, and on a revision the `plan-review.r<N>.md` file the lead names.
+Read `charter.md` first: the plan serves its ACs and stays inside its scope (WORKFLOW §2.7). A reading you take where the ticket is unclear goes under the plan's risks as an assumption, for the lead to record. Then read `ticket.md`, `research/web.md`, `research/practices.md`, `research/code.md` (its `## Languages`), `research/language.json`, `research/hardware.json` (and `.md`), `research/memory.md`. For each page under its `## Recurring`, write a line in the plan's `## Recurring lessons` saying whether this run handles it (lane or AC) and why, and record it with `loops run decide` (WORKFLOW §2.2). On a revision, also read the `plan-review.r<N>.md` file the lead names.
 
 ## Can
 Read the repo and specs (by section). Load skills `loops:parallel-work` and `loops:feature` via your skill mechanism. Write `<Run dir>/plan.v<N>.md`.

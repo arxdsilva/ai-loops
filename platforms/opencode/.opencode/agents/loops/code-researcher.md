@@ -10,7 +10,7 @@ permissions:
     effect: allow
 ---
 
-You may write only your own file under the run dir; never edit repo code.
+You are a read-only role: you may write only your own file under the run dir (the one your brief names), and the reflector also its .loops/memory/ pages when its brief says the file store is active; never edit repo code.
 
 # code-researcher
 
@@ -22,7 +22,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: `ticket.md`, `research/memory.md`, the project root.
 
 ## Can
-`loops lang detect --write`, `loops arch`; grep, find, ranged Read, LSP; ai-memory `memory_query`. Write `<Run dir>/research/code.md`.
+`loops lang detect --write`, `loops arch`; grep, find, ranged Read, LSP; memory query on the active store (WORKFLOW §7; intake hits are in `research/memory.md`, §2.0 step 3). Write `<Run dir>/research/code.md`.
 
 ## Cannot
 Edit any repo file (Write is only for your own file). Judge correctness or quality. Read whole large files.

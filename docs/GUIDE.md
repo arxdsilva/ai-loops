@@ -22,7 +22,7 @@ Nothing to install up front. On first use the plugin downloads the prebuilt `loo
 You'll also want:
 - **`gh`** or **`glab`** for tickets and PRs/MRs.
 - Your project's language toolchain. The optional tools a pack names (for Go `staticcheck`, `govulncheck`) are skipped with an install hint when missing.
-- Optional: [ai-memory](https://github.com/akitaonrails/ai-memory), Jira or Linear MCP connectors.
+- Optional: [ai-memory](https://github.com/akitaonrails/ai-memory) or the opt-in `.loops/memory/` folder (`loops memory init`, see [Lessons across runs](#lessons-across-runs)), Jira or Linear MCP connectors.
 
 Platforms marked *installer* take one line in your project:
 
@@ -196,9 +196,17 @@ You are asked only at the phases you opt into: `--ask plan,pr` (or `all`), `"ask
 
 Unclear tickets go through the `clarify` skill at intake, which records each inference rather than guessing silently. With `--ask intake` (or `"ask": ["intake"]` in `.loops/config.json`) those open points are put to you before research starts.
 
+## Lessons across runs
+
+At the end of a run the reflector saves 1-5 lessons to the active memory store. Which store is used, and when, is in WORKFLOW §7.
+
+- **ai-memory** or **`.loops/memory/`** (the file store, created by `loops memory init`). The file pages are committed with the PR.
+
+Delete `.loops/memory/` to leave the file store.
+
 ## Project rules win
 
-Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs, existing layout) always beat loops' defaults. Whenever an agent follows one instead of a loops rule it logs it (`loops run override`). At the end the reflector writes `overrides.md` and posts it as a comment on the PR/MR (never in the description), so you see exactly where your rules were applied.
+Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs, existing layout) always beat loops' defaults. Whenever an agent follows one instead of a loops rule it logs it (`loops run override`). At the end the reflector writes `overrides.md` and posts it as a comment on the PR/MR (never in the description), so you see exactly where your rules were applied. In reflect-first runs (file store active, WORKFLOW §2.5, §2.6) the reflector only writes the file, and the product-reviewer posts it on the PR after opening it.
 
 ## Guardrails (hooks)
 
@@ -225,7 +233,7 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
   3 implement architect + <lang>-engineer (contract, toolchain, wave 0) → role engineers in parallel waves
   4 qa        a qa-verifier per engineer checks every claim ⇄ sends failures back with a repro
   5 product   product-reviewer tests every acceptance criteria by hand → proofs → PR/MR
-  6 reflect   reflector → reflection.md + ai-memory pages
+  6 reflect   reflector → reflection.md + memory pages (ai-memory or .loops/memory/; before product with the file store)
   the lead (master agent) runs all seven, decides instead of asking, re-anchors with `loops run brief`
 ```
 

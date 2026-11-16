@@ -122,3 +122,23 @@ func TestConfigAsk(t *testing.T) {
 		t.Fatalf("a number must fail with a clear message: %v", err)
 	}
 }
+
+func TestConfigMemoryStore(t *testing.T) {
+	cases := []struct{ body, store, ws, proj string }{
+		{`{"memory":{"store":"files"}}`, "files", "", ""},
+		{`{"memory":{"workspace":"w"}}`, "", "w", ""},
+		{`{}`, "", "", ""},
+		{`{"memory":{"store":"bogus"}}`, "bogus", "", ""},
+		{`{"memory":{"workspace":"w","project":"p","store":"files"}}`, "files", "w", "p"},
+	}
+	for _, c := range cases {
+		cfg, err := LoadConfig(writeConfig(t, c.body))
+		if err != nil {
+			t.Fatalf("%s: %v", c.body, err)
+		}
+		m := cfg.Memory
+		if m.Store != c.store || m.Workspace != c.ws || m.Project != c.proj {
+			t.Errorf("%s: %+v", c.body, m)
+		}
+	}
+}

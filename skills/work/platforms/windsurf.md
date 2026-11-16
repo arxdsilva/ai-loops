@@ -3,7 +3,7 @@
 Read with `skills/work/SKILL.md`. Facts: `specs/PLATFORMS.md` §2-4.
 
 ## Spawn
-There are no subagents. You (the lead) play each role in turn, in phase order: researchers, planner, plan-reviewer, architect, implementers by wave, qa-verifier per lane, product-reviewer, reflector. Read the role's file first (`loops path agents` → `<role>.md`, body only) and follow it.
+There are no subagents. You (the lead) play each role in turn, in phase order: researchers, planner, plan-reviewer, architect, implementers by wave, qa-verifier per lane, product-reviewer, reflector (the reflector before the product-reviewer when the file store is active, WORKFLOW §2.5, §2.6 step 4). Read the role's file first (`loops path agents` → `<role>.md`, body only) and follow it.
 
 ## Parallel wave
 Not possible. Run the wave's lanes one after another, producers first.

@@ -15,7 +15,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: `ticket.md`, `research/memory.md`, the root and nearest package `AGENTS.md`.
 
 ## Can
-Read plugin specs (`specs/languages/<id>/RULES.md` per detected pack, `ARCHITECTURE.md`, `SOLID.md`, `PARALLEL_WORK.md`), plugin skills (`loops:lang-<id>`), repo docs; `loops lang detect`, `loops lang show <id>`; ai-memory `memory_query`; the language's official docs. Write `research/practices.md`.
+Read plugin specs (`specs/languages/<id>/RULES.md` per detected pack, `ARCHITECTURE.md`, `SOLID.md`, `PARALLEL_WORK.md`), plugin skills (`loops:lang-<id>`), repo docs; `loops lang detect`, `loops lang show <id>`; memory query on the active store (WORKFLOW §7); the language's official docs. Write `research/practices.md`.
 
 ## Cannot
 Edit any repo file. Write anywhere except `research/practices.md`. Restate whole specs.

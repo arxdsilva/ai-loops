@@ -8,6 +8,7 @@
 //	exec_cmd.go    exec [--pack id] -- <cmd…>                      (run-scoped pack env for any tool)
 //	gate_cmd.go    gate                                            (gate pipeline; --security: the packs' security checks)
 //	lang_cmd.go    lang list|show|validate|detect                  (language packs)
+//	memory_cmd.go  memory init                                     (opt-in file store, WORKFLOW §7)
 //	ticket_cmd.go  ticket fetch                                    (tickets)
 //	arch_cmd.go    arch                                            (arch checker)
 //	status_cmd.go  status [--json|--statusline|--subagent]         (status line, mod pane)
@@ -109,6 +110,7 @@ var commands = map[string]command{
 	"hw":      {(*App).cmdHW, "hw [--json] [--write]   hardware facts + parallelism recommendation for the planner"},
 	"budget":  {(*App).cmdBudget, "budget check [--phase p] [--spawn n] [--role r] [--verbose] | show | parse [--budget …] [--agents …] [--roles …] [--max-agents n]   opt-in limits (exit 3 = over budget)"},
 	"lang":    {cmdLang, "lang list [--json] | show <id> [--variant v] | validate [pack.json…] | detect [--json] [--write] [--root dir]   language packs (specs/languages/<id>/pack.json)"},
+	"memory":  {cmdMemory, "memory init   opt-in file store: create .loops/memory/ and re-include it in .loops/.gitignore (idempotent)"},
 	"plan":    {(*App).cmdPlan, "plan check <plan.md> [--cap n] [--json]   waves vs parallelism cap and scope overlap"},
 	"watch":   {(*App).cmdWatch, "watch [--interval 2s] [--once]   live run view in a terminal (any platform)"},
 	"path":    {(*App).cmdPath, "path [root|specs|templates|skills|agents]"},
