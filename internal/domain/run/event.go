@@ -35,6 +35,7 @@ const (
 	KindEnd        Kind = "end"         // run finished: Status=outcome ("done","abandoned","failed")
 	KindAsk        Kind = "ask"         // the phases where the lead stops for the user (WORKFLOW §2.7): Note=comma-separated phases, "" = none; the last one wins
 	KindDecision   Kind = "decision"    // a decision the run turned on: Phase, From=who decided ("lead"|"user"), Name=topic, Note=the decision and its reason, Ref
+	KindTriage     Kind = "triage"      // the steps the run skips (WORKFLOW §2.8): Name=tier, Note=JSON of run.Triage; the last one wins
 )
 
 // Verdict statuses (Event.Status for KindVerdict).

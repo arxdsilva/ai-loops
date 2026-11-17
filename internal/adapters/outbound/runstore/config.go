@@ -41,6 +41,9 @@ type Config struct {
 	// Languages pins the language packs and their roots; empty = detect
 	// (loops lang detect).
 	Languages []langpack.Override `json:"languages,omitempty"`
+	// Triage "off" makes every run full: the skipper skips nothing
+	// (WORKFLOW §2.8). "" or "auto" = triage each run.
+	Triage string `json:"triage,omitempty"`
 	// UpdateCheck false turns off the new-release check; nil = on.
 	UpdateCheck *bool `json:"update_check,omitempty"`
 }

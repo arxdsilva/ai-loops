@@ -106,6 +106,8 @@ type briefJSON struct {
 	Ask       []run.Phase        `json:"ask"`
 	Open      []run.VerdictInfo  `json:"open"`
 	Decisions []run.DecisionInfo `json:"decisions"`
+	Triage    run.Triage         `json:"triage,omitzero"`
+	Skipped   []run.Step         `json:"skipped,omitempty"`
 	Next      string             `json:"next"`
 }
 
@@ -134,7 +136,7 @@ func (l leadCmd) brief(ctx context.Context, args []string) int {
 	}
 	b, _ := json.MarshalIndent(briefJSON{
 		Run: st.ID, Dir: dir, Charter: dir + "/charter.md", Phase: st.Phase, Ask: st.Ask,
-		Open: run.OpenFailures(st), Decisions: st.Decisions, Next: run.Next(st),
+		Open: run.OpenFailures(st), Decisions: st.Decisions, Triage: st.Triage, Skipped: run.Skipped(st), Next: run.Next(st),
 	}, "", "  ")
 	fmt.Fprintln(l.a.Out, string(b))
 	return 0

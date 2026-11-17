@@ -132,33 +132,59 @@ func Next(s State) string {
 	open := OpenFailures(s)
 	switch s.Phase {
 	case "", PhaseIntake:
-		return "write charter.md, record the checkpoints (loops run ask), then enter research"
+		return nextIntake(s)
 	case PhaseResearch:
+		if n := researchRuns(s); n < len(researchSteps) {
+			return fmt.Sprintf("when the %d research output(s) triage kept exist, enter plan", n) + gateSuffix(s, PhaseResearch)
+		}
 		return "when the four research outputs exist, enter plan" + gateSuffix(s, PhaseResearch)
 	case PhasePlan:
 		return nextPlan(s)
 	case PhaseImplement:
+		if len(s.Triage.Skip) > 0 && !s.Triage.Recheck {
+			return "every lane has reported: recheck the triage against the real diff (loops run triage --recheck --files N), then enter qa" + gateSuffix(s, PhaseImplement)
+		}
 		return "every lane has reported: enter qa and verify each report" + gateSuffix(s, PhaseImplement)
 	case PhaseQA:
 		return nextQA(s, open)
 	case PhaseProduct:
-		if len(open) > 0 {
-			return fmt.Sprintf("%s is %s: send its proof to the owning lane (product round %d of %d)", open[0].Name, open[0].Status, productRounds(s)+1, MaxProductRounds)
-		}
-		if s.PR != "" && reflectFirst(s) && visited(s, PhaseReflect) {
-			return "the PR is open and reflect ran: loops run end --outcome done" + gateSuffix(s, PhaseProduct)
-		}
-		if s.PR != "" {
-			return "the PR is open: enter reflect" + gateSuffix(s, PhaseProduct)
-		}
-		return "have the product-reviewer prove every AC, then open the PR" + gateSuffix(s, PhaseProduct)
+		return nextProduct(s, open)
 	case PhaseReflect:
 		if reflectFirst(s) && !visited(s, PhaseProduct) {
 			return "when reflection.md and the memory pages are written: enter product (the PR commit carries the pages)" + gateSuffix(s, PhaseReflect)
 		}
+		if Skips(s, StepReflect) {
+			return "triage skipped the reflector: write a short reflection.md yourself (outcome, triage, decisions, overrides), then loops run end --outcome done" + gateSuffix(s, PhaseReflect)
+		}
 		return "when reflection.md is written: loops run end --outcome done" + gateSuffix(s, PhaseReflect)
 	}
 	return "continue the phase"
+}
+
+func nextIntake(s State) string {
+	switch {
+	case s.Triage.Tier == "":
+		return "triage the request (loops run triage), write charter.md, record the checkpoints (loops run ask), then enter research"
+	case researchSkipped(s):
+		return "write charter.md, record the checkpoints (loops run ask), run loops lang detect --write, then enter plan: triage skipped research"
+	}
+	return "write charter.md, record the checkpoints (loops run ask), then enter research"
+}
+
+func nextProduct(s State, open []VerdictInfo) string {
+	if len(open) > 0 {
+		return fmt.Sprintf("%s is %s: send its proof to the owning lane (product round %d of %d)", open[0].Name, open[0].Status, productRounds(s)+1, MaxProductRounds)
+	}
+	if s.PR != "" && reflectFirst(s) && visited(s, PhaseReflect) {
+		return "the PR is open and reflect ran: loops run end --outcome done" + gateSuffix(s, PhaseProduct)
+	}
+	if s.PR != "" {
+		return "the PR is open: enter reflect" + gateSuffix(s, PhaseProduct)
+	}
+	if Skips(s, StepProductProof) {
+		return "triage skipped the manual proof: write pr.md mapping each AC to its test or gate evidence, then branch, commit, push and open the PR yourself" + gateSuffix(s, PhaseProduct)
+	}
+	return "have the product-reviewer prove every AC, then open the PR" + gateSuffix(s, PhaseProduct)
 }
 
 func nextPlan(s State) string {
@@ -178,6 +204,10 @@ func nextPlan(s State) string {
 		return "plan rounds exhausted: rule on each open blocking item yourself (loops run decide), then have the planner apply the rulings"
 	case last == StatusChanges:
 		return fmt.Sprintf("send plan-review.r%d.md back to the same planner (round %d of %d)", s.PlanRounds, s.PlanRounds+1, MaxPlanRounds)
+	case Skips(s, StepPlanner):
+		return "triage skipped the planner: write a short plan.v1.md yourself (one lane per AC), run loops plan check on it, then enter implement" + gateSuffix(s, PhasePlan)
+	case Skips(s, StepPlanReview):
+		return "spawn the planner (triage skipped the plan-reviewer); when plan.v1.md passes loops plan check, enter implement" + gateSuffix(s, PhasePlan)
 	}
 	return "spawn the planner, then the plan-reviewer"
 }
@@ -203,12 +233,30 @@ func nextQA(s State, open []VerdictInfo) string {
 			return "the gate is green: enter product" + gateSuffix(s, PhaseQA)
 		}
 	}
-	return "every claim is verified: run the quality pass, then loops gate"
+	if len(s.Triage.Skip) == 0 {
+		return "every claim is verified: run the quality pass, then loops gate"
+	}
+	prefix := "every claim is verified: "
+	if Skips(s, StepQAVerify) {
+		prefix = "triage skipped the verifiers: "
+	}
+	var todo []string
+	if !Skips(s, StepQuality) {
+		todo = append(todo, "the quality pass")
+	}
+	if !Skips(s, StepSecurity) {
+		todo = append(todo, "the security pass")
+	}
+	return prefix + "run " + strings.Join(append(todo, "loops gate"), ", then ")
 }
 
 // reflectFirst reports whether the latest memory-store decision picked the
-// file store, which runs reflect before product.
+// file store, which runs reflect before product. A skipped reflector writes
+// no pages, so the run keeps the default order.
 func reflectFirst(s State) bool {
+	if Skips(s, StepReflect) {
+		return false
+	}
 	for i := len(s.Decisions) - 1; i >= 0; i-- {
 		d := s.Decisions[i]
 		if d.Topic != MemoryStoreTopic {
@@ -266,6 +314,9 @@ func Brief(s State, dir string) string {
 		b.WriteString("Checkpoints: none. You decide every phase yourself and record each decision (loops run decide).\n")
 	} else {
 		fmt.Fprintf(&b, "Checkpoints: %s. Ask the user there; decide everything else yourself.\n", FormatAsk(s.Ask))
+	}
+	if t := s.Triage; t.Tier != "" {
+		fmt.Fprintf(&b, "Triage: %s (%s); skipped: %s; loops gate always runs.\n", t.Tier, t.Signals, JoinSteps(Skipped(s)))
 	}
 	if r := Running(s); len(r) > 0 {
 		names := make([]string, len(r))

@@ -328,3 +328,18 @@ func TestPhaseViewsReflectFirst(t *testing.T) {
 		t.Errorf("product %q reflect %q", pv[5].Class, pv[6].Class)
 	}
 }
+
+func TestRenderTriage(t *testing.T) {
+	s, ev := fixture()
+	s.Triage = run.Decide(run.Signals{Kind: run.TaskBugfix, Files: 2})
+	s.Triage.Recheck = true
+	out := render(t, s, ev, "testdata/run1")
+	for _, want := range []string{`id="decisions"`, "Triage: <b>small</b> (rechecked)", "kind=bugfix files=2 langs=1 touches=none", "plan-review", "the gate always runs"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if err := checkBalanced(out); err != nil {
+		t.Error(err)
+	}
+}

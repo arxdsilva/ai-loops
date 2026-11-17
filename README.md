@@ -102,6 +102,7 @@ AI code that is "almost right" is the top frustration of 66% of developers, and 
 - **Predictable phases, visible progress.** The same phases every time, with a live status and a shareable HTML report.
 - **Less back-and-forth.** No questions mid-run unless you ask for a checkpoint (`--ask plan` to approve the plan, `--ask pr` before the PR).
 - **Cost under control when you want it.** Optional caps on tokens, agents and roles per phase (`--budget implement=2M`).
+- **Cost that matches the task.** The lead triages each request, and a typo fix skips the researchers, reviewers and passes it doesn't need. The gate always runs, and `--full` runs everything.
 
 ## What is the best multi-agent coding workflow? How loops compares
 

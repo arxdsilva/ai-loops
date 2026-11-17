@@ -9,6 +9,7 @@ The reference behind the [readme](../README.md): installing on every platform, u
 - [Languages](#languages)
 - [Parallelism & hardware](#parallelism--hardware)
 - [Optional limits](#optional-limits)
+- [Skipping steps on simple tasks](#skipping-steps-on-simple-tasks)
 - [Checkpoints and decisions](#checkpoints-and-decisions)
 - [Project rules win](#project-rules-win)
 - [Guardrails (hooks)](#guardrails-hooks)
@@ -187,6 +188,16 @@ Off by default: nothing is limited and nothing asks. Opt in per run with `/loops
 ```
 
 Before each spawn the lead runs `loops budget check`. If a limit would be exceeded, the lead stops spawning: over a concurrency cap it waits for a slot, otherwise it ends the run where it stopped, since the limit is yours. With a checkpoint on that phase it asks you instead: raise it, continue once, or stop. `loops budget show` prints usage. Token budgets are measured on Claude Code, Codex and Copilot, and advisory elsewhere.
+
+## Skipping steps on simple tasks
+
+A typo fix shouldn't cost as much as a new feature. At intake the lead triages the request: it names the kind of change (`docs`, `typo`, `config`, `test`, `bugfix`, `feature`, `refactor`, `upgrade`), estimates how many files it touches, and flags any risk areas (`api`, `schema`, `security`, `concurrency`, `deps`, `external`). `loops run triage` then picks a tier deterministically:
+
+- **trivial** (docs, typo, config or tests in at most 2 files, no risk area): only `loops gate` runs.
+- **small** (up to 5 files, one language, no `api`, `schema` or `concurrency`): code research, the planner and one verifier run, plus the manual product proof when behaviour changes.
+- **standard**: everything.
+
+Each risk area brings back the checks that guard it (`security` keeps the security pass, `deps` keeps web research and wave 0). After implement the lead rechecks against the real diff, and a bigger change turns the skipped checks back on. `loops gate` is never skipped. Turn it off for one run with `--full`, or for the project with `"triage": "off"` in `.loops/config.json`. The full table is in [WORKFLOW §2.8](../specs/WORKFLOW.md).
 
 ## Checkpoints and decisions
 

@@ -1,7 +1,7 @@
 ---
 name: work
 description: Work a ticket, issue or task end to end with the loops workflow (research, plan, parallel implementation, QA, product proof, PR, reflection). Use when the user asks to work, implement or ship a ticket/issue, or invokes /loops:work.
-argument-hint: "<ticket ref or text> [--ask phases|all] [--approve] [--no-pr] [--models=cheap] [--max-agents N] [--budget phase=200k,...] [--agents phase=N,...] [--roles phase=role,...]"
+argument-hint: "<ticket ref or text> [--ask phases|all] [--approve] [--no-pr] [--full] [--models=cheap] [--max-agents N] [--budget phase=200k,...] [--agents phase=N,...] [--roles phase=role,...]"
 ---
 
 # /loops:work - the lead's orchestrator
@@ -24,13 +24,14 @@ Every role agent you spawn gets the same instruction, through the prompt header 
 - User messages are short: one line per phase transition naming what is running (e.g. `research: 4 researchers running`). Outside a checkpoint, never a question.
 - Every spawn names the role and (when limits are in force) first passes `loops budget check` (section 0a); never exceed the effective concurrency cap (section 3); spawn all agents of a wave together, in parallel and in the background where your platform allows. Pass a model only to escalate or under `--models=cheap`.
 - Tier D (solo mode): where "spawn" appears, play the role yourself in phase order, write the same run-dir files, and re-read only that role's input files first (PLATFORMS §4).
-- Never ask agents to commit. Only `product-reviewer` commits, after confirmation.
+- Never ask agents to commit. Only `product-reviewer` commits, after confirmation (or you, when triage skipped `product-proof`).
+- **Skip what triage skipped.** Before each step below that names a triage step, the brief's `Triage:` line (or `loops run step <step>`) says `run` or `skip`; a skipped step is replaced as WORKFLOW §2.8's table says. `loops gate` always runs.
 
 **Models.** Spawn each role at its tier. The planner and plan-reviewer default to opus. If a model is unavailable, fall back to the best one the user has and record it (WORKFLOW §3a).
 
 ## 0. Parse and intake (WORKFLOW §2.0)
 
-1. Parse flags from `$ARGUMENTS`: `--ask <phases>`, `--approve` (= `--ask plan`), `--no-pr`, `--models=cheap`, and the opt-in limits `--max-agents N`, `--budget …`, `--agents …`, `--roles …` (WORKFLOW §4a). Also read the user's own words for checkpoints: "let me approve the plan" = `plan`, "ask me before the PR" = `pr`, "check with me at every phase" = `all`; they win over flags. Read `.loops/config.json` if present (`ask`, `memory`).
+1. Parse flags from `$ARGUMENTS`: `--ask <phases>`, `--approve` (= `--ask plan`), `--no-pr`, `--full`, `--models=cheap`, and the opt-in limits `--max-agents N`, `--budget …`, `--agents …`, `--roles …` (WORKFLOW §4a). Also read the user's own words for checkpoints: "let me approve the plan" = `plan`, "ask me before the PR" = `pr`, "check with me at every phase" = `all`; they win over flags. Read `.loops/config.json` if present (`ask`, `memory`).
 2. Start the run and capture the id and dir:
 ```
 loops run start --title "<short title>" [--ticket <ref>] [--source <s>]
@@ -38,10 +39,11 @@ loops run dir; loops path specs; loops path templates
 ```
 Note the three printed absolute paths: below, `$RUN`, `$SPECS` and `$TEMPLATES` mean those literal paths (shell variables do not persist between Bash calls).
 3. Fetch the ticket per WORKFLOW §2.0: GitHub/GitLab `loops ticket fetch <ref>`; Jira/Linear via the connected MCP tool, then `... | loops ticket fetch <ref> --source jira|linear --body-file -`; free text `loops ticket fetch --source text --body-file -`. If a connector is unauthenticated and there is no ticket text, tell the user what is missing and wait: the one stop you cannot decide away.
+3a. **Triage** (WORKFLOW §2.8). Read `$RUN/ticket.md` and run `loops run triage --kind <docs|typo|config|test|bugfix|feature|refactor|upgrade> --files <estimate> [--langs N] [--touches api,schema,security,concurrency,deps,external] [--unclear]` (`--full` under `--full`; config `"triage": "off"` forces it). Unsure: take the larger estimate and name the touch. Relay its first two lines to the user as one line (`triage: small; skipping …`).
 4. **Languages.** `loops lang detect` prints the detected packs and their roots. Each implementation lane is a layer role plus one pack (ROLES.md). Nothing detected: continue (the gate will check nothing), put that under the charter's Constraints, and tell the user in one line that `languages` in `.loops/config.json` pins packs (`/loops:init` step 1a).
-5. **Memory, once** (WORKFLOW §2.0 step 3; the store is §7's Choice). No store (§7): skip silently. The file store: `grep -rilE "<term>|<term>" .loops/memory`; ai-memory: `memory_briefing`, then one `memory_query` on the ticket's key terms (scope per §7). With the file store, record `loops run decide --topic memory-store --note "files: <why>"`. Write the hits to `$RUN/research/memory.md` (mark as unverified evidence) with a `## Recurring` section listing the pages whose runs hold 2+ ids (file store: `grep -rlE '^runs: \[[^]]*,' .loops/memory`; ai-memory: the `Runs:` line). ai-memory also records `loops run event --kind memory --name briefing`. Skill `loops:memory` has the calls.
+5. **Memory, once** (WORKFLOW §2.0 step 3; the store is §7's Choice; triage step `memory`). No store (§7): skip silently. The file store: `grep -rilE "<term>|<term>" .loops/memory`; ai-memory: `memory_briefing`, then one `memory_query` on the ticket's key terms (scope per §7). With the file store, record `loops run decide --topic memory-store --note "files: <why>"`. Write the hits to `$RUN/research/memory.md` (mark as unverified evidence) with a `## Recurring` section listing the pages whose runs hold 2+ ids (file store: `grep -rlE '^runs: \[[^]]*,' .loops/memory`; ai-memory: the `Runs:` line). ai-memory also records `loops run event --kind memory --name briefing`. Skill `loops:memory` has the calls.
 6. **Checkpoints.** `loops run ask [<list from step 1>]` records them (no list = the config) and prints them.
-7. **Clarify.** Load `loops:clarify` (WORKFLOW §2.0 step 5). It records the ticket's open points in `$RUN/clarifications.md`; its inferred answers become charter assumptions.
+7. **Clarify** (triage step `clarify`). Load `loops:clarify` (WORKFLOW §2.0 step 5). It records the ticket's open points in `$RUN/clarifications.md`; its inferred answers become charter assumptions.
 8. **Charter.** Write `$RUN/charter.md` from `$TEMPLATES/CHARTER.md`: goal, ACs from `ticket.md`, in and out of scope, constraints, assumptions (each also `loops run decide --topic assumption …`). Then `loops run checkpoint intake`; `ask`: show it and ask Continue / Edit scope / Stop.
 
 ### 0a. Opt-in limits (WORKFLOW §4a)
@@ -56,7 +58,7 @@ Only when the user passed a limit flag or `.loops/config.json` has `limits`; oth
 ```
 loops run phase research --note "4 researchers"
 ```
-Spawn `web-researcher`, `practices-researcher`, `code-researcher` and `hardware-researcher` together. The code-researcher runs `loops lang detect --write` and lists the languages and roots in `research/code.md` `## Languages`; the practices-researcher reads each pack's `config_files`. The hardware-researcher runs only `loops hw --write` (prompt it with the header lines; it needs `Loops:`). In tier D (solo) run `loops hw --write` yourself. Prompt each with the header lines (below) and `Inputs: ticket.md, research/memory.md, project root`. Label each (see "Labelling"). Wait for completion; proceed when all four outputs exist (`research/hardware.json` included). The practices brief may list `## Project rules that supersede loops`; they win over loops rules and flow into the plan; add the binding ones to the charter's Constraints. `loops run checkpoint research`; `ask`: show the briefs' `## Open questions` and pass the answers to the planner. `auto`: the planner resolves them (assumptions go to the charter).
+Triage steps `research-web`, `-practices`, `-code`, `-hardware`: spawn only the researchers it kept; with all four skipped, do not enter research: run `loops lang detect --write` yourself and go to plan. Spawn `web-researcher`, `practices-researcher`, `code-researcher` and `hardware-researcher` together. The code-researcher runs `loops lang detect --write` and lists the languages and roots in `research/code.md` `## Languages`; the practices-researcher reads each pack's `config_files`. The hardware-researcher runs only `loops hw --write` (prompt it with the header lines; it needs `Loops:`). In tier D (solo) run `loops hw --write` yourself. Prompt each with the header lines (below) and `Inputs: ticket.md, research/memory.md, project root`. Label each (see "Labelling"). Wait for completion; proceed when all four outputs exist (`research/hardware.json` included). The practices brief may list `## Project rules that supersede loops`; they win over loops rules and flow into the plan; add the binding ones to the charter's Constraints. `loops run checkpoint research`; `ask`: show the briefs' `## Open questions` and pass the answers to the planner. `auto`: the planner resolves them (assumptions go to the charter).
 
 ### Prompt header (all spawns, WORKFLOW §3)
 ```
@@ -84,6 +86,7 @@ Do this before waiting.
 ```
 loops run phase plan
 ```
+0. Triage step `planner` skipped: write a short `$RUN/plan.v1.md` yourself from `$TEMPLATES/PLAN.md` (ACs, one lane per AC, proof plan), run `loops plan check` on it and go to step 4. Step `plan-review` skipped: after step 1 go to step 4 once `loops plan check` is clean (no `plan` verdict).
 1. Spawn `planner` (strongest model). It writes `plan.v1.md` with a Concurrency block and runs `loops plan check` on it.
 2. Spawn `plan-reviewer` with the plan path. It also runs `loops plan check` (findings are blocking). It writes `plan-review.r1.md` ending `Verdict: APPROVE|CHANGES`. Read only that last line and the blocking item titles.
 3. `CHANGES`: for round N=1..3
@@ -100,18 +103,20 @@ loops run loopback --from plan-reviewer --to planner --round N --note "<one line
 ```
 loops run phase implement --note "wave 0"
 ```
-1. **Wave 0**: spawn `architect` (id `W0-architect`) and the plan's `<id>-engineer` lanes (ids `W0-<id>`: toolchain, manifests per the plan, lint and CI config, test and coverage prerequisites) together, wave 0, each with its `Language:` line. When they report, verify each pack's build and lint checks yourself, once: `loops gate --only <build and lint checks>` (names from `loops lang show <id>`; Go: `build,vet`). Failures go back to the owner (resume or re-spawn). Then stop wave-0 agents no later wave needs (an `<id>-engineer` may take later language-level lanes). After wave 0 and after each later wave reports: `loops run checkpoint implement`; `ask`: show the lanes and their claims and ask Continue / Stop.
+1. **Wave 0** (triage step `architect`; skipped: no wave 0, the lane writes its own contract): spawn `architect` (id `W0-architect`) and the plan's `<id>-engineer` lanes (ids `W0-<id>`: toolchain, manifests per the plan, lint and CI config, test and coverage prerequisites) together, wave 0, each with its `Language:` line. When they report, verify each pack's build and lint checks yourself, once: `loops gate --only <build and lint checks>` (names from `loops lang show <id>`; Go: `build,vet`). Failures go back to the owner (resume or re-spawn). Then stop wave-0 agents no later wave needs (an `<id>-engineer` may take later language-level lanes). After wave 0 and after each later wave reports: `loops run checkpoint implement`; `ask`: show the lanes and their claims and ask Continue / Stop.
 2. **Concurrency cap.** Never run more agents at once than the plan's effective cap (min of `parallel.max_agents` (default 100), hardware, opt-in `limits.max_agents`). A wave over the cap runs as sub-waves (`W1a`, then `W1b` when `W1a` lanes have reported); duplicated roles with disjoint scopes (`W1-domain-orders`, `W1-domain-payments`) are separate agents with their own verifiers.
 3. **Waves 1..n**: `loops run phase implement --note "wave <n>"`. Spawn the whole wave together, producers (domain, application) before consumers (adapters); consumers may start early against the stubs. Roles: `domain-engineer`, `application-engineer`, `api-engineer`, `persistence-engineer`, `integration-engineer`, `test-engineer`, `docs-writer`, and `<id>-engineer` for language-level lanes (upgrades, dependency bumps, build migrations). Every implementer gets its lane's `Language:` line. Label each.
 4. Under `--models=cheap`, pass a model one tier lower than the role default for every role except planner and plan-reviewer.
 5. Relay cross-agent facts (contract changes, found bugs in another lane's files) by messaging the owner (or, if it is gone, re-spawning it with the facts); never fix across lanes yourself.
-6. When an implementer finishes, its claims report is at `$RUN/reports/<Agent id>.md`. If it is missing, send the agent back to write it.
+6. When an implementer finishes, its claims report is at `$RUN/reports/<Agent id>.md`. If it is missing, send the agent back to write it. A trivial lane under ~30 lines you may do yourself (WORKFLOW §1); then no report.
+7. **Recheck** (when the triage skipped anything): after the last lane reports and before `loops run phase qa`, count the changed files (`git status --porcelain --untracked-files=all | wc -l`) and run `loops run triage --recheck --files <N> [--touches <any new>]`. It only adds steps back; follow its new skip list from here.
 
 ## 4. QA, pipelined (§2.4)
 
 ```
 loops run phase qa
 ```
+Triage: `qa-verify` skipped means no verifier (go to step 7, the gate); `qa-per-lane` skipped means one `qa-verifier` (Agent id `qa-all`) for every lane's report, spawned when the last lane reports; `qa-quality` and `qa-security` skipped mean steps 6 and 6a do not run.
 1. As soon as an implementer reports (even while its wave-mates still run), spawn `qa-verifier` (Agent id `qa-<id>`, wave = same, the implementer's `Language:` line) with the report path, the owned paths, the contract and its ACs. Label it.
 2. Read the verifier's final message. Record every claim verdict from its QA file:
 ```
@@ -143,7 +148,7 @@ loops gate
 ```
 loops run phase product
 ```
-Spawn `product-reviewer` with the plan, reports, QA files and a `PR:` line: `none` under `--no-pr`; `hold` when `loops run checkpoint product` prints `ask`; otherwise `open`.
+Triage step `product-proof` skipped: do the product step yourself, with no manual run, as WORKFLOW §2.8 says (AC verdicts citing tests or the gate, `pr.md`, `loops report`, then branch, commit, push and PR per §2.5 step 6, unless `--no-pr`; at a `product` checkpoint ask first). Otherwise spawn `product-reviewer` with the plan, reports, QA files and a `PR:` line: `none` under `--no-pr`; `hold` when `loops run checkpoint product` prints `ask`; otherwise `open`.
 - Gap found (FAILED AC): it records a loopback and returns proof paths. Run `loops run phase implement`, send the owning implementer the proof file (resume or re-spawn), then redo QA and the gate. After 2 product rounds (`MaxProductRounds`): at a `product` checkpoint ask the user; otherwise decide per WORKFLOW §2.7 (resume it with `PR: draft`, or end `failed`) and record it.
 - `open`: it commits, pushes the branch `loops/<ticket>-<slug>`, opens the PR and records the `pr` event. `none`: it writes `pr.md` only.
 - `hold`: show the user `pr.md` (title, summary, decisions, Open follow-ups) and ask: "Push branch loops/<ticket>-<slug> and open the PR/MR (PR + overrides comment)?" Record the answer (`--by user`). On yes, resume the same reviewer with `PR: open`.
@@ -154,11 +159,11 @@ Spawn `product-reviewer` with the plan, reports, QA files and a `PR:` line: `non
 ```
 loops run phase reflect
 ```
-With the file store, reflect runs before §5 (WORKFLOW §2.5, §2.6 step 4) and `loops run end` follows product. Spawn `reflector`; it also reviews the run's decisions (`loops run brief --json`). Besides `reflection.md` it writes `overrides.md` and, when a PR exists and at least one project-rule override was recorded, posts it as a PR comment (never editing the description) and records the note event (WORKFLOW §2.6 step 4). Reflect-first there is no PR yet: the reflector writes the file only and product-reviewer posts it after the PR. Its harness-issue step files or comments `loops` defects on the loops plugin repo (when this run's repo is that repo). When it finishes, `loops run checkpoint reflect`; `ask`: show `reflection.md` and ask End / Edit. Then:
+Triage step `reflect` skipped (and no loop-back happened): write a short `$RUN/reflection.md` yourself (outcome, triage, decisions, overrides, the cleanup line), post `overrides.md` per WORKFLOW §2.6 step 4, write no memory pages, then end. With the file store, reflect runs before §5 (WORKFLOW §2.5, §2.6 step 4) and `loops run end` follows product. Spawn `reflector`; it also reviews the run's decisions (`loops run brief --json`). Besides `reflection.md` it writes `overrides.md` and, when a PR exists and at least one project-rule override was recorded, posts it as a PR comment (never editing the description) and records the note event (WORKFLOW §2.6 step 4). Reflect-first there is no PR yet: the reflector writes the file only and product-reviewer posts it after the PR. Its harness-issue step files or comments `loops` defects on the loops plugin repo (when this run's repo is that repo). When it finishes, `loops run checkpoint reflect`; `ask`: show `reflection.md` and ask End / Edit. Then:
 ```
 loops run end --outcome done
 ```
-`loops run end` cleans up automatically: it deletes the run's per-pack caches and tmp dirs and the build leftovers agents created (never tracked or pre-existing files; unknown new files are listed for review). Pass `--no-clean` only when the user wants to inspect the artifacts. Then stop any remaining agents and give the user a summary of at most 10 lines: outcome, ACs verified, PR link and overrides count (or "pr.md written, not pushed"), `loops report` path (`$RUN/report.html`), loop-backs count, decisions you took, memory pages written.
+`loops run end` cleans up automatically: it deletes the run's per-pack caches and tmp dirs and the build leftovers agents created (never tracked or pre-existing files; unknown new files are listed for review). Pass `--no-clean` only when the user wants to inspect the artifacts. Then stop any remaining agents and give the user a summary of at most 10 lines: outcome, triage tier, ACs verified, PR link and overrides count (or "pr.md written, not pushed"), `loops report` path (`$RUN/report.html`), loop-backs count, decisions you took, memory pages written.
 
 ## Escalations and failures
 

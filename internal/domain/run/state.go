@@ -58,6 +58,9 @@ type State struct {
 	Ask []Phase `json:"ask,omitempty"`
 	// Decisions are the lead's and the user's recorded decisions, in order.
 	Decisions []DecisionInfo `json:"decisions,omitempty"`
+	// Triage is the run's tier and skipped steps (KindTriage, last wins);
+	// zero = not triaged, nothing skipped (WORKFLOW §2.8).
+	Triage Triage `json:"triage,omitzero"`
 
 	PR      string `json:"pr,omitempty"`
 	Ended   bool   `json:"ended"`

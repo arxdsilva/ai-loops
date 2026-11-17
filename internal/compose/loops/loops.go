@@ -145,6 +145,7 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Parallel:    cfg.Parallel,
 		Limits:      cfg.Limits,
 		Checkpoints: cfg.Checkpoints(),
+		TriageOff:   cfg.Triage == "off",
 		Source:      ailoops.Source,
 		Packages:    pkgs,
 		Root:        root,

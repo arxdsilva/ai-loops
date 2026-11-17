@@ -7,9 +7,10 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 - **One master agent owns the run.** The main session, the *lead*, is the run's master agent. It runs every phase from intake to `loops run end` and is the only one that moves the run between phases, spawns and stops agents, records decisions and talks to the user. It holds the scope in `charter.md` and re-anchors on the run's recorded state at every phase change, after a compaction and in a resumed session, never on its memory (§2.7).
 - **Lead orchestrates, roles work.** The lead routes, relays and records. It reads reports, not code dumps. It does one-fact lookups, edits under ~30 lines and single test runs itself; everything else goes to a role agent.
 - **Autonomous by default.** The lead decides; it does not ask. The user is asked only at the checkpoints they opt into, per phase (§2.7). Every decision the lead takes in the user's place is recorded and shows in the report and the PR.
+- **Smallest sufficient run.** At intake the lead triages the request (§2.8): the simpler the task, the more steps it skips, so a typo fix does not pay for four researchers and a reviewer. `loops gate` is never skipped.
 - **Parallel by default.** Every run is planned as waves of role agents with disjoint file ownership. A one-file fix is still a wave with one agent.
 - **Contract first.** No implementer starts until the architect has written the interfaces, typed commands, DTOs and stubs the wave depends on, and the build is green.
-- **Claims need evidence.** Every implementer reports claims, and each claim names the evidence that proves it. Nothing counts as done until a different agent has verified it.
+- **Claims need evidence.** Every implementer reports claims, and each claim names the evidence that proves it. Nothing counts as done until a different agent has verified it, unless triage skipped verification (§2.8), where the gate is the check.
 - **Send back with context.** A reviewer that rejects work says exactly what is wrong, how to reproduce it, and where to fix it. The lead sends the work back to the **same** author (resumed where the platform supports it, otherwise a new agent of the same role seeded with its previous report and the review file; see `specs/PLATFORMS.md` §4) so context carries over.
 - **Project rules win.** The target repository's own rules always take precedence over loops' specs, skills and templates. That means its AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs and established architecture. Any agent that follows a project rule instead of a loops rule records it immediately: `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what was done>"`. The reflector posts the list as a PR comment (§2.6).
 - **Everything is visible.** Every phase change, agent lane, tool call, verdict, loop-back, gate, proof and memory access lands in `events.jsonl` (§5).
@@ -33,6 +34,8 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 | 5 | `product` | `product-reviewer` | `proofs/AC-<n>.md`, `pr.md`, `report.html` | Every AC is `VERIFIED` with a proof, and the PR/MR is opened (or the PR body is written under `--no-pr`) |
 | 6 | `reflect` | `reflector` | `reflection.md` (+ memory pages in the active store, §7) | Reflection is written; `loops run end` |
 
+Triage (§2.8) may skip steps of these phases. A skipped step writes no output, and its exit criterion is met by the replacement §2.8 names. A phase whose every step is skipped is not entered (research, for a trivial run).
+
 QA starts pipelined: a verifier launches as soon as its implementer reports, even while other implementers in the wave are still running. A phase can be re-entered: if product returns work, the run goes back to `implement`, and then through `qa` again. With the file store active (§7), reflect runs between qa and product (qa -> reflect -> product), so its pages land in the PR's commit; a product loop-back then goes implement -> qa -> product, and the lead appends each loop-back and the PR link to `reflection.md`. Otherwise reflect runs after the PR. The `run.Next` texts guide this (§2.7).
 
 ### 2.0 Intake
@@ -43,6 +46,8 @@ QA starts pipelined: a verifier launches as soon as its implementer reports, eve
    - GitHub (`#123`, `owner/repo#123`, a github.com URL) or GitLab (a gitlab URL): `loops ticket fetch <ref>`. This writes `ticket.md`.
    - Jira (`ABC-123`) or Linear (a linear.app URL or key): fetch through the connected MCP tool, then pipe the text into `loops ticket fetch <ref> --source jira|linear --body-file -`. If the connector is not authenticated, tell the user and ask them to paste the ticket.
    - Free text: `loops ticket fetch --source text --body-file -`.
+
+   Then **triage** (§2.8): read `ticket.md`, fill the signals, and run `loops run triage --kind … --files …`. It decides which of the steps below run.
 3. Read the active memory store (§7): ai-memory (`memory_briefing` once, then one `memory_query` with the ticket's key terms) or the file store (grep `.loops/memory/` for the same terms). Save the hits to `research/memory.md`, with a `## Recurring` section listing the pages whose `runs` hold 2+ run ids, and record `loops run event --kind memory --name briefing`. With the file store active, also record `loops run decide --topic memory-store --note "files: <why>"`. With no store, skip silently.
 4. Record the checkpoints: `loops run ask [<list>]` (§2.7). With no list it applies `.loops/config.json`.
 5. **Clarify**: load `loops:clarify` (`skills/clarify`). It scans the ticket for open points, infers each one with a recommended answer and records it in `clarifications.md`. Infer by default and record every inference: `clarifications.md`, a charter assumption that cites its item, and `loops run decide --topic assumption`. Ask only when the `intake` checkpoint is `ask`, the user asked, or an inference would be hard to undo; then ask a reachable user and record the answer with `--by user`. Open points beyond the 5-question cap are inferred (§2.7).
@@ -53,6 +58,7 @@ Flags on `/loops:work`:
 - `--approve`: the older spelling of `--ask plan`.
 - `--no-pr`: write `pr.md` but do not push.
 - `--models=cheap`: run every role one tier lower, except planner and plan-reviewer.
+- `--full`: skip nothing (`loops run triage --full`, §2.8).
 
 ### 2.1 Research
 
@@ -269,6 +275,60 @@ Each decision is recorded: `loops run decide --topic <what> --note "<decision; r
 
 **What the lead never decides away.** The pushes and PRs go to a branch, never to the main line, unless a project rule says so (§1). No force-push, no merge, no history rewrite. No weakened test, gate or race policy. No step outside the charter's scope.
 
+### 2.8 Triage: the skipper
+
+A one-line typo fix and a new payment flow should not cost the same. The lead triages every run at intake (§2.0, after the ticket is fetched) and again after implement, and skips the steps the task does not need. The engine is `internal/domain/run/triage.go`; the lead only supplies the signals, so the same signals always give the same skips.
+
+**The floor.** These are not steps and can never be skipped: `loops gate` (every check, its coverage floor and the race policy, §6), the branch and PR rules (§2.7), the project's own rules (§1), the charter's scope, and `loops run end`. Triage never weakens a test.
+
+**Signals.** The lead reads the request (and, with `--unclear`, its own clarify scan) and passes:
+
+| Flag | Meaning |
+|---|---|
+| `--kind` | `docs`, `typo`, `config`, `test` (no behaviour change); `bugfix`, `feature` (behaviour change); `refactor` (structure only); `upgrade` (a language, toolchain or dependency upgrade; implies `deps`) |
+| `--files N` | files the change touches: an estimate at intake, the real count at the recheck |
+| `--langs N` | language packs the change touches (default 1) |
+| `--touches` | risk areas: `api` (public interface, contract, CLI or wire format), `schema` (persisted data, migrations), `security` (auth, crypto, secrets, untrusted input), `concurrency`, `deps`, `external` (an outside API or library to look up) |
+| `--unclear` | the ticket has open points |
+
+When unsure, the lead picks the larger estimate and names the touch: triage errs toward running a step.
+
+**Tiers.**
+
+| Tier | When | Runs |
+|---|---|---|
+| `standard` | 2+ languages, more than 5 files, an unknown kind, or `api`, `schema` or `concurrency` touched | everything |
+| `trivial` | `docs`, `typo`, `config` or `test`, at most 2 files, nothing touched | the gate only (and clarify when `--unclear`) |
+| `small` | anything else | `memory`, `research-code`, `planner`, `qa-verify`, and `product-proof` when the kind changes behaviour |
+
+Touches add steps back in any tier: `external` or `deps` keeps `research-web`; `security` or `deps` keeps `research-practices` and `qa-security`; `deps` keeps `architect` (wave 0 owns manifests and lockfiles); `--unclear` keeps `clarify`.
+
+**Steps and what replaces them when skipped.**
+
+| Step | Phase | When skipped |
+|---|---|---|
+| `clarify` | intake | no `clarifications.md`; the narrowest reading goes to the charter's assumptions (§2.7) |
+| `memory` | intake | no briefing or query; no `research/memory.md` |
+| `research-web`, `research-practices` | research | no brief; the planner works from the ticket and the code brief |
+| `research-code` | research | the lead runs `loops lang detect --write` itself |
+| `research-hardware` | research | `loops plan check` probes the machine itself |
+| `planner` | plan | the lead writes a short `plan.v1.md` from `templates/PLAN.md` (ACs, one lane per AC, the proof plan) and runs `loops plan check` on it |
+| `plan-review` | plan | the plan is accepted when `loops plan check` is clean; no `plan` verdict is recorded |
+| `architect` | implement | no wave 0; the lane writes the contract it needs, and the gate's build check covers it |
+| `qa-per-lane` | qa | one `qa-verifier` (Agent id `qa-all`) verifies every lane's report |
+| `qa-verify` | qa | no verifier; the gate is the check |
+| `qa-quality`, `qa-security` | qa | the pass does not run |
+| `product-proof` | product | no manual run: the lead records `loops run verdict --name AC-<n> --status VERIFIED --ref <test or gate check>`, writes `pr.md` mapping each AC to that evidence, runs `loops report`, then branches, commits, pushes and opens the PR itself, following §2.5 step 6 |
+| `reflect` | reflect | the lead writes a short `reflection.md` (outcome, triage, decisions, overrides) and posts `overrides.md` as §2.6 step 4 says; no memory pages. With the file store, reflect then runs after the PR. A run with any loop-back runs the reflector anyway: a loop-back is a lesson |
+
+**Recheck.** When the last lane has reported, before `loops run phase qa`, the lead counts the files the run changed (`git status --porcelain --untracked-files=all`) and runs `loops run triage --recheck --files N` (plus any touch the diff revealed). A recheck only adds work back: the tier never goes down, a step stays skipped only when the fresh decision also skips it, and steps of phases already passed stay as they were.
+
+**Overrides.** `--keep <steps>` runs a step the tier skips; `--skip <steps>` skips one it runs. Either needs `--reason`, and is recorded as a `triage` decision. A recheck does not keep earlier `--skip` overrides: pass them again.
+
+**Off.** `--full` on `/loops:work` (`loops run triage --full`) or `"triage": "off"` in `.loops/config.json` makes the run skip nothing. A run with no triage event skips nothing either.
+
+**Records.** Each `loops run triage` writes a `triage` event (the last one wins). `loops run step <step>` prints `run` or `skip`; the brief (§2.7), `loops run brief --json` and the report show the tier, the signals and the skipped steps. The lead tells the user in one line: `triage: small; skipping research-web, plan-review, …`.
+
 ## 3. Roles
 
 `ROLES.md` is the matrix and `agents/<role>.md` the definitions. There are two kinds of implementer:
@@ -331,11 +391,11 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 
 ## 5. Events
 
-`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). `.loops/` is local: whatever creates it (a run, the installer, session start in a project that has one) adds a `.loops/.gitignore` of `*`, so git never lists it. `loops memory init` re-includes `.loops/memory/` there (`!memory/`, `!memory/**`), and loops keeps those lines when it recreates the file in a clone. Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `ask`, `decision`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
+`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). `.loops/` is local: whatever creates it (a run, the installer, session start in a project that has one) adds a `.loops/.gitignore` of `*`, so git never lists it. `loops memory init` re-includes `.loops/memory/` there (`!memory/`, `!memory/**`), and loops keeps those lines when it recreates the file in a clone. Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `ask`, `decision`, `triage`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
 
 | Source | Emits |
 |---|---|
-| Skills (lead), through `loops run …` | `phase`, `loop_back`, `verdict`, `proof`, `memory`, `note`, `pr`, `ask`, `decision`, `end` |
+| Skills (lead), through `loops run …` | `phase`, `loop_back`, `verdict`, `proof`, `memory`, `note`, `pr`, `ask`, `decision`, `triage`, `end` |
 | Hook `trace` (PostToolUse, PostToolUseFailure) | `step`, with `agent_id`/`agent_type`, so steps land in their lane |
 | Hook `post-edit` (PostToolUse on Edit/Write/MultiEdit; alias `go-post-edit`) | `step` with the pack's single-file format and lint result (Go: gofmt/goimports + go vet) |
 | Hook `trace-agent` (SubagentStart, SubagentStop) | `agent_start`, `agent_stop` |
@@ -348,7 +408,9 @@ The CLI commands that write these events:
 - `loops run ask [<list>]`: records the checkpoints (phase names, `approve`, `pr`, `all` or `none`; no list = `.loops/config.json` `ask`) and prints them.
 - `loops run checkpoint <phase>`: prints `ask` when the lead stops for the user at that phase, else `auto`. Writes nothing.
 - `loops run decide --topic T --note text [--by lead|user] [--ref f] [--phase P]`: records a decision.
-- `loops run brief [--json]`: prints the lead's re-anchor: the run, the charter, the phase path, checkpoints, running agents, open failures, the gate, the latest decisions and the next step. Writes nothing.
+- `loops run brief [--json]`: prints the lead's re-anchor: the run, the charter, the phase path, checkpoints, the triage, running agents, open failures, the gate, the latest decisions and the next step. Writes nothing.
+- `loops run triage --kind K --files N [--langs N] [--touches a,b] [--unclear] [--keep s,…] [--skip s,…] [--reason r]`, `loops run triage --recheck --files N [--touches …]`, `loops run triage --full`: records the tier and the skipped steps (§2.8) and prints them. Exit 2 on a bad flag, an unknown kind, touch or step (`gate` is never a step), or `--keep`/`--skip` without `--reason`.
+- `loops run step <step>`: prints `skip` when the run skips that step, else `run`. Writes nothing.
 - `loops run event --kind K [--name --target --from --to --status --ok --round --wave --role --agent --model --ref --note --phase --ms]`
 - `loops run loopback --from R --to A --round N [--note] [--phase]`
 - `loops run verdict --name X --status S [--round N] [--ref f] [--agent A] [--role R]`
@@ -442,10 +504,10 @@ Lessons reach the next run through one **memory store**, picked per run. Both ki
 
 A run is done when every item below holds. (Adapted from the rimworld-go MASTER_SPEC §70.)
 
-1. Every AC is `VERIFIED` with a proof.
+1. Every AC is `VERIFIED` with a proof (with `product-proof` skipped, §2.8: the test or gate check `pr.md` maps it to).
 2. Behaviour is implemented in its owning layer (`specs/ARCHITECTURE.md`), and `loops arch` reports no errors.
 3. Every new or changed module has unit tests, including failure paths; new-code coverage is at least 70% (`loops gate` coverage, `specs/TESTING.md §8.1`); all tests run under the pack's race policy (§6).
-4. Every claim is verified by QA, the quality pass is `VERIFIED` (`specs/ENGINEERING.md §13`; a tool that isn't installed is noted, not required), the security pass is `VERIFIED` (§2.4), and `loops gate` is green for every detected pack.
+4. Except for the steps triage skipped (§2.8): every claim is verified by QA, the quality pass is `VERIFIED` (`specs/ENGINEERING.md §13`; a tool that isn't installed is noted, not required), the security pass is `VERIFIED` (§2.4), and `loops gate` is green for every detected pack.
 5. Consistency impact is stated (ordering, idempotency, clock and RNG, migrations), with `skills/consistency` followed where it applies.
 6. Performance is measured (a benchmark before and after) if a hot path changed.
 7. Compatibility is analysed: API, persisted schema, config, migrations, and the manifest and lockfile when dependencies changed (`specs/REPO_PRACTICES.md §3`).

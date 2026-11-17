@@ -44,7 +44,7 @@ func parseFlagsAnywhere(fs *flag.FlagSet, args []string) ([]string, error) {
 // exits 1 (env prints nothing and exits 0).
 func (a *App) cmdRun(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(a.Err, "usage: loops run start|phase|event|label|loopback|verdict|override|ask|checkpoint|decide|brief|end|dir|env|clean …")
+		fmt.Fprintln(a.Err, "usage: loops run start|phase|event|label|loopback|verdict|override|ask|checkpoint|decide|brief|triage|step|end|dir|env|clean …")
 		return 2
 	}
 	sub, rest := args[0], args[1:]
@@ -71,6 +71,10 @@ func (a *App) cmdRun(ctx context.Context, args []string) int {
 		return leadCmd{a}.decide(ctx, rest)
 	case "brief":
 		return leadCmd{a}.brief(ctx, rest)
+	case "triage":
+		return leadCmd{a}.triage(ctx, rest)
+	case "step":
+		return leadCmd{a}.step(ctx, rest)
 	case "end":
 		return a.runEnd(ctx, rest)
 	case "dir":

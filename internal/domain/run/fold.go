@@ -92,6 +92,11 @@ func Fold(events []Event) State {
 			s.Ask, _ = ParseAsk(e.Note) // recorded by `loops run ask`, which validates; unknown names are dropped
 		case KindDecision:
 			s.Decisions = append(s.Decisions, DecisionInfo{Phase: vphase(&s, e), By: e.From, Topic: e.Name, Note: e.Note, Ref: e.Ref, At: e.Time})
+		case KindTriage:
+			var t Triage
+			if json.Unmarshal([]byte(e.Note), &t) == nil {
+				s.Triage = t
+			}
 		case KindPR:
 			s.PR = e.Ref
 		case KindEnd:

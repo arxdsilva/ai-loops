@@ -62,9 +62,10 @@
 {{end}}</tbody></table></div>
 </section>{{end}}
 
-{{if or .S.Decisions .S.Ask}}<section id="decisions">
+{{if or .S.Decisions .S.Ask .S.Triage.Tier}}<section id="decisions">
 <h2>Decisions</h2>
 <p>Checkpoints: {{if .S.Ask}}{{range $i, $p := .S.Ask}}{{if $i}}, {{end}}{{$p}}{{end}}{{else}}none (the lead decided every phase){{end}}</p>
+{{if .S.Triage.Tier}}<p>Triage: <b>{{.S.Triage.Tier}}</b>{{if .S.Triage.Full}} (full){{end}}{{if .S.Triage.Recheck}} (rechecked){{end}} <span class="mut">{{.S.Triage.Signals}}</span>; skipped: {{if .S.Triage.Skip}}{{range $i, $s := .S.Triage.Skip}}{{if $i}}, {{end}}{{$s}}{{end}}{{else}}none{{end}}; the gate always runs.</p>{{end}}
 {{if .S.Decisions}}<div class="tablewrap"><table>
 <thead><tr><th>Phase</th><th>By</th><th>Topic</th><th>Decision</th></tr></thead>
 <tbody>
