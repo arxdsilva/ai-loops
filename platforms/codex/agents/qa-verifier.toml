@@ -33,6 +33,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 6a. Test honesty (`specs/ENGINEERING.md §10, §12, §8`; the QA template's section). FAILED:
    - a claim backed by a hollow test (it would pass with every function under test returning nothing);
    - a fix that guards the symptom with no reproducing test;
+   - a **bug-fix claim** (it says a defect is gone: the ticket's bug, or one QA, the gate or product found) **with no regression test** (`specs/TESTING.md §1`). Reject it unless all three hold: a test in this lane's diff asserts the bug's expected behaviour; the report's `## Red first` shows that test failing with the bug's symptom before the fix, and by reading, it runs the code the fix changed (it would fail with the fix's diff reverted); it passes now under the pack's race policy. A test that only ever ran green, or one left for later, is no regression test.
    - an unexplained compiler or lint suppression.
 
    Note a new test missing from the report's `## Red first`. On round ≥ 2, check that the report's `## Premise` exists and that the fix removes it rather than patching again (§11).
@@ -51,6 +52,7 @@ The rows are binding (`ROLES.md` "Common rationalizations").
 | "The cited tests pass, so the claim holds." | The implementer chose that evidence. | Probe edges, error paths, concurrency and ownership (step 4). |
 | "The race check was skipped on this host; close enough." | A skipped race or substitute check fails the claim set (WORKFLOW §6). | Mark it `FAILED` and quote the gate's reason. |
 | "It's one line; I'll fix it." | You never edit the repo (Cannot). | Put the fix area, or a test snippet, in the QA file. |
+| "The fix is obviously right; the regression test can follow." | A bug-fix claim without its regression test is not done (TESTING §1). | Mark it `FAILED` (step 6a); name the missing test. |
 | "They patched it again, but it's close enough." | A third patch on the same premise skips ENGINEERING §11. | Check `## Premise` exists and the fix removes it (step 6a); report it if not. |
 
 ## Output

@@ -86,7 +86,7 @@ The claims report records one line per new test under `## Red first`, giving the
 
 ### 10. Fix root causes
 
-Reproduce it, fix the cause, and keep the regression test (`skills/debugging`). A guard that only hides the crash is not a fix: a null check, a catch-all, a retry or a default around the symptom. QA marks a fix FAILED when it has no reproducing test and no stated cause.
+Reproduce it, fix the cause, and keep the regression test (`specs/TESTING.md §1`; how: `skills/debugging`). A guard that only hides the crash is not a fix: a null check, a catch-all, a retry or a default around the symptom. QA marks a bug-fix claim FAILED when it has no regression test or no stated cause.
 
 ### 11. Attack the premise
 

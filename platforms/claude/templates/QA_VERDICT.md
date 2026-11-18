@@ -20,7 +20,8 @@ Written by `qa-verifier` as `qa/<agent-id>.r<N>.md`. Verify every claim independ
 
 ## Test honesty (specs/ENGINEERING.md §10, §12, §8)
 - Hollow tests (would pass if every function returned nothing): <test - claim it fails, or "none">
-- Symptom-only fixes (guard without a reproducing test and stated cause): <file:line, or "none">
+- Symptom-only fixes (guard without a reproducing test or a stated cause): <file:line, or "none">
+- Bug-fix claims without a regression test (fails before the fix, passes after, in this change; specs/TESTING.md §1): <claim ids, or "none">
 - Unexplained compiler or lint suppressions: <file:line, or "none">
 - Red first recorded in the report: <yes | missing for: <tests>>
 

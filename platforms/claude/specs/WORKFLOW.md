@@ -131,6 +131,7 @@ Flags on `/loops:work`:
   The verifier also lists **unclaimed problems** it found. It also checks **test honesty** (`specs/ENGINEERING.md §10, §12, §8`):
   - a test that would still pass with every function under test returning nothing fails the claim it supports;
   - a fix that only guards the symptom, with no reproducing test, fails;
+  - a bug-fix claim without a regression test (`specs/TESTING.md §1`) fails;
   - an unexplained compiler or lint suppression fails.
 - For each verdict, record `loops run verdict --name <agent-id>:C<n> --status VERIFIED|FAILED --round N --ref qa/<file>`.
 - When anything has FAILED:

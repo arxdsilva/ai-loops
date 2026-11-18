@@ -55,7 +55,7 @@ Threshold-driven behaviour ships a no-flap test (`skills/jobs-and-state-machines
 
 ## Regression rule
 
-For a bug: reproduce; add a failing test or fixture; fix; verify the test passes; keep the regression artifact. Never weaken or delete a test to get green; if a test is wrong, say so in the claims report.
+Every bug fix ships with a regression test that fails before the fix and passes after it, in the same change (TESTING §1). The five steps that get you there are in `skills/debugging`. Never weaken or delete a test to get green; if a test is wrong, say so in the claims report.
 
 ## Coverage (hard gate)
 

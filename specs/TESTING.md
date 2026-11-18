@@ -11,7 +11,9 @@ The universal test rules, and the hard test gate every language pack enforces. E
 | Integration | real adapters wired together, where needed | real dependencies in containers | test-engineer |
 | End-to-end | the running service through its real interface | none | test-engineer; product-reviewer's proofs |
 
-Most tests are unit tests. A bug fix starts with a failing test at the lowest level that reproduces it. Layer rules: `specs/ARCHITECTURE.md §24`.
+Most tests are unit tests. Layer rules: `specs/ARCHITECTURE.md §24`.
+
+**Every bug fix ships with a regression test**: a test that fails before the fix and passes after it, at the lowest level that reproduces the bug. It is written first, so its failure shows the bug (the claims report's `## Red first` line), and it is part of the same change as the fix, so it lands in the same commit (`specs/ENGINEERING.md §18`). A bug fix is any change that claims a defect is gone: the ticket's bug, or one found by QA, the gate or the product review. A fix without its regression test is not done, and QA fails the claim (`specs/ENGINEERING.md §10`). How to find the bug and write the test: `skills/debugging`.
 
 ## 2. Recognition
 

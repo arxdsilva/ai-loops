@@ -19,6 +19,7 @@ Agent: <agent-id> | Role: <role> | Wave: <n>
 
 ## Red first (specs/ENGINEERING.md §7)
 - <test name> failed before the change: <the failure, one line> | or: refactor pinned by <tests> (no new behaviour)
+- A bug-fix claim cites its regression test as evidence, and that test has a line here showing the bug (specs/TESTING.md §1).
 
 ## Tests and coverage
 - `<command>` -> <pass/fail>, coverage <n>% for <pkg> (before <m>%)
