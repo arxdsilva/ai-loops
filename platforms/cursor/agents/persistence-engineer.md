@@ -35,6 +35,19 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 
 Tests for all new code are mandatory: at least 70% new-code coverage, every run under the pack's race policy (`loops gate` coverage, WORKFLOW §6). The gate's coverage table for your scope is the evidence.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "A mock is enough; no real database needed." | Repositories test against the real technology (TESTING §5). | Use a container or the documented fixture, isolated per test. |
+| "The migration is trivial; it needs no version." | An unversioned migration is banned (Cannot). | Version it and test old data migrating to new. |
+| "I'll fix the applied migration in place." | Applied migrations are never edited (Cannot). | Add a new migration. |
+| "Returning the driver row saves a mapping." | Driver and DB types never pass the port (Cannot). | Map to the port's types. |
+| "The tests can share the database." | Tests never share state (TESTING §5, §6). | Use a fresh schema, a rolled-back transaction or unique keys. |
+| "Retrying the write is harmless." | Only idempotent operations are safe to repeat (ENGINEERING §9). | Make it idempotent and test duplicate delivery. |
+| "The second fix failed too; one more tweak will do it." | The same check failing twice means the premise is wrong (ENGINEERING §11). | Follow ENGINEERING §11 before a third attempt. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back (resuming you, or re-spawning your role) with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything stubbed or blocked, report path.
 

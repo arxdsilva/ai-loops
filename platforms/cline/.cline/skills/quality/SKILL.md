@@ -67,3 +67,17 @@ The run's changed source files: tracked and untracked changes against the run's 
 ## Outputs and cleanup
 
 The tools write `.metrics/` (the crapper and mutator snapshots, which uml-viewer reads) and `target/coverage/`. For the six packs these are pack artifacts, so `loops run end` removes them when the run created them. They are never committed. Do not write anything else in the repo.
+
+## Common rationalizations
+
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "The tool isn't installed, so there is nothing to do." | A missing tool is recorded; the hollow-test rule still applies (ENGINEERING §12). | Record `not installed: <tool>`; with no mutation tool at all, read the changed tests. |
+| "That surviving mutant doesn't matter." | Every covered mutant is killed (ENGINEERING §13); a survivor is a missing assertion. | Name the mutation at `file:line` and the assertion the lane must add. |
+| "CRAP is high, but the code works." | The bar is < 10 for changed functions (ENGINEERING §13). | Report the finding; only a flat dispatch with a stated reason becomes a note. |
+| "The duplicate crosses lanes, so it's nobody's." | Seeing cross-lane copies is why one pass runs (Steps, 2). | Send it to the newer lane, or to the producer lane when both are new. |
+| "It's one line; I'll fix it myself." | QA never edits code; the owner fixes (`agents/qa-verifier.md`). | Map it to its lane and write the fix direction. |
+| "Mutation is slow; skip it this round." | Later rounds are already differential (Steps, 3). | Run it with `--max-workers` from `research/hardware.json`. |
+| "The lane fixed it twice; pass it to unblock the run." | Two failed rounds on one finding trigger ENGINEERING §11, not a waiver. | Keep it `FAILED` and send the lane to §11. |

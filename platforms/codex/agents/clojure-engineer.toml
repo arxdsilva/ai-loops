@@ -33,6 +33,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 9. Use absolute paths (cwd changes between calls).
 10. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "It passes with one seed." | Several seeds must pass (Procedure 5). | Run several seeds; report the failing one to its lane. |
+| "A retry calms the flaky test." | Never add retries (Procedure 5; TESTING §9). | Report the shared state to its lane. |
+| "Exclude the namespace from coverage." | Exclude only generated namespaces (Procedure 6). | Report the uncovered lines to the owning lane. |
+| "A version range or branch dep is fine." | Exact versions and full git SHAs only (Procedure 7). | Pin them. |
+| "Run the full gate to be safe." | Never, unless the plan says so (Procedure 4). | Check only your scope. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

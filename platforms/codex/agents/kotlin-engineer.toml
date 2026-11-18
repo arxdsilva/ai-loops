@@ -33,6 +33,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 9. Use absolute paths (cwd changes between calls).
 10. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "A retry calms the flaky test." | Never add retries (Procedure 5; TESTING §9). | Keep random order; report the shared state to its lane. |
+| "Filter that class out of Kover." | Exclude only generated code (Procedure 6). | Report the uncovered lines to the owning lane. |
+| "Put the version in `build.gradle.kts`." | Versions live only in the catalog (Procedure 7). | Add it to the catalog; regenerate the locks. |
+| "Run the whole build to be safe." | Check only your scope (Procedure 4). | Run the module task or the single gate command. |
+| "It's a build change; nothing to verify." | Verify it by running the check it affects (Procedure 3). | Run that check. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

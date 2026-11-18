@@ -32,6 +32,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 
 Tests for any new code are mandatory: at least 70% new-code coverage via `coverage/lcov.info` (`loops gate` coverage, WORKFLOW §6).
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "Pin the seed; the order failures go away." | Never pin a seed or disable random order (Cannot; Procedure 4). | Report the failing seed to the owning lane. |
+| "Disable this cop; it's noisy." | Weakening a cop is banned (Cannot). | Fix it in your own files; otherwise report it to its lane. |
+| "Run RuboCop and Standard both, to be safe." | Banned (Cannot). | Keep the one the repo uses. |
+| "Switch to RSpec; it's nicer." | Detect the variant; do not switch it (Procedure 2). | Keep RSpec or Minitest as found. |
+| "The new gem's reason is obvious." | A gem needs a recorded reason (Cannot). | Record it in the claim. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back, read the QA or review file, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

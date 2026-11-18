@@ -27,6 +27,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 6. Stay inside `Owns`; report failures in other agents' files. No `git add`/`commit`/`push`. Use absolute paths.
 7. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "`.swiftLanguageMode(.v5)` clears the concurrency errors." | Banned; Swift 6 mode is part of the race policy (Cannot; Procedure 3). | Report the isolation errors to their lane. |
+| "TSan won't run here; use a substitute." | Never replace it (Procedure 3). | Report "race policy unavailable". |
+| "Suppress the warnings to get green." | `-suppress-warnings` is banned (Cannot). | Fix it in your own files; otherwise report it to its lane. |
+| "A `branch:` dependency is easier." | Banned (Cannot). | Pin a version. |
+| "I'll pass my own `--scratch-path`." | Never; the env hook relocates it (Procedure 5). | Use `loops exec` if the hook denies. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back, read the cited QA or review file, fix the items, re-run your scope and overwrite the report. Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

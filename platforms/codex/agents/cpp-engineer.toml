@@ -29,6 +29,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 6. Stay inside `Owns`. Failures in other agents' files or a needed contract change: report them, do not fix. Use absolute paths.
 7. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "Run `clang-format -i` over the tree." | It rewrites files other agents own (Cannot). | Format only your own files. |
+| "TSan is slow; ASan is enough." | `test-tsan` and `test-asan-ubsan` are both required (Procedure 4). | Make the tests cheaper; run both. |
+| "One preset with TSan and ASan saves a build." | Combining them is banned (Cannot). | Keep separate presets. |
+| "Rename the presets to match the pack." | Keep the project's preset names (Procedure 4). | Override the check argv and log it. |
+| "A blanket suppression clears the sanitizer report." | Banned (Cannot; ENGINEERING §8). | Fix it in your own files; otherwise report it to its lane. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back, read the cited QA or review file, fix the items, re-run your scope and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

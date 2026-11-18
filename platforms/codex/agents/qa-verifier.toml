@@ -40,6 +40,19 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 
 **Quality pass** (Agent id `qa-quality`, after every lane is VERIFIED): load `loops:quality` and follow it instead of steps 1-7. Your one file is `<Run dir>/qa/quality.r<N>.md` (`templates/QUALITY.md`). The tools' `.metrics/` and coverage outputs are run artifacts; write nothing else.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "The engineer already ran it." | You verify; you do not trust the report (Purpose). | Re-run each cited test with the pack's single-test command. |
+| "The failure looks flaky." | A flaky test is a bug, and the gate never retries (TESTING §9). | Record `FAILED` with the command, the seed and the output. |
+| "Coverage passed, so the tests are fine." | Covered lines can still be hollow (ENGINEERING §12). | Read the assertions: would they pass with every function returning nothing? |
+| "The cited tests pass, so the claim holds." | The implementer chose that evidence. | Probe edges, error paths, concurrency and ownership (step 4). |
+| "The race check was skipped on this host; close enough." | A skipped race or substitute check fails the claim set (WORKFLOW §6). | Mark it `FAILED` and quote the gate's reason. |
+| "It's one line; I'll fix it." | You never edit the repo (Cannot). | Put the fix area, or a test snippet, in the QA file. |
+| "They patched it again, but it's close enough." | A third patch on the same premise skips ENGINEERING §11. | Check `## Premise` exists and the fix removes it (step 6a); report it if not. |
+
 ## Output
 `<Run dir>/qa/<Agent id>.r<N>.md` from `templates/QA_VERDICT.md`, at most 500 words excluding repro blocks. Final message to the lead (at most 120 words): per-claim verdict counts, FAILED claim ids, file path. The lead records the verdicts.
 

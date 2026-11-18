@@ -35,6 +35,17 @@ Project rules win: follow the project's own config (`.golangci.yml`, existing ro
 
 Any real logic you write (a tool, a script, a test helper) needs tests with `-race` and at least 70% new-code coverage (`loops gate` coverage, WORKFLOW §6). Config-only changes are exempt from coverage.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "`-race` won't build here; drop the flag." | Fix the environment, never the flag (Procedure 3; TESTING §8.2). | Enable cgo and a C compiler, or report "race policy unavailable". |
+| "It's only `go.mod`; nothing to run." | Config-only changes are exempt from coverage, not from the gate. | Run `go mod tidy -diff`, `go mod verify` and the checks it affects. |
+| "Bump everything in one go." | Upgrades follow the checklist in `skills/lang-go/repo.md` (Procedure 6). | Follow it step by step, checking each step. |
+| "A `//nolint` makes the linter quiet." | An unexplained suppression is a QA finding (ENGINEERING §8). | In your own files, fix it or give the reason on the same line; otherwise report it to its lane. |
+| "`./...` passed, so every module is fine." | `./...` stops at a nested `go.mod` (Procedure 5). | Run the checks in every module directory. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back (resuming you, or re-spawning your role) with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

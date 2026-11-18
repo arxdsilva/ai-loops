@@ -34,6 +34,17 @@ Project rules win: when you follow a project rule over a loops rule (Poetry inst
 
 Real code you write needs tests: at least 70% new-code coverage (`loops gate` coverage, WORKFLOW §6).
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "Drop `-p randomly` to stop the order failures." | Those flags are the race substitute (Cannot; TESTING §8.2). | Fix it in your own files; otherwise report it to its lane. |
+| "An `omit` entry gets coverage over 70%." | Excluding code to pass coverage is banned (Cannot). | Report the uncovered lines to the owning lane. |
+| "A blanket `# type: ignore` gets mypy green." | Banned without a recorded reason (Cannot; ENGINEERING §8). | In your own files, fix it or give the reason on the same line; otherwise report it to its lane. |
+| "Config work needs no failing check." | Config proves itself with a check that fails first (Procedure 4). | Show `uv sync --locked` or `lint-imports` red, then green. |
+| "The global Python is quicker." | Tools run from the project env (Procedure 5). | Use `.venv` or `uv run`. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

@@ -54,3 +54,17 @@ Filter by request ID, entity ID, time range or component. Logging stays observat
 ## Deliverable
 
 The fix leaves a regression test or fixture, a concise root-cause note in the claims report (cause, why it was possible, how the test pins it), and any invariant or doc update the cause revealed. No reasoning transcripts.
+
+## Common rationalizations
+
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "I know what it is; no need to reproduce it." | An unreproduced fix cannot be shown to work (ENGINEERING §10). | Reproduce it at the cheapest level first. |
+| "A null check stops the crash." | A guard around the symptom is not a fix (ENGINEERING §10). | Find the first divergence and fix the cause. |
+| "It only fails sometimes; it's flaky." | A flaky test is a bug (TESTING §9). | Repeat it under the race policy with the failing seed until it reproduces. |
+| "I'll add the regression test after the fix." | A test written after the fix never showed its red (ENGINEERING §7). | Write the failing test or fixture before the fix (step 5). |
+| "More logs will find it." | A log dump is not a repro (`specs/CONTEXT_DISCIPLINE.md §27`). | Narrow by layer and reduce the input (steps 3-4). |
+| "It passed once, so it's fixed." | One green run proves little for an intermittent bug. | Verify repeatedly: shuffled order, the failing seed, the race policy (step 7). |
+| "The second fix failed too; one more tweak will do it." | The same check failing twice means the premise is wrong (ENGINEERING §11). | Follow ENGINEERING §11 before a third attempt. |

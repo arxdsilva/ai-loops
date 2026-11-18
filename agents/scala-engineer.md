@@ -31,6 +31,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 6. Use absolute paths (cwd changes between calls).
 7. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "Repeat the tests once, to save time." | Never reduce the repeats or the parallelism (Procedure 3). | Make the tests cheaper. |
+| "Turn off `-Werror` for this warning." | Weakening a compiler flag is banned (Cannot). | Fix it in your own files; otherwise report it to its lane. |
+| "Bring in another build tool or effect system." | Mixing them is banned (Cannot). | Keep the project's. |
+| "Restyle scalafmt to fit my edit." | Keep the project's style (Procedure 2). | Format to the existing config. |
+| "The coverage report is probably there." | Confirm the Cobertura file exists (Procedure 4). | Run the coverage task once and check the path. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back, read the QA or review file, fix the cited items, re-run your scope and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

@@ -31,6 +31,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 6. Stay inside `Owns`. Failures in other agents' files, or a needed contract change: report them, do not fix. No `git add`/`commit`/`push`. Use absolute paths.
 7. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "Lower the analyzer severity to get green." | Banned (Cannot). | Fix it in your own files; otherwise report it to its lane. |
+| "Turn off xUnit parallelism; the tests interfere." | Parallel collections carry the race substitute (Cannot; Procedure 4). | Report the shared state to its lane. |
+| "Drop `TreatWarningsAsErrors` for now." | Banned (Cannot). | Fix it in your own files; otherwise report it to its lane. |
+| "Pin the version in the `.csproj`; it's quicker." | Versions live only in `Directory.Packages.props` (Procedure 3). | Pin it there. |
+| "VSTest or MTP, either will do." | The repo's runner decides (Procedure 2). | Detect it from `global.json` and the references. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, overrides logged, anything blocked, report path.
 

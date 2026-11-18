@@ -30,6 +30,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 7. Use absolute paths (cwd changes between calls).
 8. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "Force serial tests to stop the failures." | That silences the race substitute (Cannot). | Keep parallel, random order; report the shared state to its lane. |
+| "Lower the coverage minimum just this once." | Loosening a gate is banned (Cannot; TESTING §8.1). | Report the uncovered lines to the owning lane. |
+| "The host can't run parallel tests; skip the check." | Never skip it (Procedure 4). | Report "race policy unavailable". |
+| "Upgrade the JDK and the framework together." | One step at a time, gate green between (Procedure 5). | JDK, then framework, then plugins. |
+| "Point `JAVA_HOME` at my JDK to make it build." | Never set it or relocate `~/.m2` (Procedure 5). | Run the wrapper in the run-scoped environment. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back with a QA or review file path: read it, fix the cited items, re-run `loops gate`, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, what you added or upgraded, blockers, report path.
 

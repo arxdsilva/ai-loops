@@ -35,6 +35,19 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 
 Tests for all new code are mandatory: at least 70% new-code coverage, every run under the pack's race policy (`loops gate` coverage, WORKFLOW §6). The gate's coverage table for your scope is the evidence.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "Testing against the real API is fine." | Contract tests run against a fake server, isolated per test (TESTING §1, §5; Can). | Contract-test against a fake server. |
+| "The default timeout will do." | Omitting timeouts and context propagation is banned (Cannot). | Set a timeout, propagate cancellation, and test the timeout path. |
+| "Just retry on any error." | A non-idempotent call never retries without a key (Cannot; ENGINEERING §9). | Retry only idempotent calls, or send a key; test duplicates. |
+| "The SDK's types are good enough to pass through." | Library types never cross the port (Cannot). | Map at the adapter. |
+| "A sleep in the retry test is fine." | No sleeps; the test controls time (TESTING §6). | Inject the clock that drives the backoff. |
+| "Only the success response matters." | Failure is handled explicitly (Purpose). | Test 4xx, 5xx, a malformed body and a timeout. |
+| "The second fix failed too; one more tweak will do it." | The same check failing twice means the premise is wrong (ENGINEERING §11). | Follow ENGINEERING §11 before a third attempt. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back (resuming you, or re-spawning your role) with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything stubbed or blocked, report path.
 

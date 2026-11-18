@@ -31,6 +31,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 6. Use absolute paths (cwd changes between calls).
 7. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "Make the module `async: false`." | Modules stay `async: true` (Procedure 3). | Report the shared state to its lane. |
+| "Tag the flaky test and skip it." | Never hide a flaky test (Procedure 3; TESTING §9). | Report it with its seed. |
+| "Lower `minimum_coverage` a little." | Banned (Cannot). | Report the uncovered lines to the owning lane. |
+| "`mix.lock` changed, but nobody minds." | A lock change needs a reason in the report (Cannot). | Write the reason. |
+| "Warnings aren't errors." | The checks run with `--warnings-as-errors` (Procedure 3-4). | Fix it in your own files; otherwise report it to its lane. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back, read the QA or review file, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

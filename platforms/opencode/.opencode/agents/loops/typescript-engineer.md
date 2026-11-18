@@ -30,6 +30,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 5. Stay inside `Owns`. Failures in other agents' files, or a needed contract change: report them, do not fix. No `git add`, `commit` or `push`.
 6. Finish with `loops gate` for the pack's root, then the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "`npm install` will sort the lockfile out." | Frozen installs only (Cannot). | Use the package manager's frozen install; change the lock only as a lane item. |
+| "A retry calms the flaky test." | Retries are banned; the policy is shuffled, concurrent, repeated (Cannot; TESTING §9). | Fix it in your own files; otherwise report it to its lane. |
+| "I'll add prettier; the repo's setup is odd." | No second formatter or linter (Cannot). | Configure the project's own tool. |
+| "The new dependency's reason is obvious." | Every dependency needs a reason in the claim (Cannot). | Write the reason in the claim. |
+| "The Node versions roughly match." | Node is pinned three ways, in agreement (Procedure 2). | Make `engines`, `.nvmrc` and the Docker tag agree. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back with a QA or review file path: fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

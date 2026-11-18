@@ -66,3 +66,18 @@ Reading the coverage table: each row is a changed package, module or file with i
 ## Per language
 
 The test runner, coverage format, race mode and substitute of each pack live in `specs/languages/<id>/pack.json` (`loops lang show <id>`) and `skills/lang-<id>/testing.md`. `loops lang list` shows every pack's race mode and coverage format. A language with no pack has no gate: say so in the claims report.
+
+## Common rationalizations
+
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "I'll add the tests later." | Strict TDD puts the test first, and it must show its red (ENGINEERING §7). | Write the failing test now and record it under `## Red first`. |
+| "This change is too small to test." | Triage skips steps, never the gate or its coverage floor (WORKFLOW §2.8, TESTING §8). | A small code change gets a small test. |
+| "The race detector is slow." | The race policy has no opt-out (TESTING §8.2). | Make the tests cheaper and scope the run with `--pkgs <owned>`. |
+| "Coverage is already high." | 70% is a floor on new code, and a hollow test covers lines too (ENGINEERING §12). | Assert behaviour on every new path. |
+| "It's flaky; a retry will settle it." | A flaky test is a bug, and the gate never retries (TESTING §9). | Fix its isolation or its race in this change. |
+| "A short sleep makes it pass." | A test controls time; sleeps hide ordering bugs (TESTING §6). | Inject the clock and wait on a completion signal. |
+| "This code can't be tested honestly." | A dishonest test written to reach the floor is worse than none (ENGINEERING §7). | Move the decision into a pure function behind its boundary and test that. |
+| "The test is wrong, so I'll loosen it." | Never weaken or delete a test to get green (TESTING §9). | Say so in the claims report; the lead decides. |

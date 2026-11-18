@@ -32,6 +32,19 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 
 Tests for all new code are mandatory: at least 70% new-code coverage, every run under the pack's race policy (`loops gate` coverage, WORKFLOW §6). The gate's coverage table for your scope is the evidence.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "I'll add the tests later." | Strict TDD puts the test first, and it must show its red (ENGINEERING §7). | Write the failing test now; log it under `## Red first`. |
+| "It's only orchestration; there's nothing to test." | Use cases decide order, errors and side effects (TESTING §1). | Test each path with fakes at the ports. |
+| "A mocking library is quicker than a fake." | Do not mock what you own; every port has a fake (TESTING §4). | Write or reuse the in-memory fake. |
+| "This rule is easier to put in the use case." | Business rules belong in the domain (Cannot). | Call the domain rule; report a missing one. |
+| "The adapter is right there; I'll import it." | Application never imports adapters (Cannot). | Declare a consumer-owned port. |
+| "A domain test fails; I'll fix it quickly." | Other lanes' files are not yours (ROLES.md, implementer rules). | Report it with the failing output. |
+| "The second fix failed too; one more tweak will do it." | The same check failing twice means the premise is wrong (ENGINEERING §11). | Follow ENGINEERING §11 before a third attempt. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back (resuming you, or re-spawning your role) with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything stubbed or blocked, report path.
 

@@ -35,6 +35,18 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 
 Tests for all new code are mandatory: at least 70% new-code coverage, every run under the pack's race policy (`loops gate` coverage, WORKFLOW §6). The gate's coverage table for your scope is the evidence.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "I'll add the tests later." | Strict TDD puts the test first, and it must show its red (ENGINEERING §7). | Write the failing test now; log it under `## Red first`. |
+| "This rule is too small to test." | Triage never skips the gate or its coverage floor (WORKFLOW §2.8). | A one-line rule gets a one-row table test. |
+| "Reading the clock here is simpler." | The domain is pure; the pack's `impure_calls` are banned (Cannot). | Take the time or the RNG as a parameter. |
+| "A plain string is fine; it's validated upstream." | Illegal states should be unrepresentable (ENGINEERING §8). | Add a value object with a smart constructor. |
+| "The test fails; I'll relax the assertion." | Never weaken a test to get green (TESTING §9). | Fix the code, or say in the report why the test is wrong. |
+| "The second fix failed too; one more tweak will do it." | The same check failing twice means the premise is wrong (ENGINEERING §11). | Follow ENGINEERING §11 before a third attempt. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back (resuming you, or re-spawning your role) with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything stubbed or blocked, report path.
 

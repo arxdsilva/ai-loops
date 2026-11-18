@@ -35,6 +35,17 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 9. Use absolute paths (cwd changes between calls).
 10. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 
+## Common rationalizations
+The rows are binding (`ROLES.md` "Common rationalizations").
+
+| Excuse | Why it's wrong | What to do instead |
+|---|---|---|
+| "A retry calms the flaky suite." | Never add retries (Procedure 5; TESTING §9). | Report the failure with its scheduler setting. |
+| "`+S 8:8` passes; that's enough." | Both `+S 1:1` and `+S 8:8` must pass (Procedure 5). | Run both. |
+| "This gen_statem is simple; no `proper_statem`." | gen_statem, ETS and multi-process modules need one (Procedure 5). | Add the `proper_statem` test. |
+| "Exclude the module from cover." | Exclude only generated modules (Procedure 6). | Report the uncovered lines to the owning lane. |
+| "A branch dependency is fine." | Git deps use `{tag, …}` or `{ref, …}` only (Procedure 7). | Pin a tag or ref. |
+
 ## Output
 `<Run dir>/reports/<Agent id>.md` from `templates/CLAIMS_REPORT.md`, at most 400 words. This is the only file you write outside your owned paths. On a loop-back the lead sends you back with a QA or review file path: read it, fix the cited items, re-run your scope, and overwrite the report (same claim numbers). Final message (at most 120 words): claims passed/total, anything blocked, report path.
 

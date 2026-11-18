@@ -57,6 +57,10 @@ The lead is the main session, not a plugin agent: the run's master agent, which 
 
 The target project's own rules always take precedence over loops rules (WORKFLOW §1). When you follow one instead of a loops rule, record it right away with `loops run override --rule … --project … --note …`. The reflector writes `overrides.md`; it, or the product-reviewer when reflect ran first, posts it as a PR comment (WORKFLOW §2.6).
 
+## Common rationalizations (engineers and QA)
+
+The layer and language engineers (`agents/*-engineer.md`), the `qa-verifier`, and the skills `loops:testing`, `loops:quality` and `loops:debugging` each carry a **Common rationalizations** table. Each row is an excuse for skipping a step, why it is wrong, and what to do instead. The rows are binding, not advice: when your reasoning matches the left column, do the right column. Each row cites the rule it defends and adds no rule of its own; if a row and its rule ever disagree, the rule wins. An excuse still standing after the same check has failed twice is the premise to drop (`specs/ENGINEERING.md §11`).
+
 ## Rules shared by every implementer (architect and the engineers)
 
 These come from rimworld-go PARALLEL_WORK §3.
