@@ -1,0 +1,40 @@
+diff --git a/internal/domain/pricing/bulk.go b/internal/domain/pricing/bulk.go
+new file mode 100644
+index 0000000..cdeac16
+--- /dev/null
++++ b/internal/domain/pricing/bulk.go
+@@ -0,0 +1,13 @@
++package pricing
++
++// BulkMinQty is the quantity from which a line gets the bulk discount.
++const BulkMinQty = 10
++
++// BulkDiscountCents returns the bulk discount of a line: 10% of its total,
++// rounded down, when it has BulkMinQty items or more; otherwise 0.
++func BulkDiscountCents(l Line) int64 {
++	if l.Qty > BulkMinQty {
++		return int64(l.Qty) * l.UnitCents / 10
++	}
++	return 0
++}
+diff --git a/internal/domain/pricing/bulk_test.go b/internal/domain/pricing/bulk_test.go
+new file mode 100644
+index 0000000..f793d37
+--- /dev/null
++++ b/internal/domain/pricing/bulk_test.go
+@@ -0,0 +1,15 @@
++package pricing
++
++import "testing"
++
++func TestBulkDiscount_TenPercentFromTenItems(t *testing.T) {
++	if got := BulkDiscountCents(Line{SKU: "a", Qty: 25, UnitCents: 120}); got != 300 {
++		t.Fatalf("BulkDiscountCents = %d, want 300", got)
++	}
++}
++
++func TestBulkDiscount_NoneBelowTen(t *testing.T) {
++	if got := BulkDiscountCents(Line{SKU: "a", Qty: 3, UnitCents: 120}); got != 0 {
++		t.Fatalf("BulkDiscountCents = %d, want 0", got)
++	}
++}

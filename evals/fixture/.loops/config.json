@@ -1,0 +1,5 @@
+{
+  "languages": [{ "id": "go", "root": "." }],
+  "gate": { "base": "eval-base" },
+  "update_check": false
+}

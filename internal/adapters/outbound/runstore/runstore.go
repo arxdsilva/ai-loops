@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -154,6 +155,12 @@ func (s *store) Load(ctx context.Context, runID string) ([]run.Event, error) {
 		return nil, err
 	}
 	defer f.Close()
+	return ReadEvents(f), nil
+}
+
+// ReadEvents parses events.jsonl from r, skipping blank, malformed and
+// kind-less lines (readers tolerate a torn last line and unknown fields).
+func ReadEvents(f io.Reader) []run.Event {
 	var out []run.Event
 	r := bufio.NewReaderSize(f, 1<<16)
 	for {
@@ -168,7 +175,7 @@ func (s *store) Load(ctx context.Context, runID string) ([]run.Event, error) {
 			break
 		}
 	}
-	return out, nil
+	return out
 }
 
 func (s *store) currentPath() string { return filepath.Join(s.Base(), "current") }

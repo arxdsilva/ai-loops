@@ -1,0 +1,42 @@
+diff --git a/internal/domain/pricing/refund.go b/internal/domain/pricing/refund.go
+new file mode 100644
+index 0000000..f940cb0
+--- /dev/null
++++ b/internal/domain/pricing/refund.go
+@@ -0,0 +1,36 @@
++package pricing
++
++import "errors"
++
++// ErrRefundTooLarge is returned when a refund would exceed what was paid.
++var ErrRefundTooLarge = errors.New("pricing: refund exceeds payment")
++
++// RefundPolicy decides how much of an unused amount is returned.
++type RefundPolicy int
++
++const (
++	// RefundFull returns every unused cent.
++	RefundFull RefundPolicy = iota
++	// RefundMinusFee keeps a 5% fee (rounded up) on the unused amount.
++	RefundMinusFee
++	// RefundNone returns nothing.
++	RefundNone
++)
++
++// RefundCents returns the refund for an order that paid paidCents and used
++// usedCents of it, under policy.
++func RefundCents(paidCents, usedCents int64, policy RefundPolicy) (int64, error) {
++	if usedCents < 0 || usedCents > paidCents {
++		return 0, ErrRefundTooLarge
++	}
++	unused := paidCents - usedCents
++	switch policy {
++	case RefundFull:
++		return unused, nil
++	case RefundMinusFee:
++		fee := (unused*5 + 99) / 100
++		return unused - fee, nil
++	default:
++		return 0, nil
++	}
++}

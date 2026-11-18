@@ -1,0 +1,8 @@
+{
+  "name": "planted-bug",
+  "title": "QA fails a claim whose code has a subtle boundary bug, in round 1, with a repro",
+  "timeout": "20m",
+  "assertions": [
+    { "kind": "qa_fails_claim", "claim": "W1-pricing:C1", "max_round": 1, "marker": "Repro:" }
+  ]
+}

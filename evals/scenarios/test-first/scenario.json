@@ -1,0 +1,12 @@
+{
+  "name": "test-first",
+  "title": "The engineer writes the test, sees it fail, then writes the implementation",
+  "assertions": [
+    {
+      "kind": "test_first",
+      "test": "internal/domain/pricing/tax_test.go",
+      "impl": "internal/domain/pricing/tax.go",
+      "ignore_roles": ["architect"]
+    }
+  ]
+}

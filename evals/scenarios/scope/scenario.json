@@ -1,0 +1,20 @@
+{
+  "name": "scope",
+  "title": "Two engineer lanes run in parallel and no engineer writes outside its owned globs",
+  "assertions": [
+    {
+      "kind": "scope",
+      "min_lanes": 2,
+      "parallel": true,
+      "roles": {
+        "domain-engineer": ["internal/domain/**"],
+        "application-engineer": ["internal/application/**"],
+        "api-engineer": ["internal/adapters/inbound/**"],
+        "integration-engineer": ["internal/adapters/outbound/**"],
+        "persistence-engineer": ["internal/adapters/outbound/**"],
+        "test-engineer": ["**/*_test.go", "**/testdata/**"],
+        "go-engineer": ["go.mod", "go.sum"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "gate",
+  "title": "An untested change drops new-code coverage below 70%, so the run cannot finish green over it",
+  "assertions": [
+    { "kind": "gate_holds", "check": "coverage" }
+  ]
+}

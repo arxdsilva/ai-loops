@@ -13,9 +13,9 @@ This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and 
 - `npm/`: the zero-dependency `ai-loops` npm launcher (`npx ai-loops [--target <platform>]`, `npx ai-loops bin`). `lib.mjs` is pure and tested by `node --test npm/test/lib.test.mjs`; its version stays `0.0.0` in git and is set from the tag when `release-assets.yml` publishes it (needs the `NPM_TOKEN` secret). `.loops/config.json` pins this repo's gate to the Go pack so `npm/package.json` does not add the TypeScript pack.
 - Other platforms: `specs/PLATFORMS.md`. `platforms/<name>/`, `.agents/plugins/marketplace.json` and `.cursor-plugin/marketplace.json` are **generated** by `go run ./cmd/loops port build` from the canonical sources (embedded through `embed.go`). Never edit them by hand. Regenerate whenever agents/, skills/, specs/, templates/, ROLES.md, hooks/hooks.json or plugin.json change; CI runs `loops port check`.
 - Go tooling, laid out hexagonally:
-  - `internal/domain/{run,archrule,plugin,pack,glob,coverage,workspace,…}`: pure code, no I/O, no wall clock (`pack` = the language-pack schema);
-  - `internal/application/{tracker,guard,gate,archcheck,langpack,ticket,port,…}`: use cases with consumer-owned ports (`port` = per-platform emitters and the install plan; `langpack` = load and detect packs);
-  - `internal/adapters/{inbound/{cli,hook},outbound/{runstore,goparse,gotool,vcs,fsys,htmlreport,portfs}}`;
+  - `internal/domain/{run,archrule,plugin,pack,glob,coverage,workspace,evals,…}`: pure code, no I/O, no wall clock (`pack` = the language-pack schema; `evals` = scenario assertions over a run's events);
+  - `internal/application/{tracker,guard,gate,archcheck,langpack,ticket,port,evalrun,…}`: use cases with consumer-owned ports (`port` = per-platform emitters and the install plan; `langpack` = load and detect packs; `evalrun` = `loops eval`);
+  - `internal/adapters/{inbound/{cli,hook},outbound/{runstore,goparse,gotool,vcs,fsys,htmlreport,portfs,evalbox}}`;
   - `internal/compose/loops` and `cmd/loops` (wiring only).
 
 ## Non-negotiables
@@ -27,6 +27,8 @@ This repo is the **`loops`** Claude Code plugin: skills, role agents, specs and 
 - **Keep docs and code in step.** Specs, skills and agents name only `loops` commands and flags that exist (`internal/adapters/inbound/cli`). When you change a command, update `specs/WORKFLOW.md` §5 and every caller in the same change.
 - **Cite, don't duplicate.** Say each rule once, in its spec, and cite it elsewhere (`WORKFLOW §4`). Skill bodies stay under ~220 lines and agent bodies under ~90.
 - **No game content.** This was extracted from rimworld-go, and nothing game-specific belongs here.
+
+- `evals/`: opt-in behavioural evals of the agents (`loops eval`; `evals/README.md`). `evals/fixture/` is its own Go module, so this repo's test run never builds it. The evaluator's tests use recorded runs in `internal/adapters/outbound/evalbox/testdata/runs/`; CI never runs a live eval (it spends tokens).
 
 - `docs/media/`: the readme's media. Workflow graphic: `python3 docs/media/make_svg.py docs/media`. Terminal demo: `python3 docs/media/make_demo.py docs/media`. Videos: `node docs/media/record.mjs docs/media/<name>.svg <tmp>/frames <secs> 30` (15 for the workflow, 16 for the demo), then encode with ffmpeg into `<name>.mp4` and `<name>.webm`. Report screenshots and the social preview: `node docs/media/shot.mjs <page> <out.png> [w h scale]` (the social card is `social.html` at 1280×640). Keep `llms.txt` and `.claude-plugin/plugin.json`'s description in step with the readme's first paragraph.
 

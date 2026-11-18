@@ -439,6 +439,9 @@ Gates:
 - `loops gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--security] [--fail-fast]`: runs every detected pack's checks (§6). `--only`/`--skip`/`--enable` take check names; `--enable` turns on `default: off` checks; `--vuln` enables the vuln checks; `--security` runs only each pack's security tools (`security.checks`), skips the missing ones and records no gate events (the security pass, §2.4).
 - `loops arch [--json] [--root dir]`: the architecture lint (`specs/ARCHITECTURE.md §25`).
 
+Evals (opt-in; never run by CI, `docs/GUIDE.md` "Behavioural evals"):
+- `loops eval list | <scenario|all> [--run <run dir>] [--evals dir] [--agent "<cmd {prompt} …>"] [--budget usd] [--keep] [--json]`: runs each scenario in `evals/scenarios/` live (a copy of `evals/fixture/` in a temp dir, the agent command, then the newest run it recorded) or, with `--run`, evaluates a run recorded earlier, and checks its `events.jsonl` against the scenario's assertions. Prints `PASS`/`FAIL` per scenario and per assertion. Exit 0 when every scenario passes, 1 when one fails or cannot run, 2 on bad usage. Writes nothing in the project.
+
 Updates:
 - `loops version [--check [--platform p]]`: the version; `--check` asks the module proxy now.
 - `loops update [--platform p] [--apply]`: prints the update command; `--apply` updates the installed plugin (PLATFORMS §9).

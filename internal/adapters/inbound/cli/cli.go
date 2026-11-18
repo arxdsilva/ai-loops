@@ -20,6 +20,7 @@
 //	watch_cmd.go   watch                                           (terminal live view)
 //	version_cmd.go version [--check]                               (release check)
 //	update_cmd.go  update [--platform p] [--apply]                 (update commands; --apply updates the installed plugin)
+//	eval_cmd.go    eval list|<scenario|all> [--run dir]           (behavioural evals over events.jsonl)
 //	cli.go         dispatch, hook, path, version, flag helpers
 package cli
 
@@ -81,8 +82,10 @@ type App struct {
 
 	// Update checks the Go proxy (nil = update features off); UpdateState is
 	// the cached state read by the status line (no network).
-	Update      Updater
-	Release     Releaser // loops release (nil = unavailable)
+	Update  Updater
+	Release Releaser // loops release (nil = unavailable)
+	// Evals runs behavioural evals (nil = unavailable).
+	Evals       Evaluator
 	UpdateState UpdateStore
 	UpdateOff   bool // .loops/config.json "update_check": false
 	// Applier runs `loops update --apply` (nil = unavailable); Plugins reads
@@ -119,6 +122,7 @@ var commands = map[string]command{
 	"plan":    {(*App).cmdPlan, "plan check <plan.md> [--cap n] [--json]   waves vs parallelism cap and scope overlap"},
 	"watch":   {(*App).cmdWatch, "watch [--interval 2s] [--once]   live run view in a terminal (any platform)"},
 	"path":    {(*App).cmdPath, "path [root|specs|templates|skills|agents]"},
+	"eval":    {cmdEval, "eval list | <scenario|all> [--run <run dir>] [--evals dir] [--agent tmpl] [--budget usd] [--keep] [--json]   behavioural evals: run a scenario's agent on the evals/ fixture (live, spends tokens) or check a recorded run, then assert on its events.jsonl"},
 	"release": {cmdRelease, "release [auto|patch|minor|major] [--dry-run] [--push]   bump the version from the commits, regenerate packages, commit and tag"},
 	"version": {(*App).cmdVersion, "version [--check [--platform p]]   print the version; --check asks the Go proxy for the latest release"},
 	"update":  {(*App).cmdUpdate, "update [--platform p] [--apply]   print how to update loops (all platforms when unknown); --apply checks now and runs the platform's update of the installed plugin (specs/PLATFORMS.md §9)"},

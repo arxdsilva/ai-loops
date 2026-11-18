@@ -1,0 +1,11 @@
+{"t":"2026-11-18T10:00:00.000000Z","kind":"run","run":"20261118-1030-ship-the-refund-rule","name":"Ship the refund rule","note":"text"}
+{"t":"2026-11-18T10:00:07.000000Z","kind":"phase","run":"20261118-1030-ship-the-refund-rule","phase":"implement"}
+{"t":"2026-11-18T10:00:14.000000Z","kind":"agent_start","run":"20261118-1030-ship-the-refund-rule","agent":"adom3","role":"domain-engineer"}
+{"t":"2026-11-18T10:00:21.000000Z","kind":"label","run":"20261118-1030-ship-the-refund-rule","agent":"adom3","role":"domain-engineer","name":"W1-domain","wave":1}
+{"t":"2026-11-18T10:00:28.000000Z","kind":"gate","run":"20261118-1030-ship-the-refund-rule","name":"test","ok":true,"ms":700}
+{"t":"2026-11-18T10:00:35.000000Z","kind":"gate","run":"20261118-1030-ship-the-refund-rule","name":"coverage","ok":false,"ms":40,"note":"new code 0.0% (min 70%); uncovered internal/domain/pricing/refund.go:22-36"}
+{"t":"2026-11-18T10:00:42.000000Z","kind":"agent_stop","run":"20261118-1030-ship-the-refund-rule","agent":"adom3","role":"domain-engineer","ok":true,"tokens":28000}
+{"t":"2026-11-18T10:00:49.000000Z","kind":"phase","run":"20261118-1030-ship-the-refund-rule","phase":"qa"}
+{"t":"2026-11-18T10:00:56.000000Z","kind":"gate","run":"20261118-1030-ship-the-refund-rule","name":"coverage","ok":false,"ms":40,"note":"new code 0.0% (min 70%)"}
+{"t":"2026-11-18T10:01:03.000000Z","kind":"gate","run":"20261118-1030-ship-the-refund-rule","name":"all","ok":false}
+{"t":"2026-11-18T10:01:10.000000Z","kind":"end","run":"20261118-1030-ship-the-refund-rule","status":"done"}

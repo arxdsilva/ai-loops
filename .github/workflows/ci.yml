@@ -41,6 +41,8 @@ jobs:
           fi
           echo "coverage base: ${base:-auto}"
           go run ./cmd/loops gate ${base:+--base "$base"}
+      # Live behavioural evals (`loops eval`) are opt-in and never run in CI:
+      # they spend model tokens. The evaluator's tests above use recorded runs.
       - name: generated platform packages are fresh
         run: go run ./cmd/loops port check
       - uses: actions/setup-node@v4

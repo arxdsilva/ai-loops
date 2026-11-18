@@ -13,6 +13,7 @@ The reference behind the [readme](../README.md): installing on every platform, u
 - [Checkpoints and decisions](#checkpoints-and-decisions)
 - [Project rules win](#project-rules-win)
 - [Guardrails (hooks)](#guardrails-hooks)
+- [Behavioural evals](#behavioural-evals)
 - [Under the hood](#under-the-hood)
 - [Layout](#layout)
 
@@ -234,6 +235,33 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
 
 `loops arch` enforces the hexagonal dependency direction and the SOLID rules (`specs/`), with the pack's native tool where one exists. Size limits are reported as warnings only. The old hook names keep working as aliases.
 
+## Behavioural evals
+
+The Go tests cover the `loops` binary; the evals cover the agents. Each scenario in [`evals/scenarios/`](../evals/scenarios) runs a real agent on a copy of a small Go repo ([`evals/fixture/`](../evals/fixture)), then checks the `events.jsonl` that run recorded: every tool call, verdict, gate result and loop-back.
+
+| Scenario | The agents must |
+|---|---|
+| `planted-bug` | fail the lane's claim in QA round 1, with a repro, when its code has a boundary bug its tests miss |
+| `scope` | run two engineer lanes in parallel, each writing only inside its plan `Owns` globs |
+| `test-first` | write the new function's test file, and see it fail, before its implementation |
+| `gate` | not finish a run `done` while new-code coverage is under 70% |
+
+**Cost.** A live eval is a real `/loops:work` run (for `planted-bug`, only its QA step) and spends model tokens: about what the same small ticket would cost in your own project, so `all` costs several runs. `--budget` caps each scenario (USD, default `10`, passed to `claude --max-budget-usd`), and so does the scenario's `timeout` (default 45 minutes). Evals are opt-in: CI never runs them, and nothing else starts them.
+
+**Run them** from a checkout of this repo, with Claude Code installed and logged in:
+
+```bash
+loops eval list                       # the scenarios
+loops eval planted-bug --budget 5     # one scenario (the cheapest: QA only)
+loops eval all                        # every scenario, one after another
+loops eval scope --keep               # keep the sandbox to inspect it
+loops eval gate --run <run dir>       # re-check a run recorded earlier: no agent, no tokens
+```
+
+Each scenario gets a fresh git repo in your temp directory: the fixture is committed on `main`, the scenario's `overlay.patch` is applied without committing, and its `seed/` is copied to `.loops/eval-seed/`. The agent runs there with this checkout loaded as the plugin (`--plugin-dir`, so the evals test your working tree, not the installed copy) and with permissions bypassed. That is why it runs in a throwaway directory, and why you should not point `--evals` at a fixture you don't trust. `--agent "<cmd> {prompt} …"` swaps the agent command (placeholders `{prompt}`, `{plugin}`, `{budget}`, `{dir}`). The output is `PASS` or `FAIL` per scenario and per assertion, then `N/M scenarios passed`. The exit code is 1 when any scenario fails.
+
+**Limits.** The log records the file of an Edit or Write call, but only the command of a Bash call, so `scope` and `test-first` can't see files written through Bash. An assertion that needs an edit and sees none fails. Model runs vary: treat one failure as a reason to read the run (`--keep`, then `loops report` in the sandbox), not as proof. How to add a scenario: [`evals/README.md`](../evals/README.md).
+
 ## Under the hood
 
 ```
@@ -256,6 +284,7 @@ In the QA phase, the `security-reviewer` runs the security pass once per round, 
 - `skills/`: the `work` orchestrator, `init`, `status`, `report`, the reference skills, and one `lang-<id>` skill per language.
 - `specs/`: the workflow spec, the engineering discipline (`ENGINEERING.md`), the language-neutral rules (architecture, SOLID, testing, repository practices), and `specs/languages/<id>/` (pack and rules) per language.
 - `templates/`: what the agents fill in.
+- `evals/`: opt-in behavioural evals of the agents (`loops eval`).
 - `cmd/loops` and `internal/`: the Go tool, stdlib only.
 
 The rules and skills are extracted, game-agnostic, from the rimworld-go agent system.
