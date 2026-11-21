@@ -7,7 +7,7 @@ import (
 )
 
 func TestRoleFilesAtRoot(t *testing.T) {
-	for name, fn := range map[string]emitter{"amp": buildAmp, "cline": buildCline, "windsurf": buildWindsurf} {
+	for name, fn := range map[string]emitter{"amp": buildAmp, "cline": buildCline, "windsurf": buildWindsurf, "antigravity": buildAntigravity} {
 		m, _ := p2Build(t, fn, Options{})
 		qa := m["agents/qa.md"]
 		p2Has(t, qa, "name: qa")

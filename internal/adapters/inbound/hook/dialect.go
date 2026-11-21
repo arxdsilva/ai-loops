@@ -138,6 +138,10 @@ package hook
 //     the bash/powershell toolArgs field names are not documented and the
 //     PascalCase variant says nothing about it. -> DENY (unverified).
 //   - OPENCODE: its plugin does not call go-env. -> DENY if invoked.
+//   - ANTIGRAVITY (https://antigravity.google/docs/hooks): SessionStart,
+//     PreToolUse, PostToolUse, Stop; payload carries toolCall{name,args},
+//     workspacePaths, conversationId. Input rewriting is not documented.
+//     -> DENY (unverified).
 
 import (
 	"encoding/json"

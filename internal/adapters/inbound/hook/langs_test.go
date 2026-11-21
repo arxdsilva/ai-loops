@@ -208,7 +208,7 @@ func TestToolchainEnvPacks(t *testing.T) {
 	if cmd, _, _ := rewritten(t, "claude", out); cmd != "swift build '--scratch-path' '"+rd+"/swift/build' -c release" {
 		t.Fatalf("%q", cmd)
 	}
-	for _, p := range []string{"codex", "cursor", "copilot"} { // never denied, no rewrite
+	for _, p := range []string{"codex", "cursor", "copilot", "antigravity"} { // never denied, no rewrite
 		if c, o, er := e.runP(p, "toolchain-env", bashPayload(p, "cargo test")); c != 0 || o != "" || er != "" {
 			t.Errorf("%s: %d %q %q", p, c, o, er)
 		}

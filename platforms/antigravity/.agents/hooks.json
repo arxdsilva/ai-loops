@@ -1,0 +1,90 @@
+{
+  "loops": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "loops hook post-edit --platform antigravity",
+            "timeout": 60,
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit|Write|MultiEdit"
+      },
+      {
+        "hooks": [
+          {
+            "command": "loops hook trace --platform antigravity",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "loops hook read-guard --platform antigravity",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Read|Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "loops hook test-guard --platform antigravity",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "loops hook toolchain-env --platform antigravity",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "loops hook model-guard --platform antigravity",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Agent|Task"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "loops hook session-start --platform antigravity",
+            "timeout": 120,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "loops hook stop-gate --platform antigravity",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "enabled": true
+  }
+}

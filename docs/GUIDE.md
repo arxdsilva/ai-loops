@@ -36,7 +36,7 @@ That installs `loops` into `~/.local/bin` and places the platform's files. With 
 
 ```sh
 npx ai-loops                         # Claude Code: claude plugin marketplace add + claude plugin install
-npx ai-loops --target <platform>     # copilot, codex, cursor, gemini, opencode, amp, windsurf, cline
+npx ai-loops --target <platform>     # copilot, codex, cursor, gemini, opencode, amp, windsurf, cline, antigravity
 ```
 
 `npx ai-loops` downloads the release binary matching its own version and checks it against `checksums.txt`, like `install.sh`; `--scope`, `--force` and `--bin-dir` work the same. `npx ai-loops bin [--bin-dir dir]` installs only the binary (the Claude plugin-directory package needs it, since it downloads nothing). Any other arguments run that `loops` command (`npx ai-loops report`). Tiers: A resumable subagents, B subagents without resume, C generic subagents, D solo mode ([specs/PLATFORMS.md](../specs/PLATFORMS.md) §4).
@@ -91,19 +91,30 @@ curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh 
 curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target cline
 ```
 
+### Google Antigravity (tier C, installer)
+Covers the Google Antigravity IDE app and CLI (`agy`):
+
+```sh
+npx ai-loops --target antigravity
+# or:
+curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target antigravity
+```
+
+Project scope (default, or `loops install --target antigravity --scope project`) places `.agents/skills/`, `.agents/hooks.json`, and `.loops/plugin/`; user scope (`--scope user`) places `~/.gemini/config/skills/`, `~/.gemini/config/hooks.json`, and `~/.local/share/loops/plugin/`. Rules come from `AGENTS.md` / `GEMINI.md`. Run `/skills reload` after installing or updating; in `agy`, skills also run as `/work`, `/init`, `/status`, `/report`. Generic subagents (`invoke_subagent`) run with role prompts, falling back to solo mode when subagents are unavailable.
+
 ### Capability matrix (condensed)
 
 Full table and notes: [specs/PLATFORMS.md](../specs/PLATFORMS.md) §2. Per-platform run mechanics: [`skills/work/platforms/<platform>.md`](../skills/work/platforms/).
 
-| | Claude | Copilot | Codex | Cursor | Gemini | OpenCode | Amp | Windsurf | Cline |
-|---|---|---|---|---|---|---|---|---|---|
-| Role subagents | yes | yes | yes | yes | yes | yes | generic | solo | solo |
-| Resume same agent | yes | no | no | yes | no | no | partial | no | no |
-| Tool deny / post-edit hooks | yes | yes | yes | yes | yes | shim | no | yes | no |
-| Subagent lanes | yes | yes | yes | yes | labels | labels | labels | labels | labels |
-| Stop gate | yes | yes | yes | yes | yes | no | no | maybe | no |
-| Status line / pane | yes | no | no | no | no | no | no | no | no |
-| `loops watch` / `loops report` | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+| | Claude | Copilot | Codex | Cursor | Gemini | OpenCode | Amp | Windsurf | Cline | Antigravity |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Role subagents | yes | yes | yes | yes | yes | yes | generic | solo | solo | generic |
+| Resume same agent | yes | no | no | yes | no | no | partial | no | no | no |
+| Tool deny / post-edit hooks | yes | yes | yes | yes | yes | shim | no | yes | no | yes |
+| Subagent lanes | yes | yes | yes | yes | labels | labels | labels | labels | labels | labels |
+| Stop gate | yes | yes | yes | yes | yes | no | no | maybe | no | yes |
+| Status line / pane | yes | no | no | no | no | no | no | no | no | no |
+| `loops watch` / `loops report` | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |
 
 Use `loops watch` in a side terminal for the live view on any platform.
 
@@ -132,7 +143,7 @@ When a newer release exists, the session context carries one line: `loops vX is 
 | Codex | `codex plugin marketplace upgrade && curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target codex --force` (then update the plugin in the desktop app) |
 | Cursor | Dashboard > Plugins & MCPs > marketplace > Refresh; start a new agent |
 | Gemini CLI | `git -C ai-loops pull && gemini extensions update loops` |
-| OpenCode / Amp / Windsurf / Cline | `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target <platform> --force` |
+| OpenCode / Amp / Windsurf / Cline / Antigravity | `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target <platform> --force` |
 
 ## What you see while it runs
 

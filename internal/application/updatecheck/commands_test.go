@@ -16,6 +16,7 @@ func TestCommand(t *testing.T) {
 		{"amp", "install.sh | sh -s -- --target amp --force"},
 		{"windsurf", "install.sh | sh -s -- --target windsurf --force"},
 		{"cline", "install.sh | sh -s -- --target cline --force"},
+		{"antigravity", "install.sh | sh -s -- --target antigravity --force"},
 		{"Claude ", "claude plugin update"},
 		{"zed", "curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target zed --force"},
 	}
@@ -28,8 +29,8 @@ func TestCommand(t *testing.T) {
 
 func TestCommandsCopy(t *testing.T) {
 	m := Commands()
-	if len(m) != 9 {
-		t.Fatalf("len = %d, want 9", len(m))
+	if len(m) != 10 {
+		t.Fatalf("len = %d, want 10", len(m))
 	}
 	m["claude"] = "x"
 	if Command("claude") == "x" {

@@ -65,6 +65,18 @@ func TestInstallPlan(t *testing.T) {
 			[]string{"/h/.agents/skills/work/SKILL.md", "/h/.cline/skills/work/SKILL.md", "/h/.local/share/loops/plugin/specs/W.md"}},
 		{"cline user", plugin.Cline, pf("skills/work/SKILL.md"), "user",
 			[]string{"/h/.cline/skills/work/SKILL.md", "/h/.local/share/loops/plugin/skills/work/SKILL.md"}},
+		{"antigravity project", plugin.Antigravity, pf(".agents/hooks.json", ".agents/skills/work/SKILL.md", "agents/qa.md", "ROLES.md", "bin/loops", ".loops-generated"), "project",
+			[]string{"/p/.agents/hooks.json", "/p/.agents/skills/work/SKILL.md", "/p/.loops/plugin/ROLES.md", "/p/.loops/plugin/agents/qa.md", "/p/.loops/plugin/bin/loops"}},
+		{"antigravity user", plugin.Antigravity, pf(".agents/hooks.json", ".agents/skills/work/SKILL.md", "agents/qa.md", "ROLES.md", "bin/loops", ".loops-generated"), "user",
+			[]string{"/h/.gemini/config/hooks.json", "/h/.gemini/config/skills/work/SKILL.md", "/h/.local/share/loops/plugin/ROLES.md", "/h/.local/share/loops/plugin/agents/qa.md", "/h/.local/share/loops/plugin/bin/loops"}},
+		{"antigravity fallback skills user", plugin.Antigravity, pf("skills/work/SKILL.md"), "user",
+			[]string{"/h/.gemini/config/skills/work/SKILL.md", "/h/.local/share/loops/plugin/skills/work/SKILL.md"}},
+		{"amp user keeps .agents", plugin.Amp, pf(".agents/skills/work/SKILL.md"), "user",
+			[]string{"/h/.agents/skills/work/SKILL.md"}},
+		{"windsurf user keeps .agents", plugin.Windsurf, pf(".agents/skills/work/SKILL.md", ".devin/hooks.v1.json"), "user",
+			[]string{"/h/.agents/skills/work/SKILL.md", "/h/.config/devin/hooks.v1.json"}},
+		{"opencode user keeps .agents", plugin.OpenCode, pf(".agents/skills/work/SKILL.md"), "user",
+			[]string{"/h/.agents/skills/work/SKILL.md"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -151,6 +163,56 @@ func TestInstallPlanWindsurfUserScopeAbsoluteShim(t *testing.T) {
 	ps, _, _ := InstallPlan(plugin.Windsurf, []plugin.File{hooks}, "user", "/p", "/h")
 	if len(ps) != 1 || !strings.Contains(string(ps[0].File.Data), `\"/h/.local/share/loops/plugin/bin/loops\" hook x`) {
 		t.Errorf("%v", ps)
+	}
+}
+
+func TestInstallPlanAntigravityPinsShimAndNotes(t *testing.T) {
+	raw := `{"loops":{"enabled":true,"Stop":[{"hooks":[{"type":"command","command":"loops hook stop-gate --platform antigravity","timeout":10}]}]}}`
+	hooks := plugin.File{Path: ".agents/hooks.json", Data: []byte(raw)}
+
+	// Project scope pins to relative .loops/plugin/bin/loops (no machine path).
+	ps, notes, err := InstallPlan(plugin.Antigravity, []plugin.File{hooks, {Path: ".loops-generated"}, {Path: "bin/loops", Exec: true}}, "project", "/p", "/h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var projHooks string
+	for _, p := range ps {
+		if strings.HasSuffix(p.Dest, "/.agents/hooks.json") {
+			projHooks = string(p.File.Data)
+		}
+		if strings.HasSuffix(p.Dest, ".loops-generated") {
+			t.Error("marker installed")
+		}
+	}
+	wantProj := `{"loops":{"enabled":true,"Stop":[{"hooks":[{"type":"command","command":"\".loops/plugin/bin/loops\" hook stop-gate --platform antigravity","timeout":10}]}]}}`
+	if projHooks != wantProj {
+		t.Errorf("project hooks:\n%s\nwant:\n%s", projHooks, wantProj)
+	}
+	var v any
+	if err := json.Unmarshal([]byte(projHooks), &v); err != nil {
+		t.Errorf("invalid project hooks JSON: %v", err)
+	}
+	if string(hooks.Data) != raw {
+		t.Error("input mutated")
+	}
+	joinedNotes := strings.Join(notes, "\n")
+	for _, sub := range []string{"agy", "/skills reload", "Tier C", "solo"} {
+		if !strings.Contains(joinedNotes, sub) {
+			t.Errorf("notes missing %q:\n%s", sub, joinedNotes)
+		}
+	}
+
+	// User scope pins to <home>/.local/share/loops/plugin/bin/loops and places at <home>/.gemini/config/hooks.json.
+	ups, _, err := InstallPlan(plugin.Antigravity, []plugin.File{hooks}, "user", "/p", "/h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ups) != 1 || ups[0].Dest != "/h/.gemini/config/hooks.json" {
+		t.Fatalf("user placement = %+v", ups)
+	}
+	wantUser := `{"loops":{"enabled":true,"Stop":[{"hooks":[{"type":"command","command":"\"/h/.local/share/loops/plugin/bin/loops\" hook stop-gate --platform antigravity","timeout":10}]}]}}`
+	if string(ups[0].File.Data) != wantUser {
+		t.Errorf("user hooks:\n%s\nwant:\n%s", ups[0].File.Data, wantUser)
 	}
 }
 

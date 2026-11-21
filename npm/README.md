@@ -4,7 +4,7 @@ Install **loops**, the multi-agent coding workflow that proves its work, with on
 
 ```sh
 npx ai-loops                        # Claude Code (uses the claude CLI)
-npx ai-loops --target copilot       # or codex, cursor, gemini, opencode, amp, windsurf, cline
+npx ai-loops --target copilot       # or codex, cursor, gemini, opencode, amp, windsurf, cline, antigravity
 ```
 
 Then, in your repository: `/loops:init` and `/loops:work #42`.

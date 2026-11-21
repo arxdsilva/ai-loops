@@ -53,6 +53,10 @@ func TestVersionCheck(t *testing.T) {
 		!strings.Contains(o, "update available: "+updatecheck.Command("claude")) {
 		t.Fatalf("%d %q", c, o)
 	}
+	c, o, _ = runApp(a, "version", "--check", "--platform", "antigravity")
+	if c != 0 || !strings.Contains(o, "update available: "+updatecheck.Command("antigravity")) {
+		t.Fatalf("antigravity version check: %d %q", c, o)
+	}
 	t.Setenv("CLAUDE_PROJECT_DIR", "/x")
 	_, o, _ = runApp(a, "version", "--check")
 	if !strings.Contains(o, updatecheck.Command("claude")) {
@@ -76,6 +80,10 @@ func TestUpdateCmd(t *testing.T) {
 	c, o, _ := runApp(&App{}, "update", "--platform", "codex")
 	if c != 0 || strings.TrimSpace(o) != updatecheck.Command("codex") {
 		t.Fatalf("%d %q", c, o)
+	}
+	c, o, _ = runApp(&App{}, "update", "--platform", "antigravity")
+	if c != 0 || strings.TrimSpace(o) != updatecheck.Command("antigravity") || !strings.Contains(o, "--target antigravity") {
+		t.Fatalf("antigravity update: %d %q", c, o)
 	}
 	_, o, _ = runApp(&App{}, "update", "--platform", "weird")
 	if strings.TrimSpace(o) != updatecheck.Command("weird") {

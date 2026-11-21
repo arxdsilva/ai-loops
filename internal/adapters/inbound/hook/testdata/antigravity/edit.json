@@ -1,0 +1,11 @@
+{
+ "hook_event_name": "PostToolUse",
+ "conversationId": "c1",
+ "workspacePaths": ["/repo"],
+ "toolCall": {
+  "name": "replace_file_content",
+  "args": {
+   "TargetFile": "/repo/pkg/a.go"
+  }
+ }
+}

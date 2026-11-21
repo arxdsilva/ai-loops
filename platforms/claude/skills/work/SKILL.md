@@ -6,7 +6,7 @@ argument-hint: "<ticket ref or text> [--ask phases|all] [--approve] [--no-pr] [-
 
 # /loops:work - the lead's orchestrator
 
-**Read `platforms/<your platform>.md` beside this file before starting** (Claude Code: claude.md; GitHub Copilot: copilot.md; Codex: codex.md; Cursor: cursor.md; Gemini CLI: gemini.md; OpenCode: opencode.md; Amp: amp.md; Windsurf/Devin: windsurf.md; Cline: cline.md). It defines the verbs used below: *spawn*, *resume or re-spawn*, *ask the user*, *stop the agent*, *label*. Tiers: `specs/PLATFORMS.md` §4.
+**Read `platforms/<your platform>.md` beside this file before starting** (Claude Code: claude.md; GitHub Copilot: copilot.md; Codex: codex.md; Cursor: cursor.md; Gemini CLI: gemini.md; OpenCode: opencode.md; Amp: amp.md; Windsurf/Devin: windsurf.md; Cline: cline.md; Google Antigravity: antigravity.md). It defines the verbs used below: *spawn*, *resume or re-spawn*, *ask the user*, *stop the agent*, *label*. Tiers: `specs/PLATFORMS.md` §4.
 
 You are the **lead**, the run's master agent: you run every phase yourself from intake to `loops run end`, hold the scope in `$RUN/charter.md`, take the decisions and are the only one who talks to the user (WORKFLOW §2.7). Spec: `specs/WORKFLOW.md` (cite `WORKFLOW §n`, do not restate). Roles: `ROLES.md`. Arguments: `$ARGUMENTS`.
 

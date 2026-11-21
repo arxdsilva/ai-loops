@@ -2,7 +2,7 @@
 
 `loops` runs a ticket through six visible phases (research, plan, implement, QA, product proof, reflect) staffed by role agents, for backends in 15 languages (`loops lang list`; the repo's are `loops lang detect`). If `loops` is not on PATH, use the absolute path given in the session context (`<plugin root>/bin/loops`), or `go install github.com/arxdsilva/ai-loops/cmd/loops@latest`.
 
-- **Entry point:** run the `work` skill with a ticket ref or text. On Claude Code, Copilot and Gemini it is `/loops:work`; on Cursor `/work`; on Codex `$work`; on OpenCode `/loops/work`; on Amp, Windsurf and Cline, the `work` skill. Other commands: `init`, `status`, `report`.
+- **Entry point:** run the `work` skill with a ticket ref or text. On Claude Code, Copilot and Gemini it is `/loops:work`; on Cursor `/work`; on Codex `$work`; on OpenCode `/loops/work`; on Amp, Windsurf, Cline and Antigravity, the `work` skill (`/work` in Antigravity CLI `agy`). Other commands: `init`, `status`, `report`.
 - **Before starting**, the work skill tells you to read `platforms/<your platform>.md` beside it.
 - **Run dir:** `.loops/` (config in `.loops/config.json`, runs in `.loops/runs/<id>/`). Everything is recorded in `events.jsonl`.
 - **Plugin files:** `loops path specs` (also `templates`, `skills`, `agents`) prints the absolute path. Spec of the workflow: `specs/WORKFLOW.md`; roles: `ROLES.md`.

@@ -41,6 +41,8 @@ func bashPayload(platform, cmd string) string {
 	case "copilot":
 		args, _ := json.Marshal(map[string]any{"command": cmd})
 		return mustJSON(map[string]any{"toolName": "bash", "toolArgs": string(args), "cwd": "/repo"})
+	case "antigravity":
+		return mustJSON(map[string]any{"hook_event_name": "PreToolUse", "workspacePaths": []string{"/repo"}, "toolCall": map[string]any{"name": "run_command", "args": map[string]any{"CommandLine": cmd}}})
 	case "codex":
 		return mustJSON(map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": map[string]any{"command": cmd}, "cwd": "/repo"})
 	}
@@ -127,15 +129,15 @@ func TestGoEnvPerPlatform(t *testing.T) {
 	}{
 		{"go test -race ./...", map[string]want{
 			"claude": rewriteAllow, "codex": rewriteAllow, "cursor": rewriteAllow,
-			"gemini": rewrite, "windsurf": rewrite, "copilot": deny, "opencode": deny,
+			"gemini": rewrite, "windsurf": rewrite, "copilot": deny, "opencode": deny, "antigravity": deny,
 		}},
 		{"cd sub && go build ./...", map[string]want{
 			"claude": rewrite, "codex": deny, "cursor": deny,
-			"gemini": rewrite, "windsurf": rewrite, "copilot": deny, "opencode": deny,
+			"gemini": rewrite, "windsurf": rewrite, "copilot": deny, "opencode": deny, "antigravity": deny,
 		}},
 		{"go run ./cmd/x", map[string]want{
 			"claude": rewrite, "codex": deny, "cursor": deny,
-			"gemini": rewrite, "windsurf": rewrite, "copilot": deny, "opencode": deny,
+			"gemini": rewrite, "windsurf": rewrite, "copilot": deny, "opencode": deny, "antigravity": deny,
 		}},
 	}
 	for _, c := range cases {

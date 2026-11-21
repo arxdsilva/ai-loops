@@ -1,6 +1,6 @@
 # PLATFORMS: loops on every coding agent
 
-This is the canonical spec for porting loops beyond Claude Code. The emitters (`internal/application/port`), the hook dialects (`internal/adapters/inbound/hook`), `loops install`, and the per-platform notes in `skills/work/platforms/` implement it. The facts come from official docs read on 2026-11-09. Items marked *(unverified)* must be confirmed against the docs before relying on them.
+This is the canonical spec for porting loops beyond Claude Code. The emitters (`internal/application/port`), the hook dialects (`internal/adapters/inbound/hook`), `loops install`, and the per-platform notes in `skills/work/platforms/` implement it. The facts come from official docs read on 2026-11-09 (Antigravity on 2026-11-21). Items marked *(unverified)* must be confirmed against the docs before relying on them.
 
 ## 1. Principles
 
@@ -19,22 +19,22 @@ This is the canonical spec for porting loops beyond Claude Code. The emitters (`
 
 N = native, A = adapted (lossy or emulated), X = unavailable (falls back per §4).
 
-| Feature | Claude | Copilot | Codex | Cursor | Gemini | OpenCode | Amp | Windsurf | Cline |
-|---|---|---|---|---|---|---|---|---|---|
-| Plugin package and install from git | N | N (reads the Claude layout) | N | N (marketplace) | N | A (installer) | A (installer) | A (installer) | A (installer) |
-| Skills (SKILL.md) | N | N | N | N | N | N | N | N | N |
-| Role subagents with per-role model | N | N | A (TOML, installed separately) | N | N | N | X | X | X |
-| Per-role tool restriction | N | N | A (instruction) | A (instruction) | N (`tools`) | N (`permissions`) | X | X | X |
-| Resume or message the same agent | N | X | X | N (by agent id) | X | X | A | X | X |
-| Slash commands | N (skills) | N (skills) | A (`$skill`) | N | N (TOML) | N (md) | A (skills) | A (skills) | A (workflows) |
-| PreToolUse deny | N | N | N | N | N (`BeforeTool`) | A (TS shim) | X | N | X |
-| PostToolUse trace and post-edit | N | N | N | N | N (`AfterTool`) | A (TS shim) | X | N | X |
-| SubagentStart/Stop lanes | N | N | N | N | X | X | X | X | X |
-| Stop gate | N | N | N | N (`followup_message`) | N (`AfterAgent`) | X | X | N | X |
-| SessionStart context | N | N | N | A *(unverified field)* | N | A | X | N | X |
-| AGENTS.md | N | N | N | N | A (GEMINI.md imports it) | N | N | N | N |
-| Status line | N | X | X | X | X | X | X | X | X |
-| Live pane | N (mod) | X | X | X | X | X | X | X | X |
+| Feature | Claude | Copilot | Codex | Cursor | Gemini | OpenCode | Amp | Windsurf | Cline | Antigravity |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Plugin package and install from git | N | N (reads the Claude layout) | N | N (marketplace) | N | A (installer) | A (installer) | A (installer) | A (installer) | A (installer) |
+| Skills (SKILL.md) | N | N | N | N | N | N | N | N | N | N |
+| Role subagents with per-role model | N | N | A (TOML, installed separately) | N | N | N | X | X | X | X |
+| Per-role tool restriction | N | N | A (instruction) | A (instruction) | N (`tools`) | N (`permissions`) | X | X | X | X |
+| Resume or message the same agent | N | X | X | N (by agent id) | X | X | A | X | X | A (`send_message` *(unverified)*) |
+| Slash commands | N (skills) | N (skills) | A (`$skill`) | N | N (TOML) | N (md) | A (skills) | A (skills) | A (workflows) | A (skills; `/work` in `agy`) |
+| PreToolUse deny | N | N | N | N | N (`BeforeTool`) | A (TS shim) | X | N | X | N |
+| PostToolUse trace and post-edit | N | N | N | N | N (`AfterTool`) | A (TS shim) | X | N | X | N |
+| SubagentStart/Stop lanes | N | N | N | N | X | X | X | X | X | X |
+| Stop gate | N | N | N | N (`followup_message`) | N (`AfterAgent`) | X | X | N | X | N |
+| SessionStart context | N | N | N | A *(unverified field)* | N | A | X | N | X | N |
+| AGENTS.md | N | N | N | N | A (GEMINI.md imports it) | N | N | N | N | N |
+| Status line | N | X | X | X | X | X | X | X | X | X |
+| Live pane | N (mod) | X | X | X | X | X | X | X | X | X |
 | Universal live view | `loops watch` (terminal) and `loops report` (HTML) on every platform |
 
 ## 3. Packages
@@ -116,8 +116,8 @@ Every path the package needs comes from its root variable, so no package hard-co
 - **Skills** go to `.agents/skills/`.
 - **Rules:** OpenCode reads AGENTS.md natively.
 
-### 3.6 Amp, Windsurf, Cline (installed with `loops install --target <name>`)
-- **Skills:** `.agents/skills/` (all three read it), and `.cline/skills/` for Cline. Rules come from AGENTS.md, which all three read.
+### 3.6 Amp, Windsurf, Cline, Antigravity (installed with `loops install --target <name>`)
+- **Skills:** `.agents/skills/` (Amp, Windsurf, and Antigravity project scope; `~/.gemini/config/skills/` for Antigravity user scope), and `.cline/skills/` for Cline. Rules come from `AGENTS.md`, which all four read (Antigravity also reads `GEMINI.md` and `.agents/rules/*.md`).
 - **Role files:** `agents/<role>.md` at the package root. The installer copies them into the plugin home, so `loops path agents` resolves them (tiers C and D).
 - **Windsurf (Devin Local):** `.devin/hooks.v1.json`.
   - The file is the hooks object itself, with no wrapper key.
@@ -126,6 +126,11 @@ Every path the package needs comes from its root variable, so no package hard-co
   - No subagents, so the solo fallback applies (§4).
 - **Amp:** no hooks in v1. Subagents use the built-in Task with role prompts (§4).
 - **Cline:** no hooks in v1; solo fallback.
+- **Antigravity (`platforms/antigravity/`, app and `agy` CLI; verified 2026-11-21):**
+  - Skills land in `.agents/skills/` (project scope) or `~/.gemini/config/skills/` (user scope); plugin home (`.loops/plugin/` or `~/.local/share/loops/plugin/`) holds `agents/<role>.md`, `bin/loops`, `specs/`, `templates/`, and `ROLES.md`. Run `/skills reload` after installing or updating; `agy` exposes skills as `/<skill>` slash commands (`/work`, `/init`, `/status`, `/report`).
+  - Hooks: `.agents/hooks.json` (project scope) or `~/.gemini/config/hooks.json` (user scope), shaped `{"loops":{"enabled":true,"<Event>":[{"matcher":...,"hooks":[{"type":"command","command":"...","timeout":<s>}]}]}}` for `SessionStart`, `PreToolUse`, `PostToolUse`, `Stop` (`PostToolUseFailure`, `SubagentStart`, `SubagentStop` are dropped). Commands pass `--platform antigravity`, pinned by `loops install` to `.loops/plugin/bin/loops` (project) or `~/.local/share/loops/plugin/bin/loops` (user).
+  - Tier C generic subagents (`invoke_subagent`) with Tier D solo fallback when subagents are unavailable (§4).
+  - *(unverified)*: exact workflows dir, subagent file format, `plugin.json` schema, and runtime env vars (so `hooks.json` passes `--platform antigravity` explicitly instead of relying on env autodetection).
 
 ## 4. Degradation tiers (how `skills/work` runs on each platform)
 
@@ -133,51 +138,54 @@ Every path the package needs comes from its root variable, so no package hard-co
 |---|---|---|---|
 | **A: resumable subagents** | Claude, Cursor | Typed role agent (`loops:<role>` on Claude; the role subagent by name on Cursor), in the background, a whole wave in one message | Resume the **same** agent (`SendMessage` on Claude, by agent id on Cursor) |
 | **B: subagents, no resume** | Copilot, Codex, Gemini, OpenCode | The platform's subagent mechanism with the role's agent definition | Spawn a **new** agent of the same role. It gets its previous report, the QA or review file, and a ≤10-line history summary. The run-dir files carry the context |
-| **C: generic subagents** | Amp | A generic subagent (Task) whose prompt starts with the role file's body (`loops path agents` → `<role>.md`) | Send a follow-up to the Task while it is still running; once it has finished, re-spawn as in B |
+| **C: generic subagents** | Amp, Antigravity | A generic subagent (`Task` on Amp; `invoke_subagent` on Antigravity) whose prompt starts with the role file's body (`loops path agents` → `<role>.md`). Antigravity falls back to tier D solo mode when subagents are unavailable | Send a follow-up while it is still running (`send_message` on Antigravity *(unverified)*); once it has finished, re-spawn as in B (or re-enter the author role in solo fallback) |
 | **D: no subagents** | Windsurf, Cline | **Solo mode.** The lead plays each role in turn, in phase order. It writes the same run-dir files and records the same events (`loops run label --agent solo-<n> …`, then `agent_start`/`agent_stop` through `loops run event`). Before each QA or review pass it re-reads only the files that role is given, to approximate a fresh context | Same files and limits; the lead re-enters the author role |
 
 Every tier records the same phases, verdicts and loop-backs. Only the parallelism and context isolation differ. On every tier the lead stays the master agent (WORKFLOW §2.7): it re-anchors with the brief that `loops run phase` prints, and with `loops run brief` after a compaction or a resumed session. Where the platform delivers SessionStart after a compaction (Claude Code's `compact` source), the `session-start` hook adds the brief to the lead's context itself. Each platform's mechanics (tool names, how to spawn, wait, ask the user, stop agents) live in `skills/work/platforms/<platform>.md`. The work skill tells the lead to read the one for its platform.
 
 ## 5. Hook dialects
 
-Every hook command passes `--platform <p>`. Without the flag, the binary autodetects the platform from the environment:
+Every hook command passes `--platform <p>` (for Antigravity, `--platform` also accepts aliases `agy` and `antigravity-cli`; no runtime env var is verified *(unverified)*). Without the flag, the binary autodetects the platform from the environment:
 - `CURSOR_PLUGIN_ROOT` or `CURSOR_PROJECT_DIR` means cursor;
 - `GEMINI_PROJECT_DIR` or `GEMINI_CWD` means gemini;
+- `DEVIN_PROJECT_DIR` means windsurf;
 - `PLUGIN_ROOT` without `CLAUDE_PROJECT_DIR` means codex;
 - otherwise claude.
 
 The adapter translates each platform's events into the canonical names and normalises tool names before any handler runs.
 
-| Canonical | Claude/Copilot/Codex | Cursor | Gemini | Windsurf |
-|---|---|---|---|---|
-| SessionStart | SessionStart | sessionStart | SessionStart | SessionStart |
-| PreToolUse | PreToolUse | preToolUse | BeforeTool | PreToolUse |
-| PostToolUse(+Failure) | PostToolUse / PostToolUseFailure | postToolUse / postToolUseFailure | AfterTool | PostToolUse |
-| SubagentStart/Stop | SubagentStart / SubagentStop | subagentStart / subagentStop | (none) | (none) |
-| Stop | Stop | stop | AfterAgent | Stop |
+| Canonical | Claude/Copilot/Codex | Cursor | Gemini | Windsurf | Antigravity |
+|---|---|---|---|---|---|
+| SessionStart | SessionStart | sessionStart | SessionStart | SessionStart | SessionStart |
+| PreToolUse | PreToolUse | preToolUse | BeforeTool | PreToolUse | PreToolUse |
+| PostToolUse(+Failure) | PostToolUse / PostToolUseFailure | postToolUse / postToolUseFailure | AfterTool | PostToolUse | PostToolUse (no Failure event) |
+| SubagentStart/Stop | SubagentStart / SubagentStop | subagentStart / subagentStop | (none) | (none) | (none) |
+| Stop | Stop | stop | AfterAgent | Stop | Stop |
 
 **Tool names** are normalised to the canonical `Read`, `Bash`, `Edit`, `Write`, `MultiEdit`, `Agent`, `Grep`, `Glob`, `WebFetch` and `WebSearch`:
 - Gemini: `read_file` and `read_many_files` → Read; `run_shell_command` → Bash; `replace` → Edit; `write_file` → Write; `grep_search` and the older `search_file_content` → Grep; `glob` → Glob; `web_fetch` → WebFetch; `google_web_search` → WebSearch.
 - Cursor (verified): `Shell` → Bash; `Read` → Read; `Write` → Write; `Grep` → Grep; `Task` → Agent; `Delete` and `MCP:<tool>` pass through unchanged.
 - Codex (verified): the shell tool is `Bash`. `apply_patch` → Edit, with the patch text in `tool_input.command`; edited file paths are parsed from the patch.
 - Devin: `exec` → Bash.
+- Antigravity: `view_file` → Read; `run_command` → Bash; `replace_file_content` → Edit; `multi_replace_file_content` → MultiEdit; `write_to_file` → Write; `find_by_name` → Glob; `invoke_subagent` → Agent.
 
-**Tool-input fields** are normalised to `file_path` (also from `absolute_path` and `path`) and `command`.
+**Tool-input fields** are normalised to `file_path` (also from `absolute_path`, `AbsolutePath`, `path`, `Path`, `file`, `filePath`, `target_file`, and `TargetFile`) and `command` (also from `CommandLine`, `command_line`, and `cmd`).
 
 **Outputs:**
 
-| Decision | Claude/Copilot/Codex | Cursor | Gemini | Windsurf |
-|---|---|---|---|---|
-| Deny a tool | exit 2, reason on stderr | exit 2, reason on stderr (also `{"permission":"deny","user_message"…}`) | exit 2, reason on stderr | exit 2, reason on stderr |
-| Block stop | `{"decision":"block","reason":R}` | `{"followup_message":R}` | `{"decision":"deny","reason":R}` | `{"decision":"block","reason":R}` |
-| Session context | `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":C}}` | `{"additional_context":C}` | as Claude | as Claude |
-| Post-edit failure | `{"decision":"block","reason":R}` | `{"additional_context":R}` | `{"hookSpecificOutput":{"additionalContext":R}}` (a deny would hide the tool output) | as Claude |
+| Decision | Claude/Copilot/Codex | Cursor | Gemini | Windsurf | Antigravity |
+|---|---|---|---|---|---|
+| Deny a tool | exit 2, reason on stderr | exit 2, reason on stderr (also `{"permission":"deny","user_message"…}`) | exit 2, reason on stderr | exit 2, reason on stderr | exit 2, reason on stderr |
+| Block stop | `{"decision":"block","reason":R}` | `{"followup_message":R}` | `{"decision":"deny","reason":R}` | `{"decision":"block","reason":R}` | `{"decision":"block","reason":R}` |
+| Session context | `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":C}}` | `{"additional_context":C}` | as Claude | as Claude | as Claude |
+| Post-edit failure | `{"decision":"block","reason":R}` | `{"additional_context":R}` | `{"hookSpecificOutput":{"additionalContext":R}}` (a deny would hide the tool output) | as Claude | as Claude |
 
 **Project dir:**
 - Claude: `CLAUDE_PROJECT_DIR`;
 - Cursor: `CURSOR_PROJECT_DIR`;
 - Gemini: `GEMINI_PROJECT_DIR`;
 - Windsurf: `DEVIN_PROJECT_DIR`;
+- Antigravity: `workspacePaths[0]` folded into `cwd` (or `CLAUDE_PROJECT_DIR` if set);
 - otherwise the payload's `cwd`.
 
 ## 6. The binary
@@ -216,7 +224,7 @@ The repository must be public for release downloads and for the update check. A 
 
 Tiers (`haiku`, `sonnet`, `opus`) are Claude names. Other platforms inherit the session model unless `loops port build --models <file.json>` maps them, e.g. `{"codex":{"opus":"<model id>"}}`. Model ids change too often to hard-code, so the generated packages in the repo leave the model unset, and each platform's notes tell users how to map tiers.
 
-### 5.0 toolchain-env (alias go-env) rewrite support (verified 2026-11-09; details in `dialect.go`)
+### 5.0 toolchain-env (alias go-env) rewrite support (verified 2026-11-09; Antigravity 2026-11-21; details in `dialect.go`)
 
 | Platform | Unscoped `go …` command |
 |---|---|
@@ -224,10 +232,10 @@ Tiers (`haiku`, `sonnet`, `opus`) are Claude names. Other platforms inherit the 
 | Gemini CLI | Rewritten (`hookSpecificOutput.tool_input`) |
 | Windsurf/Devin | Rewritten (`hookSpecificOutput.updatedInput`) |
 | Codex, Cursor | A lone gate command is rewritten and approved. Anything else is denied, because a rewrite requires "allow" |
-| Copilot, OpenCode | Denied. Use `loops go …` |
+| Copilot, OpenCode, Antigravity | Denied. Use `loops go …` (input rewriting on Antigravity is undocumented *(unverified)*) |
 | Amp, Cline | No hooks. Agents use `loops go …` |
 
-### 5.1 Verified dialect notes (2026-11-09; full list with URLs in `internal/adapters/inbound/hook/dialect.go`)
+### 5.1 Verified dialect notes (2026-11-09; Antigravity 2026-11-21; full list with URLs in `internal/adapters/inbound/hook/dialect.go`)
 
 - **Copilot camelCase events** (`sessionStart`, `preToolUse`, `postToolUse`, `agentStop`):
   - payloads use `toolName`, `toolArgs`, `toolResult` and `stopHookActive`, with no `hook_event_name`;
@@ -239,6 +247,7 @@ Tiers (`haiku`, `sonnet`, `opus`) are Claude names. Other platforms inherit the 
   - `duration` is in milliseconds, and `CLAUDE_PROJECT_DIR` is an alias of `CURSOR_PROJECT_DIR`.
 - **Gemini:** `AfterAgent` carries `stop_hook_active`, and a deny there forces a retry. The env vars are `GEMINI_PROJECT_DIR`, `GEMINI_CWD` and `GEMINI_SESSION_ID`.
 - **Devin (Windsurf):** there is no `stop_hook_active`. On every platform, the stop gate releases itself after 3 blocks in a row with no tool step between them.
+- **Antigravity (verified 2026-11-21):** payloads carry `toolCall{name, args}` (object or JSON string), `workspacePaths`, and `conversationId`; hook input rewriting and runtime env vars are not documented *(unverified)*.
 
 ## 8. Budgets and hardware
 
@@ -260,7 +269,7 @@ Mechanism: the hook asks the Go module proxy for `@latest` of `github.com/arxdsi
 - **Binary:** this session keeps the old plugin, skills and shim binary alike. The new plugin's `bin/loops` resolves `loops-<V>` on first use. A `loops` on PATH at another version is not the plugin's; the line says to call the shim.
 - **Reload:** Claude Code `/reload-plugins` or a new session; Copilot `/restart` or a new session. The lead relays the line once and continues on the current version (a non-zero exit, such as `unknown flag` from an older binary, also means continue).
 
-Verified 2026-11-09:
+Verified 2026-11-09 (Antigravity 2026-11-21):
 
 | Platform | Command | Source |
 |---|---|---|
@@ -269,6 +278,6 @@ Verified 2026-11-09:
 | Codex | `codex plugin marketplace upgrade [name]` refreshes Git marketplaces only; no CLI plugin-update command is documented, so the plugin is updated in the desktop app and the binary and agents via the installer route | https://learn.chatgpt.com/docs/developer-commands?surface=cli , https://learn.chatgpt.com/docs/plugins |
 | Cursor | No update command. Team marketplaces: Dashboard > Plugins & MCPs > Refresh (or Enable Auto Refresh); running agents keep old versions | https://cursor.com/docs/plugins |
 | Gemini CLI | `git -C ai-loops pull && gemini extensions update loops` (`update --all` also exists; installs are copies) | https://geminicli.com/docs/extensions/reference/ |
-| OpenCode, Amp, Windsurf, Cline | `npx ai-loops --target <p> --force` (or `install.sh --target <p> --force`) (prebuilt binary, no Go needed) | this repo |
+| OpenCode, Amp, Windsurf, Cline, Antigravity | `npx ai-loops --target <p> --force` (or `install.sh --target <p> --force`) (prebuilt binary, no Go needed) | this repo |
 
 Unverified: that `gemini extensions update` works for a local-path install (docs imply it); Copilot's plugin name after `arxdsilva/ai-loops` install (assumed `loops`); the Codex marketplace name (omitted, so all are refreshed); that the Cursor marketplace entry auto-refreshes without the GitHub App.

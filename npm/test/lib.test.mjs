@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assetName, checksumFor, parseArgs, plan, releaseTag, PLATFORMS } from '../lib.mjs';
+import { assetName, checksumFor, parseArgs, plan, releaseTag, PLATFORMS, USAGE } from '../lib.mjs';
 
 test('no arguments installs into Claude Code', () => {
   assert.deepEqual(parseArgs([]), { cmd: 'install', opts: { target: 'claude', scope: '', force: false, binDir: '' } });
@@ -49,6 +49,28 @@ test('installer platforms download the binary then run loops install', () => {
   const codex = plan({ target: 'codex', scope: '', force: false });
   assert.equal(codex[0].optional, true);
   assert.deepEqual(codex[2], { loops: ['install', '--target', 'codex'] });
+});
+
+test('antigravity parseArgs and install plan support project and user scopes', () => {
+  assert.ok(PLATFORMS.includes('antigravity'));
+  assert.match(USAGE, /\bantigravity\b/);
+  assert.deepEqual(parseArgs(['--target', 'antigravity']).opts, { target: 'antigravity', scope: '', force: false, binDir: '' });
+  assert.deepEqual(parseArgs(['install', '--target=Antigravity', '--scope', 'project']).opts, { target: 'antigravity', scope: 'project', force: false, binDir: '' });
+  assert.deepEqual(parseArgs(['--target', 'antigravity', '--scope=user', '--force']).opts, { target: 'antigravity', scope: 'user', force: true, binDir: '' });
+  assert.throws(() => parseArgs(['--target', 'bogus']), /unknown platform bogus/);
+
+  assert.deepEqual(plan({ target: 'antigravity', scope: '', force: false }), [
+    { binary: true },
+    { loops: ['install', '--target', 'antigravity'] },
+  ]);
+  assert.deepEqual(plan({ target: 'antigravity', scope: 'project', force: false }), [
+    { binary: true },
+    { loops: ['install', '--target', 'antigravity', '--scope', 'project'] },
+  ]);
+  assert.deepEqual(plan({ target: 'antigravity', scope: 'user', force: true }), [
+    { binary: true },
+    { loops: ['install', '--target', 'antigravity', '--scope', 'user', '--force'] },
+  ]);
 });
 
 test('every platform has a plan', () => {

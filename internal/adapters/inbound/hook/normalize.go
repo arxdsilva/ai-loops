@@ -24,6 +24,10 @@ var toolNames = map[string]string{
 	"shell": "Bash", "exec_command": "Bash", "local_shell": "Bash", "apply_patch": "Edit",
 	// Devin
 	"exec": "Bash",
+	// Antigravity
+	"view_file": "Read", "run_command": "Bash", "replace_file_content": "Edit",
+	"multi_replace_file_content": "MultiEdit", "write_to_file": "Write",
+	"find_by_name": "Glob", "invoke_subagent": "Agent",
 	// Copilot camelCase
 	"powershell": "Bash", "view": "Read", "create": "Write", "task": "Agent",
 	// lowercase canonical
@@ -36,6 +40,7 @@ var patchFile = regexp.MustCompile(`(?m)^\*\*\* (?:Add|Update|Delete) File: (.+?
 var platforms = map[string]string{
 	"claude": "claude", "copilot": "copilot", "codex": "codex", "cursor": "cursor",
 	"gemini": "gemini", "windsurf": "windsurf", "devin": "windsurf", "opencode": "opencode",
+	"antigravity": "antigravity", "agy": "antigravity", "antigravity-cli": "antigravity",
 }
 
 // detect picks the platform from the flag, else the environment (PLATFORMS.md §5).
@@ -94,6 +99,31 @@ func nonEmpty(raw json.RawMessage) bool {
 	return s != "" && s != "null" && s != `""` && s != "false" && s != "{}"
 }
 
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func firstElem(ss []string) string {
+	if len(ss) > 0 {
+		return ss[0]
+	}
+	return ""
+}
+
+func firstString(m map[string]any, keys ...string) string {
+	for _, k := range keys {
+		if s, _ := m[k].(string); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
 // normalize rewrites p in place into the canonical (Claude) vocabulary and
 // returns the output dialect and whether the tool call failed.
 func normalize(p *payload, platform string) (dialect, bool) {
@@ -101,65 +131,61 @@ func normalize(p *payload, platform string) (dialect, bool) {
 	if platform == "copilot" && p.Event == "" {
 		d.camel = true
 	}
+	normalizeHeader(p, platform)
+	normalizeToolInput(p)
+	return d, normalizeFailed(p, platform)
+}
+
+func normalizeHeader(p *payload, platform string) {
 	if e, ok := eventNames[p.Event]; ok {
 		p.Event = e
 	}
-	if p.SessionID == "" {
-		p.SessionID = p.SessionIDCamel
+	p.SessionID = firstNonEmpty(p.SessionID, p.SessionIDCamel, p.ConversationID)
+	var tcName string
+	if p.ToolCall != nil {
+		tcName = p.ToolCall.Name
 	}
-	if p.ToolName == "" {
-		p.ToolName = p.ToolNameCamel
-	}
-	p.ToolName = canonTool(p.ToolName)
-	if p.AgentID == "" {
-		p.AgentID = p.SubagentID
-	}
-	if p.AgentType == "" {
-		p.AgentType = p.SubagentType
-	}
+	p.ToolName = canonTool(firstNonEmpty(p.ToolName, p.ToolNameCamel, tcName))
+	p.AgentID = firstNonEmpty(p.AgentID, p.SubagentID)
+	p.AgentType = firstNonEmpty(p.AgentType, p.SubagentType)
 	if p.DurationMS == 0 {
 		p.DurationMS = p.Duration
 	}
-	if p.StopHookActiveCamel {
+	if p.StopHookActiveCamel || (platform == "cursor" && p.Event == "Stop" && p.LoopCount > 0) {
 		p.StopHookActive = true
 	}
-	if platform == "cursor" && p.Event == "Stop" && p.LoopCount > 0 {
-		p.StopHookActive = true
-	}
-	if p.Cwd == "" && len(p.WorkspaceRoots) > 0 {
-		p.Cwd = p.WorkspaceRoots[0]
-	}
+	p.Cwd = firstNonEmpty(p.Cwd, firstElem(p.WorkspaceRoots), firstElem(p.WorkspacePaths))
+}
 
-	in := map[string]any{}
+func decodeToolInput(p *payload) map[string]any {
 	raw := p.ToolInput
 	if !nonEmpty(raw) {
 		raw = p.ToolArgs
 	}
-	if nonEmpty(raw) {
-		if json.Unmarshal(raw, &in) != nil {
-			var s string
-			if json.Unmarshal(raw, &s) == nil {
-				_ = json.Unmarshal([]byte(s), &in)
-			}
+	if !nonEmpty(raw) && p.ToolCall != nil {
+		raw = p.ToolCall.Args
+	}
+	in := map[string]any{}
+	if !nonEmpty(raw) {
+		return in
+	}
+	if json.Unmarshal(raw, &in) != nil {
+		var s string
+		if json.Unmarshal(raw, &s) == nil {
+			_ = json.Unmarshal([]byte(s), &in)
 		}
 	}
-	str := func(k string) string { s, _ := in[k].(string); return s }
+	return in
+}
+
+func normalizeToolInput(p *payload) {
+	in := decodeToolInput(p)
 	switch p.ToolName {
 	case "Read", "Edit", "Write", "MultiEdit":
-		if str("file_path") == "" {
-			for _, k := range []string{"absolute_path", "path", "file", "filePath", "target_file"} {
-				if v := str(k); v != "" {
-					in["file_path"] = v
-					break
-				}
-			}
-		}
-		if p.ToolName == "Edit" && str("file_path") == "" {
-			if f := patchTarget(str("command")); f != "" {
-				in["file_path"] = f
-				p.extraFiles = patchFiles(str("command"))
-				delete(in, "command")
-			}
+		normalizeFileInput(p, in)
+	case "Bash":
+		if cmd := firstString(in, "command", "CommandLine", "command_line", "cmd"); cmd != "" {
+			in["command"] = cmd
 		}
 	}
 	if len(in) > 0 {
@@ -167,22 +193,45 @@ func normalize(p *payload, platform string) (dialect, bool) {
 			p.ToolInput = b
 		}
 	}
+}
 
-	failed := p.Event == "PostToolUseFailure" || p.IsInterrupt
-	if p.ToolName != "" || p.Event == "PostToolUse" || p.Event == "PostToolUseFailure" {
-		var resp struct {
-			Error       json.RawMessage `json:"error"`
-			Interrupted bool            `json:"interrupted"`
-			ResultType  string          `json:"result_type"`
-		}
-		for _, r := range []json.RawMessage{p.ToolResponse, p.ToolResult} {
-			if json.Unmarshal(r, &resp) == nil {
-				if (platform == "gemini" && nonEmpty(resp.Error)) || resp.Interrupted ||
-					resp.ResultType == "failure" || resp.ResultType == "error" {
-					failed = true
-				}
-			}
-		}
+func normalizeFileInput(p *payload, in map[string]any) {
+	if fp := firstString(in, "file_path", "absolute_path", "AbsolutePath", "path", "Path", "file", "filePath", "target_file", "TargetFile"); fp != "" {
+		in["file_path"] = fp
+		return
 	}
-	return d, failed
+	if p.ToolName != "Edit" {
+		return
+	}
+	cmd, _ := in["command"].(string)
+	if f := patchTarget(cmd); f != "" {
+		in["file_path"] = f
+		p.extraFiles = patchFiles(cmd)
+		delete(in, "command")
+	}
+}
+
+func normalizeFailed(p *payload, platform string) bool {
+	if p.Event == "PostToolUseFailure" || p.IsInterrupt {
+		return true
+	}
+	if p.ToolName == "" && p.Event != "PostToolUse" {
+		return false
+	}
+	return responseFailed(p.ToolResponse, platform) || responseFailed(p.ToolResult, platform)
+}
+
+func responseFailed(r json.RawMessage, platform string) bool {
+	var resp struct {
+		Error       json.RawMessage `json:"error"`
+		Interrupted bool            `json:"interrupted"`
+		ResultType  string          `json:"result_type"`
+	}
+	if json.Unmarshal(r, &resp) != nil {
+		return false
+	}
+	return (platform == "gemini" && nonEmpty(resp.Error)) ||
+		resp.Interrupted ||
+		resp.ResultType == "failure" ||
+		resp.ResultType == "error"
 }

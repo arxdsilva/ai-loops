@@ -6,15 +6,16 @@ const installScript = "curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai
 
 // commands is the one-line update command per platform (never written).
 var commands = map[string]string{
-	"claude":   joinRoute(routes["claude"]),
-	"copilot":  joinRoute(routes["copilot"]),
-	"codex":    "codex plugin marketplace upgrade && " + installer("codex"),
-	"cursor":   "Cursor: Dashboard > Plugins & MCPs > open the marketplace > Refresh, then start a new agent",
-	"gemini":   "git -C ai-loops pull && gemini extensions update loops",
-	"opencode": installer("opencode"),
-	"amp":      installer("amp"),
-	"windsurf": installer("windsurf"),
-	"cline":    installer("cline"),
+	"claude":      joinRoute(routes["claude"]),
+	"copilot":     joinRoute(routes["copilot"]),
+	"codex":       "codex plugin marketplace upgrade && " + installer("codex"),
+	"cursor":      "Cursor: Dashboard > Plugins & MCPs > open the marketplace > Refresh, then start a new agent",
+	"gemini":      "git -C ai-loops pull && gemini extensions update loops",
+	"opencode":    installer("opencode"),
+	"amp":         installer("amp"),
+	"windsurf":    installer("windsurf"),
+	"cline":       installer("cline"),
+	"antigravity": installer("antigravity"),
 }
 
 // installer is the update route for platforms installed by `loops install`.

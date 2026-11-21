@@ -34,6 +34,7 @@ const maxBrief = 2400
 var entryPoint = map[string]string{
 	"claude": "/loops:work", "copilot": "/loops:work", "gemini": "/loops:work",
 	"codex": "$work", "cursor": "/work", "opencode": "/loops/work", "windsurf": "the work skill",
+	"antigravity": "the work skill (/work in Antigravity CLI)",
 }
 
 // maxIdleBlocks is how many stop-gate blocks with no tool call between them
@@ -88,6 +89,13 @@ type payload struct {
 	IsInterrupt         bool            `json:"is_interrupt"`
 	extraFiles          []string
 	WorkspaceRoots      []string `json:"workspace_roots"`
+	// Antigravity spellings (folded by normalize).
+	ToolCall *struct {
+		Name string          `json:"name"`
+		Args json.RawMessage `json:"args"`
+	} `json:"toolCall"`
+	WorkspacePaths []string `json:"workspacePaths"`
+	ConversationID string   `json:"conversationId"`
 }
 
 type toolInput struct {
@@ -337,7 +345,7 @@ func (h *handler) modelGuard(ctx context.Context, p payload, errw io.Writer) int
 		return 0
 	}
 	switch h.platform {
-	case "cursor", "opencode", "gemini":
+	case "cursor", "opencode", "gemini", "antigravity":
 		// No documented model field on these platforms' agent calls.
 		return 0
 	}

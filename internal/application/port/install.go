@@ -27,10 +27,11 @@ var nativeDirs = map[string]string{
 // skillDirs is where each installer platform reads skills from (relative to
 // the project or home directory).
 var skillDirs = map[plugin.Platform]string{
-	plugin.OpenCode: ".agents/skills",
-	plugin.Amp:      ".agents/skills",
-	plugin.Windsurf: ".agents/skills",
-	plugin.Cline:    ".cline/skills",
+	plugin.OpenCode:    ".agents/skills",
+	plugin.Amp:         ".agents/skills",
+	plugin.Windsurf:    ".agents/skills",
+	plugin.Cline:       ".cline/skills",
+	plugin.Antigravity: ".agents/skills",
 }
 
 // nativeInstall gives the install command for platforms that install
@@ -40,6 +41,35 @@ var nativeInstall = map[plugin.Platform]string{
 	plugin.Copilot: "copilot: copilot plugin install arxdsilva/ai-loops",
 	plugin.Cursor:  "cursor: install loops from the Cursor marketplace (or copy platforms/cursor to ~/.cursor/plugins/local/loops)",
 	plugin.Gemini:  "gemini: clone the repo, then `gemini extensions install ./ai-loops/platforms/gemini` (no subdirectory install exists)",
+}
+
+// userSkillDirs overrides skillDirs when a platform's user-scope skills
+// live outside its project-scope skill directory.
+var userSkillDirs = map[plugin.Platform]string{
+	plugin.Antigravity: ".gemini/config/skills",
+}
+
+// userNativeOverrides overrides nativeDirs per platform in user scope.
+var userNativeOverrides = map[plugin.Platform]map[string]string{
+	plugin.Antigravity: {".agents": ".gemini/config"},
+}
+
+type hookShim struct {
+	file        string
+	projectShim string
+}
+
+var hookShims = map[plugin.Platform]hookShim{
+	plugin.Windsurf:    {file: ".devin/hooks.v1.json", projectShim: "$DEVIN_PROJECT_DIR/.loops/plugin/bin/loops"},
+	plugin.Antigravity: {file: ".agents/hooks.json", projectShim: ".loops/plugin/bin/loops"},
+}
+
+var platformNotes = map[plugin.Platform]string{
+	plugin.Windsurf:    "windsurf: no subagents, so skills/work runs in solo mode (PLATFORMS.md section 4)",
+	plugin.Amp:         "amp: no hooks in v1; subagents use the built-in Task with role prompts",
+	plugin.Cline:       "cline: no hooks in v1; skills/work runs in solo mode",
+	plugin.OpenCode:    "opencode: restart OpenCode to load the agents, commands and plugin",
+	plugin.Antigravity: "antigravity: run /skills reload in Antigravity app or CLI (`agy`) to load skills; Tier C generic subagents with solo fallback (PLATFORMS.md section 4)",
 }
 
 // InstallPlan maps a generated package's files to installer destinations
@@ -98,62 +128,90 @@ func planCodex(files []plugin.File, scope, base string) ([]plugin.Placement, []s
 
 func planGeneric(target plugin.Platform, files []plugin.File, scope, base string) ([]plugin.Placement, []string, error) {
 	home := PluginHome(scope, base)
-	skillDir := skillDirs[target]
-	// Does the package ship skills inside a native dot-directory already?
-	nativeSkills := false
-	for _, f := range files {
-		p := cleanRel(f.Path)
-		if top, rest, _ := strings.Cut(p, "/"); nativeDirs[top] != "" && strings.HasPrefix(rest, "skills/") {
-			nativeSkills = true
-		}
-	}
+	skillDir := targetSkillDir(target, scope)
+	nativeSkills := hasNativeSkills(files)
+
 	var native, shared []plugin.Placement
 	for _, f := range files {
 		p := cleanRel(f.Path)
-		if p == "" {
+		if p == "" || p == ".loops-generated" {
 			continue
 		}
-		if p == ".loops-generated" {
-			continue
-		}
-		top, rest, _ := strings.Cut(p, "/")
-		if userRel, ok := nativeDirs[top]; ok && rest != "" {
-			if target == plugin.Windsurf && p == ".devin/hooks.v1.json" {
-				// hook commands call `loops` from PATH; pin them to the plugin home's shim.
-				shim := filepath.ToSlash(filepath.Join(home, "bin", "loops"))
-				if scope == ScopeProject {
-					shim = "$DEVIN_PROJECT_DIR/.loops/plugin/bin/loops" // no machine-specific path in a committed file
-				}
-				f.Data = []byte(strings.ReplaceAll(string(f.Data), `"loops hook`, `"\"`+shim+`\" hook`))
-			}
-			rel := p
-			if scope == ScopeUser {
-				rel = path.Join(userRel, rest)
-			}
+		if rel, ok := nativeRel(target, p, scope); ok {
+			f = pinHookShim(target, f, scope, home)
 			native = append(native, plugin.Placement{Dest: filepath.Join(base, filepath.FromSlash(rel)), File: f})
 			continue
 		}
 		shared = append(shared, plugin.Placement{Dest: filepath.Join(home, filepath.FromSlash(p)), File: f})
-		if top == "skills" && rest != "" && !nativeSkills {
+		if rest, ok := strings.CutPrefix(p, "skills/"); ok && !nativeSkills {
 			native = append(native, plugin.Placement{Dest: filepath.Join(base, filepath.FromSlash(skillDir), filepath.FromSlash(rest)), File: f})
 		}
 	}
+	return append(native, shared...), installNotes(target, home), nil
+}
+
+func targetSkillDir(target plugin.Platform, scope string) string {
+	if scope == ScopeUser {
+		if d := userSkillDirs[target]; d != "" {
+			return d
+		}
+	}
+	return skillDirs[target]
+}
+
+func hasNativeSkills(files []plugin.File) bool {
+	for _, f := range files {
+		top, rest, _ := strings.Cut(cleanRel(f.Path), "/")
+		if nativeDirs[top] != "" && strings.HasPrefix(rest, "skills/") {
+			return true
+		}
+	}
+	return false
+}
+
+func nativeRel(target plugin.Platform, p, scope string) (string, bool) {
+	top, rest, _ := strings.Cut(p, "/")
+	if rest == "" {
+		return "", false
+	}
+	userRel := userNativeOverrides[target][top]
+	if userRel == "" {
+		userRel = nativeDirs[top]
+	}
+	if userRel == "" {
+		return "", false
+	}
+	if scope == ScopeUser {
+		return path.Join(userRel, rest), true
+	}
+	return p, true
+}
+
+func pinHookShim(target plugin.Platform, f plugin.File, scope, home string) plugin.File {
+	hs, ok := hookShims[target]
+	if !ok || cleanRel(f.Path) != hs.file {
+		return f
+	}
+	// hook commands call `loops` from PATH; pin them to the plugin home's shim.
+	shim := filepath.ToSlash(filepath.Join(home, "bin", "loops"))
+	if scope == ScopeProject {
+		shim = hs.projectShim // no machine-specific path in a committed file
+	}
+	f.Data = []byte(strings.ReplaceAll(string(f.Data), `"loops hook`, `"\"`+shim+`\" hook`))
+	return f
+}
+
+func installNotes(target plugin.Platform, home string) []string {
 	notes := []string{
 		fmt.Sprintf("%s: plugin home is %s; `loops path` finds it, or set LOOPS_PLUGIN_ROOT to it", target, home),
 	}
-	switch target {
-	case plugin.Windsurf:
-		notes = append(notes, "windsurf: no subagents, so skills/work runs in solo mode (PLATFORMS.md section 4)")
-	case plugin.Amp:
-		notes = append(notes, "amp: no hooks in v1; subagents use the built-in Task with role prompts")
-	case plugin.Cline:
-		notes = append(notes, "cline: no hooks in v1; skills/work runs in solo mode")
-	case plugin.OpenCode:
-		notes = append(notes, "opencode: restart OpenCode to load the agents, commands and plugin")
+	if note, ok := platformNotes[target]; ok {
+		notes = append(notes, note)
 	}
-	notes = append(notes, "make sure `loops` is on PATH, or call "+filepath.Join(home, "bin", "loops")+" (it downloads the matching release binary on first use; no Go needed)",
-		"update later with: curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target "+string(target)+" --force")
-	return append(native, shared...), notes, nil
+	return append(notes,
+		"make sure `loops` is on PATH, or call "+filepath.Join(home, "bin", "loops")+" (it downloads the matching release binary on first use; no Go needed)",
+		"update later with: curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target "+string(target)+" --force",
+	)
 }
 
 func cleanRel(p string) string {

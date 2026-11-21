@@ -79,20 +79,20 @@ func portApp(t *testing.T, src fstest.MapFS) (*App, *memPackages, *bytes.Buffer,
 
 func TestPortBuild(t *testing.T) {
 	a, pk, out, errw, root := portApp(t, portSource())
-	code := a.Run(context.Background(), []string{"port", "build", "--platform", "codex,cursor,claude"})
+	code := a.Run(context.Background(), []string{"port", "build", "--platform", "codex,cursor,claude,antigravity"})
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errw)
 	}
-	for _, pl := range []string{"codex", "cursor", "claude"} {
+	for _, pl := range []string{"codex", "cursor", "claude", "antigravity"} {
 		if _, ok := pk.written[filepath.Join(root, "platforms", pl)]; !ok {
 			t.Errorf("%s not written: %v", pl, pk.written)
 		}
 	}
-	if len(pk.written) != 3 {
+	if len(pk.written) != 4 {
 		t.Errorf("wrote %d packages", len(pk.written))
 	}
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	if len(lines) != 4 || !strings.HasPrefix(lines[0], "codex: ") || !strings.HasSuffix(lines[0], " warnings") || lines[3] != "root: 2 files" {
+	if len(lines) != 5 || !strings.HasPrefix(lines[0], "codex: ") || !strings.HasSuffix(lines[0], " warnings") || !strings.HasPrefix(lines[3], "antigravity: ") || lines[4] != "root: 2 files" {
 		t.Errorf("stdout = %q", out)
 	}
 	if !strings.Contains(errw.String(), "warning: codex:") {
