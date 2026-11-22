@@ -4,6 +4,7 @@ description: "Research phase: probe this machine (CPU, RAM, load) and recommend 
 subagent: true
 mainAgent: false
 model: "inherit"
+tools: [run_command, send_message]
 commandExecutionPolicy: "auto"
 ---
 

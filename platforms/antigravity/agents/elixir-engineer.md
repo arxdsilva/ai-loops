@@ -4,6 +4,7 @@ description: "Elixir specialist: owns the Mix toolchain and repo files in wave 0
 subagent: true
 mainAgent: false
 model: "inherit"
+tools: [view_file, write_to_file, replace_file_content, run_command, grep_search, find_by_name, list_dir, send_message]
 commandExecutionPolicy: "auto"
 ---
 

@@ -2,9 +2,10 @@
 // guard decisions and run events. Every handler fails open: bad input,
 // no active run, or an internal error exits 0 with no output.
 //
-// Names (hooks/hooks.json): session-start, read-guard, test-guard,
-// toolchain-env, model-guard, post-edit, trace, trace-agent, stop-gate. The
-// pre-language-pack names race-guard, go-env and go-post-edit stay aliases.
+// Names (hooks/hooks.json): session-start, read-guard, write-guard,
+// test-guard, toolchain-env, model-guard, post-edit, trace, trace-agent,
+// stop-gate. The pre-language-pack names race-guard, go-env and
+// go-post-edit stay aliases.
 package hook
 
 import (
@@ -151,6 +152,8 @@ func (h *handler) handle(ctx context.Context, name, platform string, in io.Reade
 		h.sessionStart(ctx, d, p, out)
 	case "read-guard":
 		return h.readGuard(ctx, p, out, errw)
+	case "write-guard":
+		return h.writeGuard(ctx, p, out, errw)
 	case "model-guard":
 		return h.modelGuard(ctx, p, out, errw)
 	case "test-guard", "race-guard":
@@ -342,6 +345,172 @@ func (h *handler) readGuard(ctx context.Context, p payload, out, errw io.Writer)
 		return 0
 	}
 	return h.deny(ctx, p, "read-guard", reason, out, errw)
+}
+
+func (h *handler) writeGuard(ctx context.Context, p payload, out, errw io.Writer) int {
+	if !isWriteTool(p.ToolName) {
+		return 0
+	}
+	targets := h.writeTargets(p)
+	if len(targets) == 0 {
+		return 0
+	}
+	id, runDir, ok := h.activeRunDir(ctx)
+	if !ok {
+		return 0
+	}
+	role := h.writeRole(ctx, id, p)
+	if role == "" {
+		return 0
+	}
+	resolvedRunDir := resolvePath(runDir)
+	resolvedProjectDir := resolvePath(h.repo(p))
+	for _, target := range targets {
+		if reason := guard.CheckWrite(role, resolvePath(target), resolvedRunDir, resolvedProjectDir); reason != "" {
+			return h.deny(ctx, p, "write-guard", reason, out, errw)
+		}
+	}
+	return 0
+}
+
+func isWriteTool(name string) bool {
+	return name == "Write" || name == "Edit" || name == "MultiEdit"
+}
+
+func (h *handler) activeRunDir(ctx context.Context) (id, dir string, ok bool) {
+	if h.d.Rec == nil {
+		return "", "", false
+	}
+	id, err := h.d.Rec.Current(ctx)
+	if err != nil || id == "" {
+		return "", "", false
+	}
+	dir, err = h.d.Rec.Dir(ctx, id)
+	if err != nil || dir == "" {
+		return "", "", false
+	}
+	return id, dir, true
+}
+
+func (h *handler) writeTargets(p payload) []string {
+	var in toolInput
+	_ = json.Unmarshal(p.ToolInput, &in)
+	var targets []string
+	if in.FilePath != "" {
+		targets = append(targets, in.FilePath)
+	}
+	base := p.Cwd
+	if base == "" && len(p.extraFiles) > 0 {
+		base = h.repo(p)
+	}
+	for _, f := range p.extraFiles {
+		if f == "" {
+			continue
+		}
+		if !filepath.IsAbs(f) && base != "" {
+			f = filepath.Join(base, f)
+		}
+		targets = append(targets, f)
+	}
+	return targets
+}
+
+func (h *handler) writeRole(ctx context.Context, runID string, p payload) string {
+	if r := roleName(p.AgentType); r != "" {
+		return r
+	}
+	st, _ := h.d.Rec.State(ctx, runID)
+	if r := laneRole(st.Lanes, p.AgentID); r != "" {
+		return r
+	}
+	if r := laneRole(st.Lanes, p.SessionID); r != "" {
+		return r
+	}
+	if p.AgentID == "" {
+		if r := soleRunningRole(st.Lanes); r != "" {
+			return r
+		}
+	}
+	return roleName(p.AgentID)
+}
+
+func laneRole(lanes []run.Lane, id string) string {
+	if id == "" {
+		return ""
+	}
+	for _, l := range lanes {
+		if (l.Agent == id || l.Label == id) && l.Role != "" {
+			if r := roleName(l.Role); r != "" {
+				return r
+			}
+		}
+	}
+	return ""
+}
+
+func soleRunningRole(lanes []run.Lane) string {
+	var role string
+	for _, l := range lanes {
+		if !l.Running || l.Role == "" {
+			continue
+		}
+		r := roleName(l.Role)
+		if r == "" {
+			continue
+		}
+		if role != "" {
+			return ""
+		}
+		role = r
+	}
+	return role
+}
+
+func resolvePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	clean := filepath.Clean(path)
+	cur := clean
+	var tail []string
+	for range 64 {
+		if r, err := filepath.EvalSymlinks(cur); err == nil {
+			return joinTail(r, tail)
+		}
+		if target, ok := readDanglingLink(cur); ok {
+			cur = target
+			continue
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return clean
+		}
+		tail = append(tail, filepath.Base(cur))
+		cur = parent
+	}
+	return clean
+}
+
+func readDanglingLink(path string) (string, bool) {
+	fi, err := os.Lstat(path)
+	if err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		return "", false
+	}
+	target, err := os.Readlink(path)
+	if err != nil {
+		return "", false
+	}
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(filepath.Dir(path), target)
+	}
+	return filepath.Clean(target), true
+}
+
+func joinTail(base string, tail []string) string {
+	for i := len(tail) - 1; i >= 0; i-- {
+		base = filepath.Join(base, tail[i])
+	}
+	return base
 }
 
 func (h *handler) modelGuard(ctx context.Context, p payload, out, errw io.Writer) int {

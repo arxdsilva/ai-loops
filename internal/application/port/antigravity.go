@@ -67,10 +67,11 @@ Or install into workspace / user customization directories:
   after installing or updating).
 - Rules: always-on context lives in rules/AGENTS.md.
 - Subagents: custom agents in agents/<role>.md (` + "`subagent: true`" + `,
-  ` + "`mainAgent: false`" + `, ` + "`commandExecutionPolicy: \"auto\"`" + `), spawned via
-  ` + "`invoke_subagent`" + ` and resumed when idle via ` + "`send_message`" + ` with full context.
-  Read-only roles rely on instruction enforcement (` + "`tools`" + ` omitted so roles can
-  write their run-dir files and avoid tool-validation hangs).
+  ` + "`mainAgent: false`" + `, ` + "`commandExecutionPolicy: \"auto\"`" + `, explicit role
+  ` + "`tools:`" + ` allowlists), spawned via ` + "`invoke_subagent`" + ` and resumed when idle
+  via ` + "`send_message`" + ` with full context. Read-only roles omit
+  ` + "`replace_file_content`" + ` and enforce ` + "`write_to_file`" + ` run-dir scoping via the
+  ` + "`write-guard`" + ` ` + "`PreToolUse`" + ` hook (` + "`run_command`" + ` remains instruction-enforced).
 - Hooks: hooks.json registers SessionStart, PreToolUse, PostToolUse, and Stop
   with ` + "`./bin/loops hook <name> --platform antigravity`" + ` (exit 0 + stdout JSON).
   ` + "`loops install`" + ` rewrites the hook commands to the plugin-home shim.
@@ -140,24 +141,31 @@ func antigravityManifest(p plugin.Plugin) map[string]any {
 
 func antigravityAgents(p plugin.Plugin, o Options) ([]plugin.File, []string) {
 	files := make([]plugin.File, 0, len(p.Agents))
-	var readOnly, allow []string
+	var readOnly []string
 	for _, a := range p.Agents {
 		files = append(files, antigravityAgent(a, o))
 		if a.ReadOnly {
 			readOnly = append(readOnly, a.Name)
 		}
-		if len(a.Tools) > 0 || (len(a.DisallowedTools) > 0 && !a.ReadOnly) {
-			allow = append(allow, a.Name)
-		}
 	}
 	var warns []string
 	if len(readOnly) > 0 {
-		warns = append(warns, "antigravity: read-only is enforced by instruction only (tools omitted so roles can write run-dir files and avoid tool-validation hangs) for "+strings.Join(readOnly, ", "))
-	}
-	if len(allow) > 0 {
-		warns = append(warns, "antigravity: tool lists omitted for "+strings.Join(allow, ", "))
+		warns = append(warns, "antigravity: read-only roles omit replace_file_content and enforce write_to_file run-dir scoping via write-guard (run_command remains instruction-enforced) for "+strings.Join(readOnly, ", "))
 	}
 	return files, warns
+}
+
+func antigravityAgentTools(a plugin.Agent) []string {
+	switch {
+	case a.Name == "hardware-researcher":
+		return []string{"run_command", "send_message"}
+	case a.Name == "web-researcher":
+		return []string{"view_file", "write_to_file", "run_command", "grep_search", "find_by_name", "list_dir", "send_message", "search_web"}
+	case a.ReadOnly:
+		return []string{"view_file", "write_to_file", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"}
+	default:
+		return []string{"view_file", "write_to_file", "replace_file_content", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"}
+	}
 }
 
 func antigravityAgent(a plugin.Agent, o Options) plugin.File {
@@ -175,6 +183,7 @@ func antigravityAgent(a plugin.Agent, o Options) plugin.File {
 		"subagent: true\n" +
 		"mainAgent: false\n" +
 		"model: " + yamlString(m) + "\n" +
+		"tools: [" + strings.Join(antigravityAgentTools(a), ", ") + "]\n" +
 		"commandExecutionPolicy: \"auto\"\n" +
 		"---\n\n" + body
 	return plugin.File{Path: "agents/" + a.Name + ".md", Data: []byte(content)}
@@ -188,6 +197,9 @@ func antigravityHooks(p plugin.Plugin) map[string]any {
 		if !antigravityEvents[ev] || len(hs) == 0 {
 			continue
 		}
+		if ev == plugin.EventPreToolUse {
+			hs = withAntigravityWriteGuard(hs)
+		}
 		if antigravityMatcherEvents[ev] {
 			hooks[string(ev)] = antigravityMatcherGroups(hs)
 		} else {
@@ -195,6 +207,20 @@ func antigravityHooks(p plugin.Plugin) map[string]any {
 		}
 	}
 	return map[string]any{"loops": hooks}
+}
+
+func withAntigravityWriteGuard(hs []plugin.Hook) []plugin.Hook {
+	for _, h := range hs {
+		if h.Name == "write-guard" {
+			return hs
+		}
+	}
+	return append(hs[:len(hs):len(hs)], plugin.Hook{
+		Event:      plugin.EventPreToolUse,
+		Matcher:    "Edit|Write|MultiEdit",
+		Name:       "write-guard",
+		TimeoutSec: 10,
+	})
 }
 
 func antigravityFlatHandlers(hs []plugin.Hook) []antigravityHandler {

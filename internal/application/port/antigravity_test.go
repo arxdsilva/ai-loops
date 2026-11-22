@@ -115,21 +115,36 @@ func TestAntigravity(t *testing.T) {
 		"hooks.json",
 		".agents/",
 		"~/.gemini/config/",
+		"`tools:` allowlists",
+		"write-guard",
+		"PreToolUse",
 	} {
 		p2Has(t, readme, sub)
 	}
+	if strings.Contains(readme, "tools` omitted") {
+		t.Errorf("README.md still mentions omitted tools:\n%s", readme)
+	}
 
-	// Warnings for dropped events, read-only instruction enforcement, and hook shim.
+	// Warnings for dropped events, read-only enforcement, and hook shim.
 	w := strings.Join(warns, "\n")
 	for _, sub := range []string{
 		"PostToolUseFailure",
 		"SubagentStart",
 		"SubagentStop",
 		"read-only",
+		"replace_file_content",
+		"write_to_file",
+		"write-guard",
+		"run_command",
 		"instruction",
 		"loops install",
 	} {
 		p2Has(t, w, sub)
+	}
+	for _, stale := range []string{"tool lists omitted", "tools omitted"} {
+		if strings.Contains(w, stale) {
+			t.Errorf("unexpected stale warning %q:\n%s", stale, w)
+		}
 	}
 }
 
@@ -163,6 +178,22 @@ func TestAntigravityOptionalManifestAndEmptyContextWarning(t *testing.T) {
 
 func TestAntigravityAgents(t *testing.T) {
 	p, src := loadFixture(t)
+	p.Agents = append(p.Agents,
+		plugin.Agent{
+			Name:        "hardware-researcher",
+			Description: "Probe hardware.",
+			Tier:        plugin.TierHaiku,
+			ReadOnly:    true,
+			Body:        "Hardware body.\n",
+		},
+		plugin.Agent{
+			Name:        "web-researcher",
+			Description: "Research web.",
+			Tier:        plugin.TierSonnet,
+			ReadOnly:    true,
+			Body:        "Web body.\n",
+		},
+	)
 
 	// Default options -> model: "inherit".
 	files, _, err := Build(p, src, plugin.Antigravity, Options{})
@@ -174,16 +205,38 @@ func TestAntigravityAgents(t *testing.T) {
 		byPath[f.Path] = string(f.Data)
 	}
 
-	// Read-only role (planner) gets readOnlyNote and omits tools.
+	wantTools := map[string][]string{
+		"agents/hardware-researcher.md": {"run_command", "send_message"},
+		"agents/web-researcher.md":      {"view_file", "write_to_file", "run_command", "grep_search", "find_by_name", "list_dir", "send_message", "search_web"},
+		"agents/planner.md":             {"view_file", "write_to_file", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"},
+		"agents/domain-engineer.md":     {"view_file", "write_to_file", "replace_file_content", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"},
+		"agents/scout.md":               {"view_file", "write_to_file", "replace_file_content", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"},
+	}
+	for file, want := range wantTools {
+		fm, _, err := parseFrontmatter(file, []byte(byPath[file]))
+		if err != nil {
+			t.Fatalf("%s frontmatter: %v", file, err)
+		}
+		got, err := list(fm["tools"])
+		if err != nil {
+			t.Fatalf("%s tools list(%q): %v", file, fm["tools"], err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s tools = %v, want %v", file, got, want)
+		}
+		wantLine := "tools: [" + strings.Join(want, ", ") + "]\n"
+		if !strings.Contains(byPath[file], wantLine) {
+			t.Errorf("%s missing inline YAML sequence %q", file, wantLine)
+		}
+	}
+
+	// Read-only role (planner) gets readOnlyNote and role-tailored tools.
 	fm, body, err := parseFrontmatter("agents/planner.md", []byte(byPath["agents/planner.md"]))
 	if err != nil {
 		t.Fatalf("planner frontmatter: %v", err)
 	}
 	if fm["name"] != "planner" || fm["subagent"] != "true" || fm["mainAgent"] != "false" || fm["model"] != "inherit" || fm["commandExecutionPolicy"] != "auto" {
 		t.Fatalf("planner frontmatter = %+v", fm)
-	}
-	if _, ok := fm["tools"]; ok {
-		t.Fatalf("planner frontmatter must omit tools: %+v", fm)
 	}
 	if !strings.HasPrefix(body, readOnlyNote+"\n\n") {
 		t.Fatalf("planner missing readOnlyNote prefix: %q", body)
@@ -205,13 +258,10 @@ func TestAntigravityAgents(t *testing.T) {
 		t.Fatalf("domain-engineer body = %q", body)
 	}
 
-	// Role with canonical tools allowlist (scout) omits tools in Antigravity frontmatter.
+	// Role with canonical tools allowlist (scout) gets implementer tools in Antigravity frontmatter.
 	fm, body, err = parseFrontmatter("agents/scout.md", []byte(byPath["agents/scout.md"]))
 	if err != nil {
 		t.Fatalf("scout frontmatter: %v", err)
-	}
-	if _, ok := fm["tools"]; ok {
-		t.Fatalf("scout frontmatter must omit tools: %+v", fm)
 	}
 	if fm["model"] != "inherit" || strings.Contains(body, readOnlyNote) {
 		t.Fatalf("scout fm=%+v body=%q", fm, body)
@@ -336,8 +386,15 @@ func TestAntigravityHooksJSON(t *testing.T) {
 
 	var pre []hookGroup
 	_ = json.Unmarshal(doc.Loops["PreToolUse"], &pre)
-	if len(pre) != 2 || pre[0].Matcher != "view_file|run_command" || pre[1].Matcher != "invoke_subagent" {
+	if len(pre) != 3 || pre[0].Matcher != "view_file|run_command" || pre[1].Matcher != "invoke_subagent" {
 		t.Fatalf("PreToolUse = %+v", pre)
+	}
+	wg := pre[2]
+	if wg.Matcher != "replace_file_content|write_to_file|multi_replace_file_content" ||
+		len(wg.Hooks) != 1 ||
+		wg.Hooks[0].Command != "./bin/loops hook write-guard --platform antigravity" ||
+		wg.Hooks[0].Timeout != 10 {
+		t.Fatalf("write-guard PreToolUse group = %+v", wg)
 	}
 	var post []hookGroup
 	_ = json.Unmarshal(doc.Loops["PostToolUse"], &post)
@@ -347,6 +404,31 @@ func TestAntigravityHooksJSON(t *testing.T) {
 	// trace had no matcher (normalized from "*"), so "matcher" key must be omitted.
 	if strings.Count(string(doc.Loops["PostToolUse"]), `"matcher"`) != 1 {
 		t.Errorf("expected exactly 1 matcher in PostToolUse: %s", doc.Loops["PostToolUse"])
+	}
+
+	// Existing write-guard in PreToolUse is not duplicated.
+	p.Hooks = append(p.Hooks, plugin.Hook{
+		Event: plugin.EventPreToolUse, Matcher: "Edit|Write|MultiEdit", Name: "write-guard", TimeoutSec: 10,
+	})
+	files2, _, err := Build(p, src, plugin.Antigravity, Options{})
+	if err != nil {
+		t.Fatalf("Build with explicit write-guard: %v", err)
+	}
+	for _, f := range files2 {
+		if f.Path == "hooks.json" {
+			var doc2 struct {
+				Loops struct {
+					PreToolUse []hookGroup `json:"PreToolUse"`
+				} `json:"loops"`
+			}
+			if err := json.Unmarshal(f.Data, &doc2); err != nil {
+				t.Fatalf("invalid JSON: %v", err)
+			}
+			if len(doc2.Loops.PreToolUse) != 3 {
+				t.Fatalf("expected 3 PreToolUse groups without duplicate write-guard, got %+v", doc2.Loops.PreToolUse)
+			}
+			break
+		}
 	}
 }
 
@@ -392,7 +474,7 @@ func TestAntigravityMatcher(t *testing.T) {
 		if err := json.Unmarshal(hooksData, &doc); err != nil {
 			t.Fatalf("%q: invalid JSON: %v", tc.in, err)
 		}
-		if len(doc.Loops.PreToolUse) != 1 || doc.Loops.PreToolUse[0].Matcher != tc.want {
+		if len(doc.Loops.PreToolUse) != 2 || doc.Loops.PreToolUse[0].Matcher != tc.want {
 			t.Errorf("matcher(%q) = %+v, want %q", tc.in, doc.Loops.PreToolUse, tc.want)
 		}
 	}

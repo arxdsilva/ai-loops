@@ -102,7 +102,7 @@ npx ai-loops --target antigravity
 curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target antigravity
 ```
 
-Project scope (default, or `loops install --target antigravity --scope project`) places `.agents/skills/`, `.agents/agents/`, `.agents/rules/`, `.agents/hooks.json`, and `.loops/plugin/`; user scope (`--scope user`) places `~/.gemini/config/skills/`, `~/.gemini/config/agents/`, `~/.gemini/config/rules/`, `~/.gemini/config/hooks.json`, and `~/.local/share/loops/plugin/`. Rules come from `rules/AGENTS.md` (and `AGENTS.md` / `GEMINI.md`). Run `/skills reload` after installing or updating; in `agy`, skills also run as `/work`, `/init`, `/status`, `/report`. Custom subagents (`agents/<role>.md`, spawned with `invoke_subagent`) wake and resume when idle via `send_message`.
+Project scope (default, or `loops install --target antigravity --scope project`) places `.agents/skills/`, `.agents/agents/`, `.agents/rules/`, `.agents/hooks.json`, and `.loops/plugin/`; user scope (`--scope user`) places `~/.gemini/config/skills/`, `~/.gemini/config/agents/`, `~/.gemini/config/rules/`, `~/.gemini/config/hooks.json`, and `~/.local/share/loops/plugin/`. Rules come from `rules/AGENTS.md` (and `AGENTS.md` / `GEMINI.md`). Run `/skills reload` after installing or updating; in `agy`, skills also run as `/work`, `/init`, `/status`, `/report`. Custom subagents (`agents/<role>.md`, spawned with `invoke_subagent`) emit explicit role `tools:` allowlists and wake and resume when idle via `send_message`, with `PreToolUse` `write-guard` scoping read-only roles' writes to the active run dir (plus `.loops/memory/` for `reflector`).
 
 ### Capability matrix (condensed)
 
@@ -240,6 +240,7 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
 |---|---|
 | session-start | Tells Claude where the plugin lives and which run is active. |
 | read-guard | Denies a whole-file Read of a file over 500 lines, and shell views over 150 lines of repo files. Read in ranges instead. Tune it with `READ_GUARD_MIN_LINES` and `READ_GUARD_MAX_VIEW_LINES`, or turn it off with `READ_GUARD=off`. |
+| write-guard | Path-scoped read-only enforcement on Antigravity `PreToolUse` (`replace_file_content\|write_to_file\|multi_replace_file_content`): restricts read-only roles to writing inside the active run dir (plus `.loops/memory/` for `reflector`). |
 | test-guard (was race-guard) | For flag-mode languages, denies a test run without the race flag (`go test` without `-race`, `swift test` without `--sanitize=thread`). No opt-out. Other languages are never denied here; `loops gate` enforces their race build or substitute checks. |
 | toolchain-env (was go-env) | Scopes agents' toolchain commands to the run's caches. Go commands are rewritten, or denied with a hint to use `loops go …` where the platform can't rewrite. Other languages are rewritten on Claude Code, Gemini CLI, Windsurf and Antigravity and never denied; elsewhere use `loops exec -- <cmd>`. |
 | model-guard | Untyped or general-purpose agents must name a model. |

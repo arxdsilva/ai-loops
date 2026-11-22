@@ -4,6 +4,7 @@ description: "Product phase: manually test every AC against the real service, sa
 subagent: true
 mainAgent: false
 model: "inherit"
+tools: [view_file, write_to_file, run_command, grep_search, find_by_name, list_dir, send_message]
 commandExecutionPolicy: "auto"
 ---
 

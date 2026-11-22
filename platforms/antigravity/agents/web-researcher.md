@@ -4,6 +4,7 @@ description: "Research phase: external facts for a ticket (library docs, API beh
 subagent: true
 mainAgent: false
 model: "inherit"
+tools: [view_file, write_to_file, run_command, grep_search, find_by_name, list_dir, send_message, search_web]
 commandExecutionPolicy: "auto"
 ---
 

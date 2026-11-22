@@ -4,6 +4,7 @@ description: "Reflect phase: read the finished run, write reflection.md, and sto
 subagent: true
 mainAgent: false
 model: "inherit"
+tools: [view_file, write_to_file, run_command, grep_search, find_by_name, list_dir, send_message]
 commandExecutionPolicy: "auto"
 ---
 

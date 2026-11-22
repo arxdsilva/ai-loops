@@ -29,10 +29,11 @@ Or install into workspace / user customization directories:
   after installing or updating).
 - Rules: always-on context lives in rules/AGENTS.md.
 - Subagents: custom agents in agents/<role>.md (`subagent: true`,
-  `mainAgent: false`, `commandExecutionPolicy: "auto"`), spawned via
-  `invoke_subagent` and resumed when idle via `send_message` with full context.
-  Read-only roles rely on instruction enforcement (`tools` omitted so roles can
-  write their run-dir files and avoid tool-validation hangs).
+  `mainAgent: false`, `commandExecutionPolicy: "auto"`, explicit role
+  `tools:` allowlists), spawned via `invoke_subagent` and resumed when idle
+  via `send_message` with full context. Read-only roles omit
+  `replace_file_content` and enforce `write_to_file` run-dir scoping via the
+  `write-guard` `PreToolUse` hook (`run_command` remains instruction-enforced).
 - Hooks: hooks.json registers SessionStart, PreToolUse, PostToolUse, and Stop
   with `./bin/loops hook <name> --platform antigravity` (exit 0 + stdout JSON).
   `loops install` rewrites the hook commands to the plugin-home shim.

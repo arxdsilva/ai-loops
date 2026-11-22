@@ -3,7 +3,7 @@
 Read with `skills/work/SKILL.md`. Facts: `specs/PLATFORMS.md` §2-4. Covers both the Antigravity IDE app and CLI (`agy`).
 
 ## Spawn
-- Custom subagent files (`agents/<role>.md` in the native plugin, `.agents/agents/<role>.md` in project scope, `~/.gemini/config/agents/<role>.md` in user scope) set `subagent: true`, `mainAgent: false`, `model: inherit` (unless built with `loops port build --models`), `commandExecutionPolicy: "auto"`, and omit `tools` (so roles can write their run-dir files and avoid Antigravity's tool-validation hang). Read-only roles enforce read-only via body instruction.
+- Custom subagent files (`agents/<role>.md` in the native plugin, `.agents/agents/<role>.md` in project scope, `~/.gemini/config/agents/<role>.md` in user scope) set `subagent: true`, `mainAgent: false`, `model: inherit` (unless built with `loops port build --models`), `commandExecutionPolicy: "auto"`, and explicit role-tailored `tools:` allowlists (`hardware-researcher`: `[run_command, send_message]`; `web-researcher`: `[view_file, write_to_file, run_command, grep_search, find_by_name, list_dir, send_message, search_web]`; other read-only roles: same list excluding `replace_file_content` and `search_web`; implementers: full list including `replace_file_content`). Read-only roles enforce `write_to_file` run-dir scoping via `PreToolUse` `write-guard`, while `run_command` remains instruction-enforced via the body note.
 - Spawn with `invoke_subagent` targeting the role (`<role>`), starting the prompt with the prompt header (Run dir, Specs, Templates, Loops, Role, Agent id, Wave, Language, Charter) and the agent's plan block (or input file list).
 - If subagents are unavailable, fall back to Tier D solo mode (`specs/PLATFORMS.md` §4).
 
@@ -28,11 +28,11 @@ Cancel or stop the subagent via `manage_subagents` or the Antigravity UI once ve
 ## Hooks and guards
 - Native (`hooks.json` in native plugin; `.agents/hooks.json` in project scope, `~/.gemini/config/hooks.json` in user scope; commands pass `--platform antigravity`): `SessionStart`, `PreToolUse` (Antigravity tool regex matchers `view_file`, `run_command`, `replace_file_content`, `multi_replace_file_content`, `write_to_file`, `invoke_subagent`), `PostToolUse`, `Stop`.
 - Exit-0 stdout JSON protocol (non-zero exits fail open):
-  - `PreToolUse` deny (`read-guard`, `test-guard`, conflicting `go-env`): `{"decision":"deny","reason":...}` (`model-guard` is a no-op).
+  - `PreToolUse` deny (`read-guard`, `test-guard`, `write-guard`, conflicting `go-env`): `{"decision":"deny","reason":...}` (`model-guard` is a no-op). `write-guard` matches `replace_file_content|write_to_file|multi_replace_file_content` and restricts read-only roles to `<run-dir>/**` (and `.loops/memory/**` for `reflector`).
   - `PreToolUse` rewrite (`toolchain-env`): `{"overwrite":{...}}` (shallow merge into `toolCall.args`).
   - `Stop` gate: `{"decision":"continue","reason":...}`.
   - `SessionStart` and `post-edit` failure: `{"injectSteps":[{"userMessage":...}]}` (`PostToolUse` `injectSteps` *(unverified)*).
-- Not available: `PostToolUseFailure`, `SubagentStart`/`SubagentStop`, per-role `tools` allowlist enforcement.
+- Not available: `PostToolUseFailure`, `SubagentStart`/`SubagentStop`. For read-only roles, `run_command` remains instruction-enforced.
 
 ## Live view
 `loops watch` in a side terminal; `loops report`.
