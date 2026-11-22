@@ -48,6 +48,7 @@ copilot plugin install arxdsilva/ai-loops                         # GitHub Copil
 codex plugin marketplace add arxdsilva/ai-loops                   # Codex, then install loops in the desktop app
 curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target codex
 gemini extensions install ./ai-loops/platforms/gemini             # Gemini CLI, after cloning this repo
+agy plugin install ./platforms/antigravity                        # Google Antigravity, inside a clone of this repo
 curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target opencode   # or amp, windsurf, cline, antigravity
 ```
 

@@ -1,6 +1,10 @@
 ---
 name: rust-engineer
 description: "Rust specialist: owns the toolchain and repo files (Cargo manifests, lockfile, lint, format and CI config, toolchain pin, test and coverage prerequisites), takes language-level lanes such as edition or dependency upgrades, and reviews Rust idioms."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # rust-engineer

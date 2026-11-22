@@ -1,6 +1,10 @@
 ---
 name: domain-engineer
 description: "Implement pure domain rules, entities, value objects and domain services with tests, in the domain layer the plan assigns (any language pack)."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # domain-engineer

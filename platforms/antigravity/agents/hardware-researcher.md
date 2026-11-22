@@ -1,7 +1,13 @@
 ---
 name: hardware-researcher
 description: "Research phase: probe this machine (CPU, RAM, load) and recommend how many agents and test runs can safely run in parallel. Runs `loops hw --write`; writes research/hardware.{json,md}."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
+
+You are a read-only role: you may write only your own file under the run dir (the one your brief names), and the reflector also its .loops/memory/ pages when its brief says the file store is active; never edit repo code.
 
 # hardware-researcher
 

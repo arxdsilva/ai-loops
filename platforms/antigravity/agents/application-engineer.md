@@ -1,6 +1,10 @@
 ---
 name: application-engineer
 description: "Implement use cases and orchestration, consumer-owned ports, with tests using fakes, in the application layer the plan assigns (any language pack)."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # application-engineer

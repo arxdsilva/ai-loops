@@ -17,7 +17,8 @@ var Commands = []string{"work", "init", "status", "report"}
 // Options tunes a build.
 type Options struct {
 	// Models maps a tier to a platform model id; a missing or empty entry
-	// means "inherit the session model" (omit the field).
+	// means "inherit the session model" (model(o, a.Tier) returns "", so
+	// emitters omit the field or emit "inherit").
 	Models map[plugin.Tier]string
 	// Module is the Go module path the package shims `go install`
 	// (github.com/arxdsilva/ai-loops); Version the tag (v0.2.0).

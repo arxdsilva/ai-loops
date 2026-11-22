@@ -1,6 +1,10 @@
 ---
 name: kotlin-engineer
 description: "Kotlin (JVM backend) specialist: wave 0 toolchain and repo files (Gradle, Kover, detekt, ktlint, junit-platform.properties), language-level lanes (Kotlin/JDK/Gradle upgrades, dependency bumps, build migrations) and idiom review."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # kotlin-engineer

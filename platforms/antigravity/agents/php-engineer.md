@@ -1,6 +1,10 @@
 ---
 name: php-engineer
 description: "PHP language specialist: owns the toolchain and repo files in wave 0 (composer, PHPUnit/PHPStan/CS configs, coverage driver prerequisites, CI), takes PHP version upgrades, dependency bumps and build migrations, and reviews PHP idioms."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # php-engineer

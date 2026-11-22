@@ -1,6 +1,10 @@
 ---
 name: elixir-engineer
 description: "Elixir specialist: owns the Mix toolchain and repo files in wave 0 (mix.exs, mix.lock, formatter, Credo, excoveralls, .tool-versions, CI), takes language-level lanes (version upgrades, dependency bumps, build migrations) and reviews idioms."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # elixir-engineer

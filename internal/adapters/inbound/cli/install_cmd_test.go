@@ -152,40 +152,76 @@ func TestInstallAntigravityHintsAndStaleDirs(t *testing.T) {
 		}
 		return stubBuild(fs, nil)
 	}
+	assertExists := func(t *testing.T, paths ...string) {
+		t.Helper()
+		for _, p := range paths {
+			if _, err := os.Stat(p); err != nil {
+				t.Fatalf("missing expected file %s: %v", p, err)
+			}
+		}
+	}
+	assertRemoved := func(t *testing.T, out string, paths ...string) {
+		t.Helper()
+		if !strings.Contains(out, "removed stale") {
+			t.Errorf("missing removed stale output: %q", out)
+		}
+		for _, p := range paths {
+			if _, err := os.Stat(p); !os.IsNotExist(err) {
+				t.Errorf("stale file kept %s: err=%v, out=%q", p, err, out)
+			}
+		}
+	}
 
 	// Project scope: places under .agents/, prints Antigravity hint, removes stale .agents/ files.
 	a, out, errb := installApp(root)
-	if code := runInstall(a, mk(".agents/hooks.json", ".agents/skills/a/SKILL.md", ".agents/skills/b/SKILL.md", "ROLES.md"), "--target", "antigravity"); code != 0 {
+	if code := runInstall(a, mk("hooks.json", "skills/a/SKILL.md", "skills/b/SKILL.md", "agents/planner.md", "agents/old.md", "rules/AGENTS.md", "rules/OLD.md", "ROLES.md"), "--target", "antigravity"); code != 0 {
 		t.Fatalf("project install %d: %s", code, errb)
 	}
 	if !strings.Contains(out.String(), "next: Antigravity:") || !strings.Contains(out.String(), "/skills reload") {
 		t.Errorf("missing antigravity hint in %q", out)
 	}
-	staleProj := filepath.Join(root, ".agents/skills/b/SKILL.md")
+	projKeep := []string{
+		filepath.Join(root, ".agents/hooks.json"),
+		filepath.Join(root, ".agents/skills/a/SKILL.md"),
+		filepath.Join(root, ".agents/agents/planner.md"),
+		filepath.Join(root, ".agents/rules/AGENTS.md"),
+	}
+	projStale := []string{
+		filepath.Join(root, ".agents/skills/b/SKILL.md"),
+		filepath.Join(root, ".agents/agents/old.md"),
+		filepath.Join(root, ".agents/rules/OLD.md"),
+	}
+	assertExists(t, append(projKeep, projStale...)...)
 	out.Reset()
-	if code := runInstall(a, mk(".agents/hooks.json", ".agents/skills/a/SKILL.md", "ROLES.md"), "--target", "antigravity"); code != 0 {
+	if code := runInstall(a, mk("hooks.json", "skills/a/SKILL.md", "agents/planner.md", "rules/AGENTS.md", "ROLES.md"), "--target", "antigravity"); code != 0 {
 		t.Fatalf("project reinstall %d: %s", code, errb)
 	}
-	if _, err := os.Stat(staleProj); !os.IsNotExist(err) || !strings.Contains(out.String(), "removed stale") {
-		t.Errorf("project stale .agents file kept: %q", out)
-	}
+	assertRemoved(t, out.String(), projStale...)
+	assertExists(t, projKeep...)
 
 	// User scope: places under ~/.gemini/config/, removes stale ~/.gemini/config/ files.
 	a, out, errb = installApp(root)
-	if code := runInstall(a, mk(".agents/hooks.json", ".agents/skills/a/SKILL.md", ".agents/skills/b/SKILL.md", "ROLES.md"), "--target", "antigravity", "--scope", "user"); code != 0 {
+	if code := runInstall(a, mk("hooks.json", "skills/a/SKILL.md", "skills/b/SKILL.md", "agents/planner.md", "agents/old.md", "rules/AGENTS.md", "rules/OLD.md", "ROLES.md"), "--target", "antigravity", "--scope", "user"); code != 0 {
 		t.Fatalf("user install %d: %s", code, errb)
 	}
-	staleUser := filepath.Join(home, ".gemini/config/skills/b/SKILL.md")
-	if _, err := os.Stat(staleUser); err != nil {
-		t.Fatalf("user file not placed: %v", err)
+	userKeep := []string{
+		filepath.Join(home, ".gemini/config/hooks.json"),
+		filepath.Join(home, ".gemini/config/skills/a/SKILL.md"),
+		filepath.Join(home, ".gemini/config/agents/planner.md"),
+		filepath.Join(home, ".gemini/config/rules/AGENTS.md"),
 	}
+	userStale := []string{
+		filepath.Join(home, ".gemini/config/skills/b/SKILL.md"),
+		filepath.Join(home, ".gemini/config/agents/old.md"),
+		filepath.Join(home, ".gemini/config/rules/OLD.md"),
+	}
+	assertExists(t, append(userKeep, userStale...)...)
 	out.Reset()
-	if code := runInstall(a, mk(".agents/hooks.json", ".agents/skills/a/SKILL.md", "ROLES.md"), "--target", "antigravity", "--scope", "user"); code != 0 {
+	if code := runInstall(a, mk("hooks.json", "skills/a/SKILL.md", "agents/planner.md", "rules/AGENTS.md", "ROLES.md"), "--target", "antigravity", "--scope", "user"); code != 0 {
 		t.Fatalf("user reinstall %d: %s", code, errb)
 	}
-	if _, err := os.Stat(staleUser); !os.IsNotExist(err) || !strings.Contains(out.String(), "removed stale") {
-		t.Errorf("user stale .gemini/config file kept: %q", out)
-	}
+	assertRemoved(t, out.String(), userStale...)
+	assertExists(t, userKeep...)
 }
 
 func TestPathPrefersPluginRootFile(t *testing.T) {
@@ -403,6 +439,8 @@ func TestInstallAntigravityIdempotent(t *testing.T) {
 				return []string{
 					filepath.Join(proj, ".agents", "hooks.json"),
 					filepath.Join(proj, ".agents", "skills", "work", "SKILL.md"),
+					filepath.Join(proj, ".agents", "agents", "planner.md"),
+					filepath.Join(proj, ".agents", "rules", "AGENTS.md"),
 					filepath.Join(proj, ".loops", "plugin", "specs", "languages", "go", "pack.json"),
 					filepath.Join(proj, ".loops", "plugin", "bin", "loops"),
 					filepath.Join(proj, ".loops", "plugin", "installed-antigravity.json"),
@@ -416,6 +454,8 @@ func TestInstallAntigravityIdempotent(t *testing.T) {
 				return []string{
 					filepath.Join(home, ".gemini", "config", "hooks.json"),
 					filepath.Join(home, ".gemini", "config", "skills", "work", "SKILL.md"),
+					filepath.Join(home, ".gemini", "config", "agents", "planner.md"),
+					filepath.Join(home, ".gemini", "config", "rules", "AGENTS.md"),
 					filepath.Join(home, ".local", "share", "loops", "plugin", "specs", "languages", "go", "pack.json"),
 					filepath.Join(home, ".local", "share", "loops", "plugin", "bin", "loops"),
 					filepath.Join(home, ".local", "share", "loops", "plugin", "installed-antigravity.json"),

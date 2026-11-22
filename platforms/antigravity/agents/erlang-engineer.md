@@ -1,6 +1,10 @@
 ---
 name: erlang-engineer
 description: "Erlang (OTP, rebar3) specialist: wave 0 toolchain and repo files (rebar.config, covertool, erlfmt, elvis, Dialyzer, xref config), language-level lanes (OTP and rebar3 upgrades, dependency bumps, build migrations) and idiom review."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # erlang-engineer

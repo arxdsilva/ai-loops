@@ -1,6 +1,10 @@
 ---
 name: test-engineer
 description: "Write integration, e2e, fuzz and benchmark tests and fixtures within the scope assigned by the plan."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # test-engineer

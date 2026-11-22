@@ -1,7 +1,13 @@
 ---
 name: practices-researcher
 description: "Research phase: which language-pack, hexagonal, SOLID, concurrency and consistency practices and plugin specs apply to a ticket. Writes research/practices.md."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
+
+You are a read-only role: you may write only your own file under the run dir (the one your brief names), and the reflector also its .loops/memory/ pages when its brief says the file store is active; never edit repo code.
 
 # practices-researcher
 

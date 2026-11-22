@@ -1,6 +1,10 @@
 ---
 name: persistence-engineer
 description: "Implement repositories, migrations, caches and queue producers/consumers with integration tests, in the persistence adapter paths assigned by the plan."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # persistence-engineer

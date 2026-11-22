@@ -1,6 +1,10 @@
 ---
 name: csharp-engineer
 description: "C# (.NET) specialist: in wave 0 owns the toolchain and repo files (global.json, Directory.Build.props, Directory.Packages.props, .editorconfig, nuget.config, CI, test and coverage prerequisites); takes language-level lanes (SDK upgrades, package bumps, build migrations); reviews C# idioms on request."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # csharp-engineer

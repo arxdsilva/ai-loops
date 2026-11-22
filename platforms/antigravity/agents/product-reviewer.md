@@ -1,7 +1,13 @@
 ---
 name: product-reviewer
 description: "Product phase: manually test every AC against the real service, save proofs, write pr.md, and open the PR/MR as the lead's PR line says (open, draft, hold or none)."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
+
+You are a read-only role: you may write only your own file under the run dir (the one your brief names), and the reflector also its .loops/memory/ pages when its brief says the file store is active; never edit repo code.
 
 # product-reviewer
 

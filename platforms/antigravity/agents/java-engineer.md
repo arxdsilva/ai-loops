@@ -1,6 +1,10 @@
 ---
 name: java-engineer
 description: "Java language specialist: owns the toolchain and repo files in wave 0 (wrapper, pom or Gradle build, JaCoCo, junit-platform.properties, lint and format config, CI, JDK pin) and takes version upgrades, dependency bumps and build migrations."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # java-engineer

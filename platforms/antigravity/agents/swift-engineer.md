@@ -1,6 +1,10 @@
 ---
 name: swift-engineer
 description: "Swift specialist: in wave 0 owns the SwiftPM manifest, lockfile, toolchain pin, format/lint configs, CI and the test and coverage prerequisites; takes Swift upgrade, dependency and build-migration lanes; reviews Swift idioms on request."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # swift-engineer

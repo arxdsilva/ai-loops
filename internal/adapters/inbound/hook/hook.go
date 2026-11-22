@@ -150,11 +150,11 @@ func (h *handler) handle(ctx context.Context, name, platform string, in io.Reade
 	case "session-start":
 		h.sessionStart(ctx, d, p, out)
 	case "read-guard":
-		return h.readGuard(ctx, p, errw)
+		return h.readGuard(ctx, p, out, errw)
 	case "model-guard":
-		return h.modelGuard(ctx, p, errw)
+		return h.modelGuard(ctx, p, out, errw)
 	case "test-guard", "race-guard":
-		return h.testGuard(ctx, p, errw)
+		return h.testGuard(ctx, p, out, errw)
 	case "toolchain-env", "go-env":
 		return h.toolchainEnv(ctx, d, p, out, errw)
 	case "post-edit", "go-post-edit":
@@ -307,13 +307,17 @@ func writeFileAtomic(path string, data []byte) error {
 	return err
 }
 
-func (h *handler) deny(ctx context.Context, p payload, guardName, reason string, errw io.Writer) int {
-	fmt.Fprintln(errw, reason)
+func (h *handler) deny(ctx context.Context, p payload, guardName, reason string, out, errw io.Writer) int {
 	_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindGuardDeny, Name: guardName, Agent: p.AgentID, Note: reason})
+	if h.platform == "antigravity" {
+		dialect{platform: h.platform}.emit(out, map[string]string{"decision": "deny", "reason": reason})
+		return 0
+	}
+	fmt.Fprintln(errw, reason)
 	return 2
 }
 
-func (h *handler) readGuard(ctx context.Context, p payload, errw io.Writer) int {
+func (h *handler) readGuard(ctx context.Context, p payload, out, errw io.Writer) int {
 	cfg := guard.DefaultConfig()
 	cfg.Off = strings.EqualFold(h.d.Env("READ_GUARD"), "off")
 	for _, kv := range []struct {
@@ -337,10 +341,10 @@ func (h *handler) readGuard(ctx context.Context, p payload, errw io.Writer) int 
 	if reason == "" {
 		return 0
 	}
-	return h.deny(ctx, p, "read-guard", reason, errw)
+	return h.deny(ctx, p, "read-guard", reason, out, errw)
 }
 
-func (h *handler) modelGuard(ctx context.Context, p payload, errw io.Writer) int {
+func (h *handler) modelGuard(ctx context.Context, p payload, out, errw io.Writer) int {
 	if p.ToolName != "" && p.ToolName != "Agent" {
 		return 0
 	}
@@ -350,7 +354,7 @@ func (h *handler) modelGuard(ctx context.Context, p payload, errw io.Writer) int
 		return 0
 	}
 	if reason := guard.CheckModel(p.ToolInput); reason != "" {
-		return h.deny(ctx, p, "model-guard", reason, errw)
+		return h.deny(ctx, p, "model-guard", reason, out, errw)
 	}
 	return 0
 }

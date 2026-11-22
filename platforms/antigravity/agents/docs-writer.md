@@ -1,6 +1,10 @@
 ---
 name: docs-writer
 description: "Write package AGENTS.md, README sections and ADRs from facts the lead supplies. Docs only."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # docs-writer

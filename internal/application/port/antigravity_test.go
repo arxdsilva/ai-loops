@@ -27,11 +27,8 @@ func TestAntigravity(t *testing.T) {
 		m[f.Path] = f
 	}
 
-	// Required files and platform filtering.
+	// Required files and platform filtering (native Antigravity plugin layout).
 	for _, want := range []string{
-		".agents/hooks.json",
-		".agents/skills/work/SKILL.md",
-		".agents/skills/work/platforms/antigravity.md",
 		".loops-generated",
 		"LICENSE",
 		"README.md",
@@ -40,6 +37,11 @@ func TestAntigravity(t *testing.T) {
 		"agents/planner.md",
 		"agents/scout.md",
 		"bin/loops",
+		"hooks.json",
+		"plugin.json",
+		"rules/AGENTS.md",
+		"skills/work/SKILL.md",
+		"skills/work/platforms/antigravity.md",
 		"specs/WORKFLOW.md",
 		"templates/CLAIMS_REPORT.md",
 	} {
@@ -47,16 +49,47 @@ func TestAntigravity(t *testing.T) {
 			t.Errorf("missing %s", want)
 		}
 	}
-	if _, ok := m["skills/work/SKILL.md"]; ok {
-		t.Error("unrelocated skills/work/SKILL.md still present")
+	for _, absent := range []string{".agents/hooks.json", ".agents/skills/work/SKILL.md"} {
+		if _, ok := m[absent]; ok {
+			t.Errorf("unexpected old placement path %s", absent)
+		}
 	}
 	for _, other := range []string{"codex.md", "cursor.md", "gemini.md"} {
-		if _, ok := m[".agents/skills/work/platforms/"+other]; ok {
+		if _, ok := m["skills/work/platforms/"+other]; ok {
 			t.Errorf("other platform notes leaked: %s", other)
 		}
 	}
 	if !m["bin/loops"].Exec {
 		t.Error("bin/loops not executable")
+	}
+
+	// plugin.json matches https://antigravity.google/schemas/v1/plugin.json without repository.
+	var man map[string]any
+	if err := json.Unmarshal(m["plugin.json"].Data, &man); err != nil {
+		t.Fatalf("invalid plugin.json: %v", err)
+	}
+	if man["$schema"] != "https://antigravity.google/schemas/v1/plugin.json" {
+		t.Errorf("$schema = %v", man["$schema"])
+	}
+	if man["name"] != "loops" || man["displayName"] != "loops" || man["version"] != "0.2.0" || man["description"] != "Desc <x> & y" {
+		t.Errorf("core manifest fields = %v", man)
+	}
+	if auth, ok := man["author"].(map[string]any); !ok || auth["name"] != "Ann" {
+		t.Errorf("author = %v", man["author"])
+	}
+	if man["homepage"] != "https://h" || man["license"] != "MIT" {
+		t.Errorf("homepage/license = %v / %v", man["homepage"], man["license"])
+	}
+	if kws, ok := man["keywords"].([]any); !ok || len(kws) != 2 || kws[0] != "go" || kws[1] != "qa" {
+		t.Errorf("keywords = %v", man["keywords"])
+	}
+	if _, ok := man["repository"]; ok {
+		t.Errorf("repository must be omitted from plugin.json: %v", man["repository"])
+	}
+
+	// rules/AGENTS.md carries templates/PLUGIN_CONTEXT.md.
+	if got := string(m["rules/AGENTS.md"].Data); got != "Always-on loops context.\n" {
+		t.Errorf("rules/AGENTS.md = %q", got)
 	}
 
 	// Determinism check.
@@ -68,34 +101,151 @@ func TestAntigravity(t *testing.T) {
 		t.Fatal("Build(Antigravity) is not deterministic")
 	}
 
-	// README content.
+	// README content for Tier A.
 	readme := string(m["README.md"].Data)
 	for _, sub := range []string{
+		"Tier A",
+		"agy plugin validate",
+		"agy plugin install ./platforms/antigravity",
 		"npx ai-loops --target antigravity",
 		"loops install --target antigravity",
-		".agents/skills/",
-		".agents/hooks.json",
-		".loops/plugin/",
-		"~/.gemini/config/skills/",
-		"~/.gemini/config/hooks.json",
-		"~/.local/share/loops/plugin/",
-		"agy",
-		"/skills reload",
+		"send_message",
+		"invoke_subagent",
+		"rules/AGENTS.md",
+		"hooks.json",
+		".agents/",
+		"~/.gemini/config/",
 	} {
 		p2Has(t, readme, sub)
 	}
 
-	// Warnings for dropped events, subagent limitations, and PATH shim.
+	// Warnings for dropped events, read-only instruction enforcement, and hook shim.
 	w := strings.Join(warns, "\n")
 	for _, sub := range []string{
 		"PostToolUseFailure",
 		"SubagentStart",
 		"SubagentStop",
-		"subagent",
+		"read-only",
+		"instruction",
 		"loops install",
-		"PATH",
 	} {
 		p2Has(t, w, sub)
+	}
+}
+
+func TestAntigravityOptionalManifestAndEmptyContextWarning(t *testing.T) {
+	p := p2Plugin()
+	src := p2FS()
+	src["templates/PLUGIN_CONTEXT.md"] = &fstest.MapFile{Data: []byte("   \n")}
+
+	files, warns, err := Build(p, src, plugin.Antigravity, Options{})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	var manData []byte
+	for _, f := range files {
+		if f.Path == "plugin.json" {
+			manData = f.Data
+			break
+		}
+	}
+	var man map[string]any
+	if err := json.Unmarshal(manData, &man); err != nil {
+		t.Fatalf("invalid plugin.json: %v", err)
+	}
+	for _, omitted := range []string{"author", "homepage", "repository", "license", "keywords"} {
+		if _, ok := man[omitted]; ok {
+			t.Errorf("empty optional field %q present in plugin.json", omitted)
+		}
+	}
+	p2Has(t, strings.Join(warns, "\n"), "PLUGIN_CONTEXT.md")
+}
+
+func TestAntigravityAgents(t *testing.T) {
+	p, src := loadFixture(t)
+
+	// Default options -> model: "inherit".
+	files, _, err := Build(p, src, plugin.Antigravity, Options{})
+	if err != nil {
+		t.Fatalf("Build default: %v", err)
+	}
+	byPath := map[string]string{}
+	for _, f := range files {
+		byPath[f.Path] = string(f.Data)
+	}
+
+	// Read-only role (planner) gets readOnlyNote and omits tools.
+	fm, body, err := parseFrontmatter("agents/planner.md", []byte(byPath["agents/planner.md"]))
+	if err != nil {
+		t.Fatalf("planner frontmatter: %v", err)
+	}
+	if fm["name"] != "planner" || fm["subagent"] != "true" || fm["mainAgent"] != "false" || fm["model"] != "inherit" || fm["commandExecutionPolicy"] != "auto" {
+		t.Fatalf("planner frontmatter = %+v", fm)
+	}
+	if _, ok := fm["tools"]; ok {
+		t.Fatalf("planner frontmatter must omit tools: %+v", fm)
+	}
+	if !strings.HasPrefix(body, readOnlyNote+"\n\n") {
+		t.Fatalf("planner missing readOnlyNote prefix: %q", body)
+	}
+	p2Has(t, body, "You plan.")
+
+	// Writer role (domain-engineer) has no readOnlyNote and keeps body intact.
+	fm, body, err = parseFrontmatter("agents/domain-engineer.md", []byte(byPath["agents/domain-engineer.md"]))
+	if err != nil {
+		t.Fatalf("domain-engineer frontmatter: %v", err)
+	}
+	if fm["subagent"] != "true" || fm["mainAgent"] != "false" || fm["model"] != "inherit" || fm["commandExecutionPolicy"] != "auto" {
+		t.Fatalf("domain-engineer frontmatter = %+v", fm)
+	}
+	if strings.Contains(body, readOnlyNote) {
+		t.Fatalf("writer role should not have readOnlyNote: %q", body)
+	}
+	if body != "You implement.\n" {
+		t.Fatalf("domain-engineer body = %q", body)
+	}
+
+	// Role with canonical tools allowlist (scout) omits tools in Antigravity frontmatter.
+	fm, body, err = parseFrontmatter("agents/scout.md", []byte(byPath["agents/scout.md"]))
+	if err != nil {
+		t.Fatalf("scout frontmatter: %v", err)
+	}
+	if _, ok := fm["tools"]; ok {
+		t.Fatalf("scout frontmatter must omit tools: %+v", fm)
+	}
+	if fm["model"] != "inherit" || strings.Contains(body, readOnlyNote) {
+		t.Fatalf("scout fm=%+v body=%q", fm, body)
+	}
+
+	// Mapped Options.Models sets model per tier; unmapped tiers fall back to inherit.
+	mappedFiles, _, err := Build(p, src, plugin.Antigravity, Options{
+		Models: map[plugin.Tier]string{
+			plugin.TierOpus:   "pro",
+			plugin.TierSonnet: "flash",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build mapped: %v", err)
+	}
+	mapped := map[string]string{}
+	for _, f := range mappedFiles {
+		mapped[f.Path] = string(f.Data)
+	}
+	for _, tc := range []struct {
+		file string
+		want string
+	}{
+		{"agents/planner.md", "pro"},
+		{"agents/domain-engineer.md", "flash"},
+		{"agents/scout.md", "inherit"},
+	} {
+		fm, _, err := parseFrontmatter(tc.file, []byte(mapped[tc.file]))
+		if err != nil {
+			t.Fatalf("%s: %v", tc.file, err)
+		}
+		if fm["model"] != tc.want {
+			t.Errorf("%s model = %q, want %q", tc.file, fm["model"], tc.want)
+		}
 	}
 }
 
@@ -111,13 +261,13 @@ func TestAntigravityHooksJSON(t *testing.T) {
 	}
 	var hooksData []byte
 	for _, f := range files {
-		if f.Path == ".agents/hooks.json" {
+		if f.Path == "hooks.json" {
 			hooksData = f.Data
 			break
 		}
 	}
 	if len(hooksData) == 0 {
-		t.Fatal("missing .agents/hooks.json")
+		t.Fatal("missing root hooks.json")
 	}
 
 	var doc struct {
@@ -139,18 +289,36 @@ func TestAntigravityHooksJSON(t *testing.T) {
 		t.Fatalf("unexpected keys in loops: %v", doc.Loops)
 	}
 
-	type hookGroup struct {
-		Matcher string `json:"matcher,omitempty"`
-		Hooks   []struct {
-			Type    string `json:"type"`
-			Command string `json:"command"`
-			Timeout int    `json:"timeout"`
-		} `json:"hooks"`
+	type hookHandler struct {
+		Type    string `json:"type"`
+		Command string `json:"command"`
+		Timeout int    `json:"timeout"`
 	}
-	for _, ev := range []string{"SessionStart", "PreToolUse", "PostToolUse", "Stop"} {
+	type hookGroup struct {
+		Matcher string        `json:"matcher,omitempty"`
+		Hooks   []hookHandler `json:"hooks"`
+	}
+
+	// SessionStart and Stop are flat handler arrays.
+	for _, ev := range []string{"SessionStart", "Stop"} {
+		var handlers []hookHandler
+		if err := json.Unmarshal(doc.Loops[ev], &handlers); err != nil {
+			t.Fatalf("%s flat handlers: %v\n%s", ev, err, doc.Loops[ev])
+		}
+		if len(handlers) != 1 {
+			t.Fatalf("%s handlers = %+v", ev, handlers)
+		}
+		h := handlers[0]
+		if h.Type != "command" || !strings.HasPrefix(h.Command, "./bin/loops hook ") || !strings.HasSuffix(h.Command, " --platform antigravity") || h.Timeout == 0 {
+			t.Errorf("%s handler = %+v", ev, h)
+		}
+	}
+
+	// PreToolUse and PostToolUse are matcher-wrapped arrays with Antigravity tool regexes.
+	for _, ev := range []string{"PreToolUse", "PostToolUse"} {
 		var groups []hookGroup
 		if err := json.Unmarshal(doc.Loops[ev], &groups); err != nil {
-			t.Fatalf("%s: %v", ev, err)
+			t.Fatalf("%s matcher groups: %v\n%s", ev, err, doc.Loops[ev])
 		}
 		if len(groups) == 0 {
 			t.Fatalf("%s has no groups", ev)
@@ -160,26 +328,73 @@ func TestAntigravityHooksJSON(t *testing.T) {
 				t.Fatalf("%s group hooks = %+v", ev, g)
 			}
 			h := g.Hooks[0]
-			if h.Type != "command" || !strings.HasPrefix(h.Command, "loops hook ") || !strings.HasSuffix(h.Command, " --platform antigravity") || h.Timeout == 0 {
+			if h.Type != "command" || !strings.HasPrefix(h.Command, "./bin/loops hook ") || !strings.HasSuffix(h.Command, " --platform antigravity") || h.Timeout == 0 {
 				t.Errorf("%s hook = %+v", ev, h)
 			}
 		}
 	}
 
-	// Verify dedupe & matchers on PreToolUse and PostToolUse.
 	var pre []hookGroup
 	_ = json.Unmarshal(doc.Loops["PreToolUse"], &pre)
-	if len(pre) != 2 || pre[0].Matcher != "Read|Bash" || pre[1].Matcher != "Agent|Task" {
+	if len(pre) != 2 || pre[0].Matcher != "view_file|run_command" || pre[1].Matcher != "invoke_subagent" {
 		t.Fatalf("PreToolUse = %+v", pre)
 	}
 	var post []hookGroup
 	_ = json.Unmarshal(doc.Loops["PostToolUse"], &post)
-	if len(post) != 2 || post[0].Matcher != "Edit|Write" || post[1].Matcher != "" {
+	if len(post) != 2 || post[0].Matcher != "replace_file_content|write_to_file" || post[1].Matcher != "" {
 		t.Fatalf("PostToolUse = %+v", post)
 	}
 	// trace had no matcher (normalized from "*"), so "matcher" key must be omitted.
-	if strings.Contains(string(doc.Loops["PostToolUse"]), `"matcher": ""`) {
-		t.Errorf("empty matcher serialized in PostToolUse: %s", doc.Loops["PostToolUse"])
+	if strings.Count(string(doc.Loops["PostToolUse"]), `"matcher"`) != 1 {
+		t.Errorf("expected exactly 1 matcher in PostToolUse: %s", doc.Loops["PostToolUse"])
+	}
+}
+
+func TestAntigravityMatcher(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"", ""},
+		{"*", ""},
+		{"Read|*", ""},
+		{"Read|Bash", "view_file|run_command"},
+		{"Edit|Write|MultiEdit", "replace_file_content|write_to_file|multi_replace_file_content"},
+		{"Agent|Task", "invoke_subagent"},
+		{"Read|Edit|Read", "view_file|replace_file_content"},
+		{"Bash|CustomTool|Bash", "run_command|CustomTool"},
+	}
+	for _, tc := range cases {
+		p, src := loadFixture(t)
+		p.Hooks = []plugin.Hook{
+			{Event: plugin.EventPreToolUse, Matcher: tc.in, Name: "guard", TimeoutSec: 10},
+		}
+		files, _, err := Build(p, src, plugin.Antigravity, Options{})
+		if err != nil {
+			t.Fatalf("Build(%q): %v", tc.in, err)
+		}
+		var hooksData []byte
+		for _, f := range files {
+			if f.Path == "hooks.json" {
+				hooksData = f.Data
+				break
+			}
+		}
+		if len(hooksData) == 0 {
+			t.Fatalf("%q: missing hooks.json", tc.in)
+		}
+		var doc struct {
+			Loops struct {
+				PreToolUse []struct {
+					Matcher string `json:"matcher"`
+				} `json:"PreToolUse"`
+			} `json:"loops"`
+		}
+		if err := json.Unmarshal(hooksData, &doc); err != nil {
+			t.Fatalf("%q: invalid JSON: %v", tc.in, err)
+		}
+		if len(doc.Loops.PreToolUse) != 1 || doc.Loops.PreToolUse[0].Matcher != tc.want {
+			t.Errorf("matcher(%q) = %+v, want %q", tc.in, doc.Loops.PreToolUse, tc.want)
+		}
 	}
 }
 
@@ -207,7 +422,7 @@ func TestAntigravityHooksSubsetOmitsEmptyEvents(t *testing.T) {
 	}
 	var hooksData []byte
 	for _, f := range files {
-		if f.Path == ".agents/hooks.json" {
+		if f.Path == "hooks.json" {
 			hooksData = f.Data
 			break
 		}
@@ -220,6 +435,14 @@ func TestAntigravityHooksSubsetOmitsEmptyEvents(t *testing.T) {
 	}
 	if len(doc.Loops) != 2 { // enabled + SessionStart only
 		t.Fatalf("expected only enabled and SessionStart, got keys: %v", doc.Loops)
+	}
+	var start []struct {
+		Type    string `json:"type"`
+		Command string `json:"command"`
+		Timeout int    `json:"timeout"`
+	}
+	if err := json.Unmarshal(doc.Loops["SessionStart"], &start); err != nil || len(start) != 1 || start[0].Command != "./bin/loops hook session-start --platform antigravity" {
+		t.Fatalf("SessionStart = %s, err = %v", doc.Loops["SessionStart"], err)
 	}
 	for _, omitted := range []string{"PreToolUse", "PostToolUse", "Stop", "SubagentStart"} {
 		if _, ok := doc.Loops[omitted]; ok {

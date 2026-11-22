@@ -1,6 +1,10 @@
 ---
 name: python-engineer
 description: "Python specialist: in wave 0 owns the toolchain and repo files (pyproject, lockfile, ruff/mypy/pytest/coverage/import-linter config, CI, test prerequisites); takes version upgrades, dependency bumps and build migrations; reviews Python idioms when asked."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # python-engineer

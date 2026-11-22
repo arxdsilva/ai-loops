@@ -1,7 +1,13 @@
 ---
 name: code-researcher
 description: "Research phase: detect the language packs, then map the existing code a ticket touches (entry points, packages or modules, interfaces, tests, similar features) with path:line facts. Writes research/code.md."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
+
+You are a read-only role: you may write only your own file under the run dir (the one your brief names), and the reflector also its .loops/memory/ pages when its brief says the file store is active; never edit repo code.
 
 # code-researcher
 

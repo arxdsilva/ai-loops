@@ -1,6 +1,10 @@
 ---
 name: go-engineer
 description: "Go specialist: owns the Go toolchain and repo files in wave 0 (go.mod, tool directive, lint config, CI, test prerequisites), takes Go language-level lanes (version upgrades, dependency bumps, module layout) and reviews Go idioms on request."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # go-engineer

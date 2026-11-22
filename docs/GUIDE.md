@@ -91,16 +91,18 @@ curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh 
 curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target cline
 ```
 
-### Google Antigravity (tier C, installer)
+### Google Antigravity (tier A)
 Covers the Google Antigravity IDE app and CLI (`agy`):
 
 ```sh
+git clone https://github.com/arxdsilva/ai-loops
+agy plugin install ./ai-loops/platforms/antigravity
+# or install into workspace / user customization dirs:
 npx ai-loops --target antigravity
-# or:
 curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target antigravity
 ```
 
-Project scope (default, or `loops install --target antigravity --scope project`) places `.agents/skills/`, `.agents/hooks.json`, and `.loops/plugin/`; user scope (`--scope user`) places `~/.gemini/config/skills/`, `~/.gemini/config/hooks.json`, and `~/.local/share/loops/plugin/`. Rules come from `AGENTS.md` / `GEMINI.md`. Run `/skills reload` after installing or updating; in `agy`, skills also run as `/work`, `/init`, `/status`, `/report`. Generic subagents (`invoke_subagent`) run with role prompts, falling back to solo mode when subagents are unavailable.
+Project scope (default, or `loops install --target antigravity --scope project`) places `.agents/skills/`, `.agents/agents/`, `.agents/rules/`, `.agents/hooks.json`, and `.loops/plugin/`; user scope (`--scope user`) places `~/.gemini/config/skills/`, `~/.gemini/config/agents/`, `~/.gemini/config/rules/`, `~/.gemini/config/hooks.json`, and `~/.local/share/loops/plugin/`. Rules come from `rules/AGENTS.md` (and `AGENTS.md` / `GEMINI.md`). Run `/skills reload` after installing or updating; in `agy`, skills also run as `/work`, `/init`, `/status`, `/report`. Custom subagents (`agents/<role>.md`, spawned with `invoke_subagent`) wake and resume when idle via `send_message`.
 
 ### Capability matrix (condensed)
 
@@ -108,8 +110,8 @@ Full table and notes: [specs/PLATFORMS.md](../specs/PLATFORMS.md) §2. Per-platf
 
 | | Claude | Copilot | Codex | Cursor | Gemini | OpenCode | Amp | Windsurf | Cline | Antigravity |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Role subagents | yes | yes | yes | yes | yes | yes | generic | solo | solo | generic |
-| Resume same agent | yes | no | no | yes | no | no | partial | no | no | no |
+| Role subagents | yes | yes | yes | yes | yes | yes | generic | solo | solo | yes |
+| Resume same agent | yes | no | no | yes | no | no | partial | no | no | yes |
 | Tool deny / post-edit hooks | yes | yes | yes | yes | yes | shim | no | yes | no | yes |
 | Subagent lanes | yes | yes | yes | yes | labels | labels | labels | labels | labels | labels |
 | Stop gate | yes | yes | yes | yes | yes | no | no | maybe | no | yes |
@@ -143,7 +145,8 @@ When a newer release exists, the session context carries one line: `loops vX is 
 | Codex | `codex plugin marketplace upgrade && curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target codex --force` (then update the plugin in the desktop app) |
 | Cursor | Dashboard > Plugins & MCPs > marketplace > Refresh; start a new agent |
 | Gemini CLI | `git -C ai-loops pull && gemini extensions update loops` |
-| OpenCode / Amp / Windsurf / Cline / Antigravity | `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target <platform> --force` |
+| OpenCode / Amp / Windsurf / Cline | `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target <platform> --force` |
+| Antigravity | `agy plugin install ./ai-loops/platforms/antigravity` (native plugin) or `npx ai-loops --target antigravity --force` (installer) |
 
 ## What you see while it runs
 
@@ -238,7 +241,7 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
 | session-start | Tells Claude where the plugin lives and which run is active. |
 | read-guard | Denies a whole-file Read of a file over 500 lines, and shell views over 150 lines of repo files. Read in ranges instead. Tune it with `READ_GUARD_MIN_LINES` and `READ_GUARD_MAX_VIEW_LINES`, or turn it off with `READ_GUARD=off`. |
 | test-guard (was race-guard) | For flag-mode languages, denies a test run without the race flag (`go test` without `-race`, `swift test` without `--sanitize=thread`). No opt-out. Other languages are never denied here; `loops gate` enforces their race build or substitute checks. |
-| toolchain-env (was go-env) | Scopes agents' toolchain commands to the run's caches. Go commands are rewritten, or denied with a hint to use `loops go …` where the platform can't rewrite. Other languages are rewritten on Claude Code, Gemini CLI and Windsurf and never denied; elsewhere use `loops exec -- <cmd>`. |
+| toolchain-env (was go-env) | Scopes agents' toolchain commands to the run's caches. Go commands are rewritten, or denied with a hint to use `loops go …` where the platform can't rewrite. Other languages are rewritten on Claude Code, Gemini CLI, Windsurf and Antigravity and never denied; elsewhere use `loops exec -- <cmd>`. |
 | model-guard | Untyped or general-purpose agents must name a model. |
 | post-edit (was go-post-edit) | Runs the language's single-file formatter and lint on every edited source file (Go: `goimports` or `gofmt`, then `go vet`). It sends the failure back to Claude when either one fails. |
 | trace, trace-agent | Records every tool call, and every agent start and stop, in the right agent's lane. |

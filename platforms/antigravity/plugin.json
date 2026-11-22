@@ -1,0 +1,34 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "author": {
+    "name": "Arthur Silva"
+  },
+  "description": "Multi-agent workflow that turns a ticket into a pull request with proof: research, plan with a reviewer agent, parallel specialist engineers, an independent QA agent per engineer, every acceptance criteria proven, reflection. One master agent, opt-in checkpoints, a ≥70% new-code coverage and race-detector gate, 15 backend languages, live status and HTML report.",
+  "displayName": "loops",
+  "homepage": "https://github.com/arxdsilva/ai-loops",
+  "keywords": [
+    "multi-agent",
+    "agents",
+    "workflow",
+    "pull-request",
+    "qa",
+    "code-review",
+    "tdd",
+    "acceptance-criteria",
+    "claude-code",
+    "copilot",
+    "codex",
+    "cursor",
+    "gemini-cli",
+    "backend",
+    "hexagonal",
+    "go",
+    "python",
+    "typescript",
+    "java",
+    "ai-memory"
+  ],
+  "license": "MIT",
+  "name": "loops",
+  "version": "0.16.0"
+}

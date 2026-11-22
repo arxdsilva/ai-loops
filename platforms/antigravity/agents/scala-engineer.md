@@ -1,6 +1,10 @@
 ---
 name: scala-engineer
 description: "Scala specialist: owns the sbt toolchain and repo files in wave 0 (build, plugins, scalafmt, scoverage, pins, CI), takes Scala-level lanes (version upgrades, dependency bumps, build migrations) and reviews Scala idioms on request."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # scala-engineer

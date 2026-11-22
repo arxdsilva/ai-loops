@@ -1,6 +1,10 @@
 ---
 name: cpp-engineer
 description: "C++ specialist: owns the toolchain and repo files (CMake, presets, vcpkg or Conan manifests and locks, clang-format and clang-tidy config, CI, toolchain pin, sanitizer and coverage prerequisites), takes language-level lanes such as standard, compiler or dependency upgrades, and reviews C++ idioms."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # cpp-engineer

@@ -1,7 +1,13 @@
 ---
 name: reflector
 description: "Reflect phase: read the finished run, write reflection.md, and store 1-5 durable pages (decisions, gotchas, procedures) in the active memory store (ai-memory or the file store)."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
+
+You are a read-only role: you may write only your own file under the run dir (the one your brief names), and the reflector also its .loops/memory/ pages when its brief says the file store is active; never edit repo code.
 
 # reflector
 

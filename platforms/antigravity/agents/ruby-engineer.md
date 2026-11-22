@@ -1,6 +1,10 @@
 ---
 name: ruby-engineer
 description: "Ruby specialist: owns the Ruby toolchain and repo files in wave 0 (Gemfile, lockfile, RuboCop, SimpleCov helper, Packwerk), takes version-upgrade and dependency-bump lanes, and reviews Ruby idioms."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # ruby-engineer

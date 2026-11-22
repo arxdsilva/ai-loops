@@ -88,6 +88,15 @@ func TestPortBuild(t *testing.T) {
 			t.Errorf("%s not written: %v", pl, pk.written)
 		}
 	}
+	agPaths := map[string]bool{}
+	for _, f := range pk.written[filepath.Join(root, "platforms", "antigravity")] {
+		agPaths[f.Path] = true
+	}
+	for _, want := range []string{"plugin.json", "rules/AGENTS.md", "hooks.json", "agents/planner.md", "skills/work/SKILL.md"} {
+		if !agPaths[want] {
+			t.Errorf("antigravity output missing %s: %v", want, agPaths)
+		}
+	}
 	if len(pk.written) != 4 {
 		t.Errorf("wrote %d packages", len(pk.written))
 	}

@@ -14,7 +14,7 @@ import (
 // detected pack with race mode "flag" (guard.CheckTests). It is a hard
 // gate: there is no environment opt-out. Go denials keep the guard name
 // race-guard in events so older reports stay comparable.
-func (h *handler) testGuard(ctx context.Context, p payload, errw io.Writer) int {
+func (h *handler) testGuard(ctx context.Context, p payload, out, errw io.Writer) int {
 	if p.ToolName != "Bash" {
 		return 0
 	}
@@ -27,7 +27,7 @@ func (h *handler) testGuard(ctx context.Context, p payload, errw io.Writer) int 
 		if strings.HasPrefix(reason, "race_guard:") {
 			name = "race-guard"
 		}
-		return h.deny(ctx, p, name, reason, errw)
+		return h.deny(ctx, p, name, reason, out, errw)
 	}
 	return 0
 }

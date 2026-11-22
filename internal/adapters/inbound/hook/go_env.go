@@ -38,7 +38,7 @@ func goEnvPolicy(platform string, use guard.GoUse) goEnvAction {
 		if use.Gate {
 			return goEnvRewriteAllow
 		}
-	case "gemini", "windsurf":
+	case "gemini", "windsurf", "antigravity":
 		return goEnvRewrite
 	}
 	return goEnvDeny
@@ -48,9 +48,9 @@ func goEnvPolicy(platform string, use guard.GoUse) goEnvAction {
 // Go commands get the run's GOCACHE/GOTMPDIR with the per-platform policy
 // (goEnvPolicy). Other detected packs' commands get their run-scoped env and
 // cache flags (guard.PackScope) where the platform rewrites without an
-// approval (Claude, Gemini, Windsurf); they are never denied. With no
-// active run, an already-scoped command, or a command test-guard denies
-// (test-guard reports that one), it stays silent.
+// approval (Claude, Gemini, Windsurf, Antigravity); they are never denied.
+// With no active run, an already-scoped command, or a command test-guard
+// denies (test-guard reports that one), it stays silent.
 func (h *handler) toolchainEnv(ctx context.Context, d dialect, p payload, out, errw io.Writer) int {
 	if p.ToolName != "Bash" {
 		return 0
@@ -90,7 +90,7 @@ func (h *handler) goEnv(ctx context.Context, d dialect, p payload, in map[string
 	action := goEnvPolicy(h.platform, use)
 	scoped := guard.ScopeGo(cmd, cache, tmp)
 	if action == goEnvDeny || guard.InspectGo(scoped, cache).Unscoped {
-		return h.deny(ctx, p, "go-env", goEnvMsg, errw), true
+		return h.deny(ctx, p, "go-env", goEnvMsg, out, errw), true
 	}
 	for _, dd := range []string{cache, tmp} {
 		if os.MkdirAll(dd, 0o755) != nil {
@@ -108,7 +108,7 @@ func (h *handler) goEnv(ctx context.Context, d dialect, p payload, in map[string
 // use `loops exec`).
 func (h *handler) packEnv(d dialect, p payload, in map[string]any, cmd, dir string, out io.Writer) {
 	switch h.platform {
-	case "claude", "gemini", "windsurf":
+	case "claude", "gemini", "windsurf", "antigravity":
 	default:
 		return
 	}

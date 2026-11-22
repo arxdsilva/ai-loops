@@ -1,6 +1,10 @@
 ---
 name: clojure-engineer
 description: "Clojure (JVM backend) specialist: wave 0 toolchain and repo files (deps.edn aliases, tests.edn, cloverage, clj-kondo, cljfmt), language-level lanes (Clojure/JDK upgrades, dependency bumps, build migrations) and idiom review."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # clojure-engineer

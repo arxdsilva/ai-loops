@@ -1,6 +1,10 @@
 ---
 name: api-engineer
 description: "Implement inbound adapters (HTTP/gRPC/CLI handlers, validation, DTO to command mapping, error to status mapping) with tests."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # api-engineer

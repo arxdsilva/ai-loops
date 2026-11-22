@@ -1,6 +1,10 @@
 ---
 name: integration-engineer
 description: "Implement clients for external APIs and brokers (retries, timeouts, mapping) with contract tests against fakes."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # integration-engineer

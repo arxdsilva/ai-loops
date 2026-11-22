@@ -1,6 +1,10 @@
 ---
 name: architect
 description: "Implement wave 0 only: the contract (ports, interfaces, typed commands, DTOs), stubs, dependencies and shared config so every package or module compiles, in any language pack. Never implements behaviour."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # architect

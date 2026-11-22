@@ -1,6 +1,10 @@
 ---
 name: typescript-engineer
 description: "TypeScript/JavaScript specialist: owns the toolchain and repo files (package.json, lockfile, tsconfig, lint/format/test configs, CI, Node pin, coverage prerequisites) in wave 0, takes version upgrades, dependency bumps and build migrations, and reviews idioms."
+subagent: true
+mainAgent: false
+model: "inherit"
+commandExecutionPolicy: "auto"
 ---
 
 # typescript-engineer
