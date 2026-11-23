@@ -42,7 +42,7 @@ func (e edited) stepName() string {
 func (h *handler) postEdit(ctx context.Context, d dialect, p payload, out io.Writer) {
 	var in toolInput
 	_ = json.Unmarshal(p.ToolInput, &in)
-	repo := h.repo(p)
+	repo := h.projectRoot(p)
 	var paths []string
 	for _, f := range append([]string{in.path()}, p.extraFiles...) {
 		if f == "" {

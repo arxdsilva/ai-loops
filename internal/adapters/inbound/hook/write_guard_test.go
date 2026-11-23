@@ -3,6 +3,7 @@ package hook
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
@@ -672,4 +674,59 @@ func TestWriteGuard_UsesWorkspaceRecorder(t *testing.T) {
 	if len(pluginRootRec.evs) != 0 {
 		t.Errorf("plugin-root recorder used: %+v", pluginRootRec.evs)
 	}
+}
+
+// A hook whose payload points at a subdirectory must resolve the project root
+// before detecting packs and checking writes; otherwise its manifest and
+// runs under the parent are missed (PR review: nested directories lose checks).
+func TestHandler_ResolvesProjectRootFromSubdirectory(t *testing.T) {
+	project := t.TempDir()
+	sub := filepath.Join(project, "Sources", "App")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Mark the project root so projroot.Find stops there.
+	if err := os.MkdirAll(filepath.Join(project, ".loops", "runs", "r1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	langs := &rootLangs{}
+	rec := &writeGuardRec{
+		cur:   "r1",
+		dir:   filepath.Join(project, ".loops", "runs", "r1"),
+		state: run.State{Lanes: []run.Lane{{Agent: "c1", Role: "planner", Running: true}}},
+	}
+	var gotRoot string
+	h := New(Deps{
+		Rec:    rec,
+		RecFor: func(root string) Recorder { gotRoot = root; return rec },
+		Files:  fakeFiles{},
+		Cmd:    &fakeCmd{},
+		Env:    func(string) string { return "" },
+		Langs:  langs,
+	})
+	msg := `{"conversationId":"c1","cwd":` + strconv.Quote(sub) + `,"toolCall":{"name":"write_to_file","args":{"TargetFile":` + strconv.Quote(filepath.Join(sub, "x.go")) + `}}}`
+	var out, errw bytes.Buffer
+	h.Handle(context.Background(), "write-guard", "antigravity", strings.NewReader(msg), &out, &errw)
+
+	if gotRoot != project {
+		t.Errorf("recorder root = %q, want project %q", gotRoot, project)
+	}
+	// Detection is lazy (test-guard, post-edit, toolchain-env): ask for it the
+	// way those hooks do and check it also used the project root.
+	var dec payload
+	if err := json.Unmarshal([]byte(msg), &dec); err != nil {
+		t.Fatal(err)
+	}
+	h.detect(dec)
+	if langs.root != project {
+		t.Errorf("pack detection root = %q, want project %q", langs.root, project)
+	}
+}
+
+// rootLangs records the root it is asked to detect.
+type rootLangs struct{ root string }
+
+func (l *rootLangs) Detect(root string) ([]langpack.Detected, error) {
+	l.root = root
+	return nil, nil
 }

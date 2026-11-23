@@ -28,7 +28,7 @@ func (h *handler) detect(p payload) ([]langpack.Detected, bool) {
 	if h.langs == nil {
 		h.langs = &detection{}
 		if h.d.Langs != nil {
-			if root := h.repo(p); root != "" {
+			if root := h.projectRoot(p); root != "" {
 				if ds, err := h.d.Langs.Detect(root); err == nil {
 					h.langs.packs, h.langs.ok = ds, true
 				}

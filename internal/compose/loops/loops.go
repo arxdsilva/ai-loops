@@ -72,9 +72,10 @@ func (d *detector) all() []langpack.Detected {
 	return ds
 }
 
-// Detect implements hook.Langs for the workspace the hook payload names: hooks
-// launched from the plugin root must still detect the project's packs
-// (Greptile P1: native hooks miss active runs).
+// Detect implements hook.Langs for the project root the hook adapter resolved
+// (projroot.Find of the payload workspace), so hooks launched from the plugin
+// root or from a subdirectory still detect the project's packs. root is always
+// a resolved project root, so the project's config is loaded there.
 func (d *detector) Detect(root string) ([]langpack.Detected, error) {
 	if root == "" || root == d.root {
 		return d.detect()

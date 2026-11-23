@@ -50,6 +50,11 @@ type handler struct {
 	platform string
 	langs    *detection // per Handle call; nil until first needed
 	rec      Recorder   // per Handle call: the workspace recorder when Deps.RecFor is set
+	// project is the project root for this call: projroot.Find of the payload
+	// workspace. Hooks launched from the plugin root, or from a subdirectory
+	// without a project-dir env var, must still find the project's manifest,
+	// .loops/config.json and run store (Greptile P1).
+	project string
 }
 
 // New returns the hook dispatcher; document behaviour here, not on handler.
@@ -139,15 +144,20 @@ func (h *handler) Handle(ctx context.Context, name, platform string, in io.Reade
 // so hooks launched from the plugin root still find the active run
 // (Greptile P1). It falls back to Deps.Rec when RecFor is nil, the workspace
 // equals the process root, or nothing resolves.
-func (h *handler) workspaceRecorder(p payload) Recorder {
-	if h.d.RecFor == nil || h.d.Rec == nil {
-		return h.d.Rec
-	}
-	root := projroot.Find(h.repo(p))
-	if root == "" {
+func (h *handler) workspaceRecorder(_ payload, root string) Recorder {
+	if h.d.RecFor == nil || h.d.Rec == nil || root == "" {
 		return h.d.Rec
 	}
 	return h.d.RecFor(root)
+}
+
+// projectRoot is the project root for this Handle call, so pack detection,
+// read/write base paths and file ownership all use one root.
+func (h *handler) projectRoot(p payload) string {
+	if h.project != "" {
+		return h.project
+	}
+	return projroot.Find(h.repo(p))
 }
 
 // recorder is the recorder for this Handle call.
@@ -171,7 +181,8 @@ func (h *handler) handle(ctx context.Context, name, platform string, in io.Reade
 	d, failed := normalize(&p, platform)
 	h.platform = platform
 	h.langs = nil
-	h.rec = h.workspaceRecorder(p)
+	h.project = projroot.Find(h.repo(p))
+	h.rec = h.workspaceRecorder(p, h.project)
 	h.absolutize(&p)
 	switch name {
 	case "session-start":
@@ -216,7 +227,7 @@ func (h *handler) absolutize(p *payload) {
 	}
 	base := p.Cwd
 	if base == "" {
-		base = h.repo(*p)
+		base = h.projectRoot(*p)
 	}
 	if base == "" {
 		return
@@ -361,7 +372,7 @@ func (h *handler) readGuard(ctx context.Context, p payload, out, errw io.Writer)
 			*kv.dst = n
 		}
 	}
-	repo := h.repo(p)
+	repo := h.projectRoot(p)
 	cwd := p.Cwd
 	if cwd == "" {
 		cwd = repo
@@ -390,7 +401,7 @@ func (h *handler) writeGuard(ctx context.Context, p payload, out, errw io.Writer
 		return 0
 	}
 	resolvedRunDir := resolvePath(runDir)
-	resolvedProjectDir := resolvePath(h.repo(p))
+	resolvedProjectDir := resolvePath(h.projectRoot(p))
 	for _, target := range targets {
 		if reason := guard.CheckWrite(role, resolvePath(target), resolvedRunDir, resolvedProjectDir); reason != "" {
 			return h.deny(ctx, p, "write-guard", reason, out, errw)
@@ -422,9 +433,12 @@ func (h *handler) writeTargets(p payload) []string {
 	var in toolInput
 	_ = json.Unmarshal(p.ToolInput, &in)
 	var targets []string
+	// A write target is relative to the directory the tool ran in, not the
+	// project root: resolving it against the root would mis-place a write made
+	// from a subdirectory.
 	base := p.Cwd
 	if base == "" {
-		base = h.repo(p)
+		base = h.projectRoot(p)
 	}
 	if in.FilePath != "" {
 		fp := in.FilePath
@@ -624,7 +638,7 @@ func (h *handler) trace(ctx context.Context, p payload, failed bool) {
 	ok := !failed
 	_ = h.recorder().Record(ctx, run.Event{
 		Kind: run.KindStep, Agent: p.AgentID, Role: roleName(p.AgentType), Name: p.ToolName,
-		Target: h.target(p, in, h.repo(p)), OK: run.Bool(ok), DurationMS: int64(p.DurationMS),
+		Target: h.target(p, in, h.projectRoot(p)), OK: run.Bool(ok), DurationMS: int64(p.DurationMS),
 	})
 }
 
