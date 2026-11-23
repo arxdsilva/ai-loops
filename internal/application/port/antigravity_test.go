@@ -208,9 +208,9 @@ func TestAntigravityAgents(t *testing.T) {
 	wantTools := map[string][]string{
 		"agents/hardware-researcher.md": {"run_command", "send_message"},
 		"agents/web-researcher.md":      {"view_file", "write_to_file", "run_command", "grep_search", "find_by_name", "list_dir", "send_message", "search_web"},
-		"agents/planner.md":             {"view_file", "write_to_file", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"},
-		"agents/domain-engineer.md":     {"view_file", "write_to_file", "replace_file_content", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"},
-		"agents/scout.md":               {"view_file", "write_to_file", "replace_file_content", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"},
+		"agents/planner.md":             {"view_file", "write_to_file", "edit_file", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"},
+		"agents/domain-engineer.md":     {"view_file", "write_to_file", "replace_file_content", "edit_file", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"},
+		"agents/scout.md":               {"view_file", "write_to_file", "replace_file_content", "edit_file", "run_command", "grep_search", "find_by_name", "list_dir", "send_message"},
 	}
 	for file, want := range wantTools {
 		fm, _, err := parseFrontmatter(file, []byte(byPath[file]))
@@ -390,7 +390,7 @@ func TestAntigravityHooksJSON(t *testing.T) {
 		t.Fatalf("PreToolUse = %+v", pre)
 	}
 	wg := pre[2]
-	if wg.Matcher != "replace_file_content|write_to_file|multi_replace_file_content" ||
+	if wg.Matcher != "replace_file_content|edit_file|write_to_file|multi_replace_file_content" ||
 		len(wg.Hooks) != 1 ||
 		wg.Hooks[0].Command != "./bin/loops hook write-guard --platform antigravity" ||
 		wg.Hooks[0].Timeout != 10 {
@@ -398,7 +398,7 @@ func TestAntigravityHooksJSON(t *testing.T) {
 	}
 	var post []hookGroup
 	_ = json.Unmarshal(doc.Loops["PostToolUse"], &post)
-	if len(post) != 2 || post[0].Matcher != "replace_file_content|write_to_file" || post[1].Matcher != "" {
+	if len(post) != 2 || post[0].Matcher != "replace_file_content|edit_file|write_to_file" || post[1].Matcher != "" {
 		t.Fatalf("PostToolUse = %+v", post)
 	}
 	// trace had no matcher (normalized from "*"), so "matcher" key must be omitted.
@@ -440,9 +440,9 @@ func TestAntigravityMatcher(t *testing.T) {
 		{"*", ""},
 		{"Read|*", ""},
 		{"Read|Bash", "view_file|run_command"},
-		{"Edit|Write|MultiEdit", "replace_file_content|write_to_file|multi_replace_file_content"},
+		{"Edit|Write|MultiEdit", "replace_file_content|edit_file|write_to_file|multi_replace_file_content"},
 		{"Agent|Task", "invoke_subagent"},
-		{"Read|Edit|Read", "view_file|replace_file_content"},
+		{"Read|Edit|Read", "view_file|replace_file_content|edit_file"},
 		{"Bash|CustomTool|Bash", "run_command|CustomTool"},
 	}
 	for _, tc := range cases {

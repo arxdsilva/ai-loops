@@ -115,7 +115,7 @@ func (h *handler) postEdit(ctx context.Context, d dialect, p payload, out io.Wri
 		}
 	}
 	for _, e := range files {
-		_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindStep, Name: e.stepName(), Agent: p.AgentID, Role: roleName(p.AgentType), Target: e.file, OK: run.Bool(!failed[e.file])})
+		_ = h.recorder().Record(ctx, run.Event{Kind: run.KindStep, Name: e.stepName(), Agent: p.AgentID, Role: roleName(p.AgentType), Target: e.file, OK: run.Bool(!failed[e.file])})
 	}
 	if failMsg != "" {
 		d.postEditFailure(out, failMsg)

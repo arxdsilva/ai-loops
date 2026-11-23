@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -591,4 +592,84 @@ func TestWriteGuard_FailOpen(t *testing.T) {
 	}
 	code, out, errOut := runWriteGuard(t, rec, nil, "antigravity", `{"conversationId":"c1","toolCall":{"name":"write_to_file","args":{"TargetFile":"/repo/.loops/memory/p.md"}}}`)
 	assertAntigravityDeny(t, code, out, errOut, "reflector", rec.evs)
+}
+
+// edit_file is the Antigravity desktop IDE's edit tool; it must normalize to
+// Edit so write-guard still applies (PR review item 2).
+func TestWriteGuard_EditFileNormalized(t *testing.T) {
+	rec := &writeGuardRec{
+		cur:   "r1",
+		dir:   "/repo/.loops/runs/r1",
+		state: run.State{Lanes: []run.Lane{{Agent: "c1", Role: "planner", Running: true}}},
+	}
+	code, out, errOut := runWriteGuard(t, rec, nil, "antigravity",
+		`{"conversationId":"c1","toolCall":{"name":"edit_file","args":{"Path":"/repo/internal/x.go","Target":"a","Replacement":"b"}}}`)
+	assertAntigravityDeny(t, code, out, errOut, "write_guard:", rec.evs)
+}
+
+// A relative file_path must be joined with the payload base before the
+// containment check (PR review item 3).
+func TestWriteGuard_RelativeFilePathResolved(t *testing.T) {
+	rec := &writeGuardRec{
+		cur:   "r1",
+		dir:   "/repo/.loops/runs/r1",
+		state: run.State{Lanes: []run.Lane{{Agent: "c1", Role: "planner", Running: true}}},
+	}
+	code, out, errOut := runWriteGuard(t, rec, nil, "antigravity",
+		`{"conversationId":"c1","workspacePaths":["/repo"],"toolCall":{"name":"write_to_file","args":{"TargetFile":"internal/x.go"}}}`)
+	assertAntigravityDeny(t, code, out, errOut, "write_guard:", rec.evs)
+}
+
+// A symlink inside the run dir plus ".." must not escape it (Greptile P1).
+func TestWriteGuard_SymlinkDotDotEscape(t *testing.T) {
+	base := t.TempDir()
+	repo := filepath.Join(base, "repo")
+	runDir := filepath.Join(repo, ".loops", "runs", "r1")
+	outside := filepath.Join(base, "outside")
+	for _, d := range []string{runDir, outside} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// <run>/link -> <outside>; <run>/link/../file.txt is <outside>/file.txt
+	// for the filesystem but cleans lexically to <run>/file.txt.
+	if err := os.Symlink(outside, filepath.Join(runDir, "link")); err != nil {
+		t.Fatal(err)
+	}
+	rec := &writeGuardRec{
+		cur:   "r1",
+		dir:   runDir,
+		state: run.State{Lanes: []run.Lane{{Agent: "c1", Role: "planner", Running: true}}},
+	}
+	// Build the raw path by concatenation: filepath.Join/Clean would collapse
+	// "link/.." lexically and hide the escape under test.
+	target := runDir + string(filepath.Separator) + "link" + string(filepath.Separator) + ".." + string(filepath.Separator) + "file.txt"
+	payload := `{"conversationId":"c1","workspacePaths":[` + strconv.Quote(repo) + `],"toolCall":{"name":"write_to_file","args":{"TargetFile":` + strconv.Quote(target) + `}}}`
+	code, out, errOut := runWriteGuard(t, rec, nil, "antigravity", payload)
+	assertAntigravityDeny(t, code, out, errOut, "write_guard:", rec.evs)
+}
+
+// Native plugin hooks run from the plugin root; RecFor binds the call to the
+// payload's workspace so the active run is found (Greptile P1).
+func TestWriteGuard_UsesWorkspaceRecorder(t *testing.T) {
+	pluginRootRec := &writeGuardRec{} // no active run: would allow everything
+	workspaceRec := &writeGuardRec{
+		cur:   "r1",
+		dir:   "/repo/.loops/runs/r1",
+		state: run.State{Lanes: []run.Lane{{Agent: "c1", Role: "planner", Running: true}}},
+	}
+	h := New(Deps{
+		Rec:    pluginRootRec,
+		RecFor: func(string) Recorder { return workspaceRec },
+		Files:  fakeFiles{},
+		Cmd:    &fakeCmd{},
+		Env:    func(string) string { return "" },
+	})
+	var out, errw bytes.Buffer
+	payload := `{"conversationId":"c1","workspacePaths":["/repo"],"toolCall":{"name":"write_to_file","args":{"TargetFile":"/repo/internal/x.go"}}}`
+	code := h.Handle(context.Background(), "write-guard", "antigravity", strings.NewReader(payload), &out, &errw)
+	assertAntigravityDeny(t, code, out.String(), errw.String(), "write_guard:", workspaceRec.evs)
+	if len(pluginRootRec.evs) != 0 {
+		t.Errorf("plugin-root recorder used: %+v", pluginRootRec.evs)
+	}
 }

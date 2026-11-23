@@ -23,6 +23,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/application/guard"
 	"github.com/arxdsilva/ai-loops/internal/application/updatecheck"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/platform/projroot"
 )
 
 var projectEnv = map[string][]string{
@@ -48,6 +49,7 @@ type handler struct {
 	d        Deps
 	platform string
 	langs    *detection // per Handle call; nil until first needed
+	rec      Recorder   // per Handle call: the workspace recorder when Deps.RecFor is set
 }
 
 // New returns the hook dispatcher; document behaviour here, not on handler.
@@ -133,6 +135,29 @@ func (h *handler) Handle(ctx context.Context, name, platform string, in io.Reade
 	return h.handle(ctx, name, platform, in, &o, &e)
 }
 
+// workspaceRecorder returns the recorder for the workspace the payload names,
+// so hooks launched from the plugin root still find the active run
+// (Greptile P1). It falls back to Deps.Rec when RecFor is nil, the workspace
+// equals the process root, or nothing resolves.
+func (h *handler) workspaceRecorder(p payload) Recorder {
+	if h.d.RecFor == nil || h.d.Rec == nil {
+		return h.d.Rec
+	}
+	root := projroot.Find(h.repo(p))
+	if root == "" {
+		return h.d.Rec
+	}
+	return h.d.RecFor(root)
+}
+
+// recorder is the recorder for this Handle call.
+func (h *handler) recorder() Recorder {
+	if h.rec != nil {
+		return h.rec
+	}
+	return h.d.Rec
+}
+
 func (h *handler) handle(ctx context.Context, name, platform string, in io.Reader, out, errw io.Writer) int {
 	raw, err := io.ReadAll(io.LimitReader(in, 8<<20))
 	if err != nil {
@@ -146,6 +171,7 @@ func (h *handler) handle(ctx context.Context, name, platform string, in io.Reade
 	d, failed := normalize(&p, platform)
 	h.platform = platform
 	h.langs = nil
+	h.rec = h.workspaceRecorder(p)
 	h.absolutize(&p)
 	switch name {
 	case "session-start":
@@ -226,9 +252,9 @@ func (h *handler) sessionStart(ctx context.Context, d dialect, p payload, out io
 		text = fmt.Sprintf("loops plugin active. Plugin root: %s. Work tickets with %s (WORKFLOW: %s/specs/WORKFLOW.md).", root, entryPoint[h.platform], strings.TrimRight(root, "/"))
 	}
 	brief := ""
-	if id, err := h.d.Rec.Current(ctx); err == nil && id != "" {
-		if st, err := h.d.Rec.State(ctx, id); err == nil {
-			dir, _ := h.d.Rec.Dir(ctx, id)
+	if id, err := h.recorder().Current(ctx); err == nil && id != "" {
+		if st, err := h.recorder().State(ctx, id); err == nil {
+			dir, _ := h.recorder().Dir(ctx, id)
 			text += fmt.Sprintf(" Active run %s: phase %s, %d lanes running, run dir %s.", id, st.Phase, len(run.Running(st)), dir)
 			// After a compaction or a resumed session the lead re-anchors
 			// on the run instead of its memory (WORKFLOW §2.7).
@@ -311,7 +337,7 @@ func writeFileAtomic(path string, data []byte) error {
 }
 
 func (h *handler) deny(ctx context.Context, p payload, guardName, reason string, out, errw io.Writer) int {
-	_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindGuardDeny, Name: guardName, Agent: p.AgentID, Note: reason})
+	_ = h.recorder().Record(ctx, run.Event{Kind: run.KindGuardDeny, Name: guardName, Agent: p.AgentID, Note: reason})
 	if h.platform == "antigravity" {
 		dialect{platform: h.platform}.emit(out, map[string]string{"decision": "deny", "reason": reason})
 		return 0
@@ -381,11 +407,11 @@ func (h *handler) activeRunDir(ctx context.Context) (id, dir string, ok bool) {
 	if h.d.Rec == nil {
 		return "", "", false
 	}
-	id, err := h.d.Rec.Current(ctx)
+	id, err := h.recorder().Current(ctx)
 	if err != nil || id == "" {
 		return "", "", false
 	}
-	dir, err = h.d.Rec.Dir(ctx, id)
+	dir, err = h.recorder().Dir(ctx, id)
 	if err != nil || dir == "" {
 		return "", "", false
 	}
@@ -396,12 +422,16 @@ func (h *handler) writeTargets(p payload) []string {
 	var in toolInput
 	_ = json.Unmarshal(p.ToolInput, &in)
 	var targets []string
-	if in.FilePath != "" {
-		targets = append(targets, in.FilePath)
-	}
 	base := p.Cwd
-	if base == "" && len(p.extraFiles) > 0 {
+	if base == "" {
 		base = h.repo(p)
+	}
+	if in.FilePath != "" {
+		fp := in.FilePath
+		if !filepath.IsAbs(fp) && base != "" {
+			fp = filepath.Join(base, fp)
+		}
+		targets = append(targets, fp)
 	}
 	for _, f := range p.extraFiles {
 		if f == "" {
@@ -419,7 +449,7 @@ func (h *handler) writeRole(ctx context.Context, runID string, p payload) string
 	if r := roleName(p.AgentType); r != "" {
 		return r
 	}
-	st, _ := h.d.Rec.State(ctx, runID)
+	st, _ := h.recorder().State(ctx, runID)
 	if r := laneRole(st.Lanes, p.AgentID); r != "" {
 		return r
 	}
@@ -466,51 +496,71 @@ func soleRunningRole(lanes []run.Lane) string {
 	return role
 }
 
+// resolvePath returns path with every symlink followed and ".." applied to the
+// resolved tree, not lexically. Cleaning first would let <run>/link/../file
+// pass a containment check while the filesystem resolves it outside the run
+// (Greptile P1: writes escape the run directory).
 func resolvePath(path string) string {
 	if path == "" {
 		return ""
 	}
-	clean := filepath.Clean(path)
-	cur := clean
-	var tail []string
-	for range 64 {
-		if r, err := filepath.EvalSymlinks(cur); err == nil {
-			return joinTail(r, tail)
+	// Split the raw path: filepath.Abs/Clean would collapse "link/.." lexically
+	// before the symlink is followed, which is exactly the escape to catch.
+	abs := path
+	if !filepath.IsAbs(abs) {
+		if wd, err := os.Getwd(); err == nil {
+			abs = filepath.Join(wd, abs)
 		}
-		if target, ok := readDanglingLink(cur); ok {
-			cur = target
+	}
+	vol := filepath.VolumeName(abs)
+	rest := strings.TrimPrefix(abs[len(vol):], string(filepath.Separator))
+	cur := vol + string(filepath.Separator)
+	parts := strings.Split(rest, string(filepath.Separator))
+	hops := 0
+	for i := 0; i < len(parts); i++ {
+		switch parts[i] {
+		case "", ".":
+			continue
+		case "..":
+			if parent := filepath.Dir(cur); parent != cur {
+				cur = parent
+			}
 			continue
 		}
-		parent := filepath.Dir(cur)
-		if parent == cur {
-			return clean
+		next := cur + parts[i]
+		if cur != string(filepath.Separator) && !strings.HasSuffix(cur, string(filepath.Separator)) {
+			next = cur + string(filepath.Separator) + parts[i]
 		}
-		tail = append(tail, filepath.Base(cur))
-		cur = parent
+		if hops < 64 && isSymlink(next) {
+			hops++
+			if target, ok := readLink(next); ok {
+				if filepath.IsAbs(target) {
+					tvol := filepath.VolumeName(target)
+					cur = tvol + string(filepath.Separator)
+					parts = append(strings.Split(strings.TrimPrefix(target[len(tvol):], string(filepath.Separator)), string(filepath.Separator)), parts[i+1:]...)
+				} else {
+					parts = append(strings.Split(target, string(filepath.Separator)), parts[i+1:]...)
+				}
+				i = -1
+				continue
+			}
+		}
+		cur = next
 	}
-	return clean
+	return filepath.Clean(cur)
 }
 
-func readDanglingLink(path string) (string, bool) {
+func isSymlink(path string) bool {
 	fi, err := os.Lstat(path)
-	if err != nil || fi.Mode()&os.ModeSymlink == 0 {
-		return "", false
-	}
+	return err == nil && fi.Mode()&os.ModeSymlink != 0
+}
+
+func readLink(path string) (string, bool) {
 	target, err := os.Readlink(path)
 	if err != nil {
 		return "", false
 	}
-	if !filepath.IsAbs(target) {
-		target = filepath.Join(filepath.Dir(path), target)
-	}
-	return filepath.Clean(target), true
-}
-
-func joinTail(base string, tail []string) string {
-	for i := len(tail) - 1; i >= 0; i-- {
-		base = filepath.Join(base, tail[i])
-	}
-	return base
+	return target, true
 }
 
 func (h *handler) modelGuard(ctx context.Context, p payload, out, errw io.Writer) int {
@@ -566,13 +616,13 @@ func (h *handler) target(p payload, in toolInput, repo string) string {
 }
 
 func (h *handler) trace(ctx context.Context, p payload, failed bool) {
-	if id, err := h.d.Rec.Current(ctx); err != nil || id == "" {
+	if id, err := h.recorder().Current(ctx); err != nil || id == "" {
 		return
 	}
 	var in toolInput
 	_ = json.Unmarshal(p.ToolInput, &in)
 	ok := !failed
-	_ = h.d.Rec.Record(ctx, run.Event{
+	_ = h.recorder().Record(ctx, run.Event{
 		Kind: run.KindStep, Agent: p.AgentID, Role: roleName(p.AgentType), Name: p.ToolName,
 		Target: h.target(p, in, h.repo(p)), OK: run.Bool(ok), DurationMS: int64(p.DurationMS),
 	})
@@ -595,7 +645,7 @@ func (h *handler) traceAgent(ctx context.Context, p payload) {
 	default:
 		return
 	}
-	_ = h.d.Rec.Record(ctx, e)
+	_ = h.recorder().Record(ctx, e)
 }
 
 // closestLane fills e.Agent for a stop that carries no agent id: the most
@@ -604,7 +654,7 @@ func (h *handler) closestLane(ctx context.Context, e *run.Event) bool {
 	if e.Role == "" {
 		return false
 	}
-	st, err := h.d.Rec.State(ctx, "")
+	st, err := h.recorder().State(ctx, "")
 	if err != nil {
 		return false
 	}
@@ -624,7 +674,7 @@ func (h *handler) closestLane(ctx context.Context, e *run.Event) bool {
 // stalled reports whether the gate already blocked maxIdleBlocks times with
 // no step event since the first of those blocks.
 func (h *handler) stalled(ctx context.Context) bool {
-	evs, err := h.d.Rec.Events(ctx, "")
+	evs, err := h.recorder().Events(ctx, "")
 	if err != nil {
 		return false
 	}
@@ -645,16 +695,16 @@ func (h *handler) stopGate(ctx context.Context, d dialect, p payload, out io.Wri
 	if p.StopHookActive || strings.EqualFold(h.d.Env("LOOPS_GATE"), "off") {
 		return
 	}
-	st, err := h.d.Rec.State(ctx, "")
+	st, err := h.recorder().State(ctx, "")
 	if err != nil {
 		return
 	}
 	if reason := run.StopReason(st); reason != "" {
 		if h.stalled(ctx) {
-			_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindNote, Name: "stop-gate", Note: "released after 3 blocks without progress"})
+			_ = h.recorder().Record(ctx, run.Event{Kind: run.KindNote, Name: "stop-gate", Note: "released after 3 blocks without progress"})
 			return
 		}
-		_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindNote, Name: "stop-gate", Note: "blocked"})
+		_ = h.recorder().Record(ctx, run.Event{Kind: run.KindNote, Name: "stop-gate", Note: "blocked"})
 		d.blockStop(out, reason)
 	}
 }

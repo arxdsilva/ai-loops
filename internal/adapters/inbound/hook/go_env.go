@@ -63,11 +63,11 @@ func (h *handler) toolchainEnv(ctx context.Context, d dialect, p payload, out, e
 	if cmd == "" || h.checkTests(p, cmd) != "" {
 		return 0
 	}
-	id, err := h.d.Rec.Current(ctx)
+	id, err := h.recorder().Current(ctx)
 	if err != nil || id == "" {
 		return 0
 	}
-	dir, err := h.d.Rec.Dir(ctx, id)
+	dir, err := h.recorder().Dir(ctx, id)
 	if err != nil || dir == "" {
 		return 0
 	}

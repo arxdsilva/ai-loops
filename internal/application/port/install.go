@@ -16,7 +16,7 @@ const (
 )
 
 // nativeDirs maps a package's top-level dot-directory to its user-scope
-// location under the home directory (specs/PLATFORMS.md §3.5, §3.6).
+// location under the home directory (specs/PLATFORMS.md §3.5, §3.6, §3.7).
 var nativeDirs = map[string]string{
 	".opencode": ".config/opencode",
 	".agents":   ".agents",

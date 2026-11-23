@@ -2,7 +2,7 @@
   "loops": {
     "PostToolUse": [
       {
-        "matcher": "replace_file_content|write_to_file|multi_replace_file_content",
+        "matcher": "replace_file_content|edit_file|write_to_file|multi_replace_file_content",
         "hooks": [
           {
             "type": "command",
@@ -63,7 +63,7 @@
         ]
       },
       {
-        "matcher": "replace_file_content|write_to_file|multi_replace_file_content",
+        "matcher": "replace_file_content|edit_file|write_to_file|multi_replace_file_content",
         "hooks": [
           {
             "type": "command",

@@ -24,9 +24,9 @@ var toolNames = map[string]string{
 	"shell": "Bash", "exec_command": "Bash", "local_shell": "Bash", "apply_patch": "Edit",
 	// Devin
 	"exec": "Bash",
-	// Antigravity
+	// Antigravity (edit_file is the desktop IDE's primary edit tool)
 	"view_file": "Read", "run_command": "Bash", "replace_file_content": "Edit",
-	"multi_replace_file_content": "MultiEdit", "write_to_file": "Write",
+	"edit_file": "Edit", "multi_replace_file_content": "MultiEdit", "write_to_file": "Write",
 	"find_by_name": "Glob", "invoke_subagent": "Agent",
 	// Copilot camelCase
 	"powershell": "Bash", "view": "Read", "create": "Write", "task": "Agent",

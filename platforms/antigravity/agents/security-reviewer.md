@@ -4,7 +4,7 @@ description: "QA phase: run each language pack's declared security scanners (loo
 subagent: true
 mainAgent: false
 model: "inherit"
-tools: [view_file, write_to_file, run_command, grep_search, find_by_name, list_dir, send_message]
+tools: [view_file, write_to_file, edit_file, run_command, grep_search, find_by_name, list_dir, send_message]
 commandExecutionPolicy: "auto"
 ---
 
