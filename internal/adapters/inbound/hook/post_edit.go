@@ -43,13 +43,22 @@ func (h *handler) postEdit(ctx context.Context, d dialect, p payload, out io.Wri
 	var in toolInput
 	_ = json.Unmarshal(p.ToolInput, &in)
 	repo := h.projectRoot(p)
+	// Patch paths are relative to the directory the tool ran in, not the
+	// project root: absolutize fixes only the primary file_path, so resolving
+	// extraFiles against the root would skip them or format an unrelated file
+	// with the same relative name (PR review: patch checks use wrong files).
+	// Pack detection and ownership below still use the project root.
+	base := p.Cwd
+	if base == "" {
+		base = repo
+	}
 	var paths []string
 	for _, f := range append([]string{in.path()}, p.extraFiles...) {
 		if f == "" {
 			continue
 		}
 		if !filepath.IsAbs(f) {
-			f = filepath.Join(repo, f)
+			f = filepath.Join(base, f)
 		}
 		if !slices.Contains(paths, f) && h.d.Files.Exists(f) {
 			paths = append(paths, f)
