@@ -41,6 +41,8 @@ func bashPayload(platform, cmd string) string {
 	case "copilot":
 		args, _ := json.Marshal(map[string]any{"command": cmd})
 		return mustJSON(map[string]any{"toolName": "bash", "toolArgs": string(args), "cwd": "/repo"})
+	case "antigravity":
+		return mustJSON(map[string]any{"hook_event_name": "PreToolUse", "workspacePaths": []string{"/repo"}, "toolCall": map[string]any{"name": "run_command", "args": map[string]any{"CommandLine": cmd, "Cwd": "/repo"}}})
 	case "codex":
 		return mustJSON(map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": map[string]any{"command": cmd}, "cwd": "/repo"})
 	}
@@ -66,6 +68,13 @@ func rewritten(t *testing.T, platform, out string) (cmd string, allow bool, inpu
 		}
 		input, _ = hso["tool_input"].(map[string]any)
 		allow = hso["permissionDecision"] == "allow"
+	case "antigravity":
+		input, _ = v["overwrite"].(map[string]any)
+		if _, hasCmd := input["command"]; hasCmd {
+			t.Fatalf("antigravity leaked synthetic command key: %v", input)
+		}
+		cmd, _ = input["CommandLine"].(string)
+		return cmd, false, input
 	default:
 		hso, _ := v["hookSpecificOutput"].(map[string]any)
 		if hso["hookEventName"] != "PreToolUse" {
@@ -127,15 +136,15 @@ func TestGoEnvPerPlatform(t *testing.T) {
 	}{
 		{"go test -race ./...", map[string]want{
 			"claude": rewriteAllow, "codex": rewriteAllow, "cursor": rewriteAllow,
-			"gemini": rewrite, "windsurf": rewrite, "copilot": deny, "opencode": deny,
+			"gemini": rewrite, "windsurf": rewrite, "antigravity": rewrite, "copilot": deny, "opencode": deny,
 		}},
 		{"cd sub && go build ./...", map[string]want{
 			"claude": rewrite, "codex": deny, "cursor": deny,
-			"gemini": rewrite, "windsurf": rewrite, "copilot": deny, "opencode": deny,
+			"gemini": rewrite, "windsurf": rewrite, "antigravity": rewrite, "copilot": deny, "opencode": deny,
 		}},
 		{"go run ./cmd/x", map[string]want{
 			"claude": rewrite, "codex": deny, "cursor": deny,
-			"gemini": rewrite, "windsurf": rewrite, "copilot": deny, "opencode": deny,
+			"gemini": rewrite, "windsurf": rewrite, "antigravity": rewrite, "copilot": deny, "opencode": deny,
 		}},
 	}
 	for _, c := range cases {
@@ -181,8 +190,34 @@ func TestGoEnvPerPlatform(t *testing.T) {
 				if input["working_directory"] != "/repo" {
 					t.Errorf("cursor input lost fields: %v", input)
 				}
+			case "antigravity":
+				if input["Cwd"] != "/repo" {
+					t.Errorf("antigravity input lost fields: %v", input)
+				}
 			}
 		}
+	}
+}
+
+func TestGoEnvAntigravityCommandFallback(t *testing.T) {
+	e, rd := goEnvSetup(t, "r1")
+	payload := mustJSON(map[string]any{"hook_event_name": "PreToolUse", "toolCall": map[string]any{"name": "run_command", "args": map[string]any{"command": "go build ./..."}}})
+	code, out, errOut := e.runP("antigravity", "go-env", payload)
+	if code != 0 || errOut != "" {
+		t.Fatalf("%d %q %q", code, out, errOut)
+	}
+	var v struct {
+		Overwrite map[string]any `json:"overwrite"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatalf("bad JSON %q: %v", out, err)
+	}
+	if _, hasCL := v.Overwrite["CommandLine"]; hasCL {
+		t.Fatalf("unexpected CommandLine key: %v", v.Overwrite)
+	}
+	want := guard.ScopeGo("go build ./...", workspace.GoCache(rd), workspace.GoTmp(rd))
+	if v.Overwrite["command"] != want {
+		t.Fatalf("got %v, want %q", v.Overwrite["command"], want)
 	}
 }
 
@@ -192,6 +227,9 @@ func TestGoEnvConflictingCacheDenied(t *testing.T) {
 	if code != 2 || out != "" || !strings.Contains(errOut, "go_env:") {
 		t.Fatalf("%d %q %q", code, out, errOut)
 	}
+	e, _ = goEnvSetup(t, "r1")
+	code, out, errOut = e.runP("antigravity", "go-env", bashPayload("antigravity", "GOCACHE=/elsewhere go build ./..."))
+	assertAntigravityDeny(t, code, out, errOut, "go_env:", e.h.d.Rec.(*dirRec).evs)
 }
 
 func TestGoEnvMkdirFailureFailsOpen(t *testing.T) {
@@ -202,7 +240,15 @@ func TestGoEnvMkdirFailureFailsOpen(t *testing.T) {
 	if err := os.WriteFile(rd, []byte("not a dir"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if c, o, er := e.runP("claude", "go-env", bashPayload("claude", "go build ./...")); c != 0 || o != "" || er != "" {
-		t.Fatalf("%d %q %q", c, o, er)
+	for _, p := range []string{"claude", "antigravity"} {
+		if c, o, er := e.runP(p, "go-env", bashPayload(p, "go build ./...")); c != 0 || o != "" || er != "" {
+			t.Fatalf("%s: %d %q %q", p, c, o, er)
+		}
+	}
+	// Missing run dir (empty Dir return) also fails open.
+	e2 := setup("r1")
+	e2.h.d.Rec = &dirRec{fakeRec: fakeRec{cur: "r1"}, dir: ""}
+	if c, o, er := e2.runP("antigravity", "go-env", bashPayload("antigravity", "go build ./...")); c != 0 || o != "" || er != "" {
+		t.Fatalf("empty dir: %d %q %q", c, o, er)
 	}
 }

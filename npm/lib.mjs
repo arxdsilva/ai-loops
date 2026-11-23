@@ -5,9 +5,9 @@ export const REPO = 'arxdsilva/ai-loops';
 export const MARKETPLACE = 'ai-loops';
 export const PLUGIN = 'loops@ai-loops';
 
-export const PLATFORMS = ['claude', 'copilot', 'codex', 'cursor', 'gemini', 'opencode', 'amp', 'windsurf', 'cline'];
+export const PLATFORMS = ['claude', 'copilot', 'codex', 'cursor', 'gemini', 'opencode', 'amp', 'windsurf', 'cline', 'antigravity'];
 // Platforms whose files `loops install --target` places (needs the binary).
-const INSTALLER = new Set(['codex', 'opencode', 'amp', 'windsurf', 'cline']);
+const INSTALLER = new Set(['codex', 'opencode', 'amp', 'windsurf', 'cline', 'antigravity']);
 
 export const USAGE = `usage:
   npx ai-loops [install] [--target <platform>] [--scope <scope>] [--force] [--bin-dir <dir>]

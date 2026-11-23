@@ -25,8 +25,15 @@ type Commander interface {
 
 // Deps are the handler's collaborators.
 type Deps struct {
-	Rec   Recorder
-	Files interface { // guard.Files
+	Rec Recorder
+	// RecFor builds a Recorder for the workspace a hook payload names. Native
+	// plugin installs run hook commands from the plugin root, so Rec (built from
+	// the process directory) can point at a different tree than the one the
+	// agent is working in; when set, each Handle picks the recorder for
+	// projroot.Find(payload workspace) instead (Greptile P1: native hooks miss
+	// active runs). Falls back to Rec when nil or when no workspace resolves.
+	RecFor func(root string) Recorder
+	Files  interface { // guard.Files
 		Lines(path string) (int, error)
 		Exists(path string) bool
 		Glob(pattern string) ([]string, error)

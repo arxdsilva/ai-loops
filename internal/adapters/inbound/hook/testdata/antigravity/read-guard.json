@@ -1,0 +1,11 @@
+{
+ "hook_event_name": "PreToolUse",
+ "conversationId": "c1",
+ "workspacePaths": ["/repo"],
+ "toolCall": {
+  "name": "view_file",
+  "args": {
+   "AbsolutePath": "/repo/big.go"
+  }
+ }
+}

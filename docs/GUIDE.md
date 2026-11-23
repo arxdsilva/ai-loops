@@ -36,7 +36,7 @@ That installs `loops` into `~/.local/bin` and places the platform's files. With 
 
 ```sh
 npx ai-loops                         # Claude Code: claude plugin marketplace add + claude plugin install
-npx ai-loops --target <platform>     # copilot, codex, cursor, gemini, opencode, amp, windsurf, cline
+npx ai-loops --target <platform>     # copilot, codex, cursor, gemini, opencode, amp, windsurf, cline, antigravity
 ```
 
 `npx ai-loops` downloads the release binary matching its own version and checks it against `checksums.txt`, like `install.sh`; `--scope`, `--force` and `--bin-dir` work the same. `npx ai-loops bin [--bin-dir dir]` installs only the binary (the Claude plugin-directory package needs it, since it downloads nothing). Any other arguments run that `loops` command (`npx ai-loops report`). Tiers: A resumable subagents, B subagents without resume, C generic subagents, D solo mode ([specs/PLATFORMS.md](../specs/PLATFORMS.md) §4).
@@ -91,19 +91,32 @@ curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh 
 curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target cline
 ```
 
+### Google Antigravity (tier A)
+Covers the Google Antigravity IDE app and CLI (`agy`):
+
+```sh
+git clone https://github.com/arxdsilva/ai-loops
+agy plugin install ./ai-loops/platforms/antigravity
+# or install into workspace / user customization dirs:
+npx ai-loops --target antigravity
+curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh -s -- --target antigravity
+```
+
+Project scope (default, or `loops install --target antigravity --scope project`) places `.agents/skills/`, `.agents/agents/`, `.agents/rules/`, `.agents/hooks.json`, and `.loops/plugin/`; user scope (`--scope user`) places `~/.gemini/config/skills/`, `~/.gemini/config/agents/`, `~/.gemini/config/rules/`, `~/.gemini/config/hooks.json`, and `~/.local/share/loops/plugin/`. Rules come from `rules/AGENTS.md` (and `AGENTS.md` / `GEMINI.md`). Run `/skills reload` after installing or updating; in `agy`, skills also run as `/work`, `/init`, `/status`, `/report`. Custom subagents (`agents/<role>.md`, spawned with `invoke_subagent`) emit explicit role `tools:` allowlists and wake and resume when idle via `send_message`, with `PreToolUse` `write-guard` scoping read-only roles' writes to the active run dir (plus `.loops/memory/` for `reflector`).
+
 ### Capability matrix (condensed)
 
 Full table and notes: [specs/PLATFORMS.md](../specs/PLATFORMS.md) §2. Per-platform run mechanics: [`skills/work/platforms/<platform>.md`](../skills/work/platforms/).
 
-| | Claude | Copilot | Codex | Cursor | Gemini | OpenCode | Amp | Windsurf | Cline |
-|---|---|---|---|---|---|---|---|---|---|
-| Role subagents | yes | yes | yes | yes | yes | yes | generic | solo | solo |
-| Resume same agent | yes | no | no | yes | no | no | partial | no | no |
-| Tool deny / post-edit hooks | yes | yes | yes | yes | yes | shim | no | yes | no |
-| Subagent lanes | yes | yes | yes | yes | labels | labels | labels | labels | labels |
-| Stop gate | yes | yes | yes | yes | yes | no | no | maybe | no |
-| Status line / pane | yes | no | no | no | no | no | no | no | no |
-| `loops watch` / `loops report` | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+| | Claude | Copilot | Codex | Cursor | Gemini | OpenCode | Amp | Windsurf | Cline | Antigravity |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Role subagents | yes | yes | yes | yes | yes | yes | generic | solo | solo | yes |
+| Resume same agent | yes | no | no | yes | no | no | partial | no | no | yes |
+| Tool deny / post-edit hooks | yes | yes | yes | yes | yes | shim | no | yes | no | yes |
+| Subagent lanes | yes | yes | yes | yes | labels | labels | labels | labels | labels | labels |
+| Stop gate | yes | yes | yes | yes | yes | no | no | maybe | no | yes |
+| Status line / pane | yes | no | no | no | no | no | no | no | no | no |
+| `loops watch` / `loops report` | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |
 
 Use `loops watch` in a side terminal for the live view on any platform.
 
@@ -133,6 +146,7 @@ When a newer release exists, the session context carries one line: `loops vX is 
 | Cursor | Dashboard > Plugins & MCPs > marketplace > Refresh; start a new agent |
 | Gemini CLI | `git -C ai-loops pull && gemini extensions update loops` |
 | OpenCode / Amp / Windsurf / Cline | `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh \| sh -s -- --target <platform> --force` |
+| Antigravity | `agy plugin install ./ai-loops/platforms/antigravity` (native plugin) or `npx ai-loops --target antigravity --force` (installer) |
 
 ## What you see while it runs
 
@@ -226,8 +240,9 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
 |---|---|
 | session-start | Tells Claude where the plugin lives and which run is active. |
 | read-guard | Denies a whole-file Read of a file over 500 lines, and shell views over 150 lines of repo files. Read in ranges instead. Tune it with `READ_GUARD_MIN_LINES` and `READ_GUARD_MAX_VIEW_LINES`, or turn it off with `READ_GUARD=off`. |
+| write-guard | Path-scoped read-only enforcement on Antigravity `PreToolUse` (`replace_file_content\|write_to_file\|multi_replace_file_content`): restricts read-only roles to writing inside the active run dir (plus `.loops/memory/` for `reflector`). |
 | test-guard (was race-guard) | For flag-mode languages, denies a test run without the race flag (`go test` without `-race`, `swift test` without `--sanitize=thread`). No opt-out. Other languages are never denied here; `loops gate` enforces their race build or substitute checks. |
-| toolchain-env (was go-env) | Scopes agents' toolchain commands to the run's caches. Go commands are rewritten, or denied with a hint to use `loops go …` where the platform can't rewrite. Other languages are rewritten on Claude Code, Gemini CLI and Windsurf and never denied; elsewhere use `loops exec -- <cmd>`. |
+| toolchain-env (was go-env) | Scopes agents' toolchain commands to the run's caches. Go commands are rewritten, or denied with a hint to use `loops go …` where the platform can't rewrite. Other languages are rewritten on Claude Code, Gemini CLI, Windsurf and Antigravity and never denied; elsewhere use `loops exec -- <cmd>`. |
 | model-guard | Untyped or general-purpose agents must name a model. |
 | post-edit (was go-post-edit) | Runs the language's single-file formatter and lint on every edited source file (Go: `goimports` or `gofmt`, then `go vet`). It sends the failure back to Claude when either one fails. |
 | trace, trace-agent | Records every tool call, and every agent start and stop, in the right agent's lane. |

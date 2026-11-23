@@ -72,8 +72,20 @@ func (d *detector) all() []langpack.Detected {
 	return ds
 }
 
-// Detect implements hook.Langs (the root is the project root it was built for).
-func (d *detector) Detect(string) ([]langpack.Detected, error) { return d.detect() }
+// Detect implements hook.Langs for the project root the hook adapter resolved
+// (projroot.Find of the payload workspace), so hooks launched from the plugin
+// root or from a subdirectory still detect the project's packs. root is always
+// a resolved project root, so the project's config is loaded there.
+func (d *detector) Detect(root string) ([]langpack.Detected, error) {
+	if root == "" || root == d.root {
+		return d.detect()
+	}
+	cfg, err := runstore.LoadConfig(root)
+	if err != nil {
+		cfg = runstore.Config{}
+	}
+	return d.svc.Detect(root, cfg.Languages)
+}
 
 // archGate adapts the arch checker to gate.Arch over the detected packs.
 type archGate struct {
@@ -134,6 +146,15 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Hooks: hook.New(hook.Deps{
 			Rec: trk, Files: fsys.New(), Cmd: gotool.New(), Env: os.Getenv, Getwd: os.Getwd,
 			Update: updates, Version: version, UpdateOff: updateOff, Langs: detected,
+			// Native plugin hooks run from the plugin root; bind each call to the
+			// payload's workspace so the active run is found (Greptile P1).
+			RecFor: func(root string) hook.Recorder {
+				if root == "" || root == detected.root {
+					return trk
+				}
+				s := runstore.New(root)
+				return tracker.New(s, s, clock)
+			},
 		}),
 		Update:      updates,
 		UpdateState: upState,

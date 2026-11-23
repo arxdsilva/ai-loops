@@ -194,7 +194,7 @@ func TestToolchainEnvPacks(t *testing.T) {
 	e, rd := goEnvSetup(t, "r1")
 	l := &fakeLangs{ds: []langpack.Detected{goDet, rustDet, swiftDet}}
 	e.h.d.Langs = l
-	for _, p := range []string{"claude", "gemini", "windsurf"} {
+	for _, p := range []string{"claude", "gemini", "windsurf", "antigravity"} {
 		code, out, er := e.runP(p, "toolchain-env", bashPayload(p, "cargo test"))
 		cmd, allow, _ := rewritten(t, p, out)
 		if code != 0 || er != "" || allow || cmd != "CARGO_TARGET_DIR='"+filepath.Join(rd, "rust", "cache")+"' cargo test" {

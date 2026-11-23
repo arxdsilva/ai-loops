@@ -8,19 +8,20 @@ package plugin
 type Platform string
 
 const (
-	Claude   Platform = "claude"
-	Copilot  Platform = "copilot"
-	Codex    Platform = "codex"
-	Cursor   Platform = "cursor"
-	Gemini   Platform = "gemini"
-	OpenCode Platform = "opencode"
-	Amp      Platform = "amp"
-	Windsurf Platform = "windsurf"
-	Cline    Platform = "cline"
+	Claude      Platform = "claude"
+	Copilot     Platform = "copilot"
+	Codex       Platform = "codex"
+	Cursor      Platform = "cursor"
+	Gemini      Platform = "gemini"
+	OpenCode    Platform = "opencode"
+	Amp         Platform = "amp"
+	Windsurf    Platform = "windsurf"
+	Cline       Platform = "cline"
+	Antigravity Platform = "antigravity"
 )
 
 // Platforms lists every supported platform in documentation order.
-var Platforms = [...]Platform{Claude, Copilot, Codex, Cursor, Gemini, OpenCode, Amp, Windsurf, Cline}
+var Platforms = [...]Platform{Claude, Copilot, Codex, Cursor, Gemini, OpenCode, Amp, Windsurf, Cline, Antigravity}
 
 // Tier is a role's model tier (ROLES.md "Model tiers").
 type Tier string

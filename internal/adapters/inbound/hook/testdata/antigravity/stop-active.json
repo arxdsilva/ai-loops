@@ -1,0 +1,6 @@
+{
+ "hook_event_name": "Stop",
+ "conversationId": "c1",
+ "workspacePaths": ["/repo"],
+ "stop_hook_active": true
+}

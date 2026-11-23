@@ -2,9 +2,10 @@
 // guard decisions and run events. Every handler fails open: bad input,
 // no active run, or an internal error exits 0 with no output.
 //
-// Names (hooks/hooks.json): session-start, read-guard, test-guard,
-// toolchain-env, model-guard, post-edit, trace, trace-agent, stop-gate. The
-// pre-language-pack names race-guard, go-env and go-post-edit stay aliases.
+// Names (hooks/hooks.json): session-start, read-guard, write-guard,
+// test-guard, toolchain-env, model-guard, post-edit, trace, trace-agent,
+// stop-gate. The pre-language-pack names race-guard, go-env and
+// go-post-edit stay aliases.
 package hook
 
 import (
@@ -22,6 +23,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/application/guard"
 	"github.com/arxdsilva/ai-loops/internal/application/updatecheck"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/platform/projroot"
 )
 
 var projectEnv = map[string][]string{
@@ -34,6 +36,7 @@ const maxBrief = 2400
 var entryPoint = map[string]string{
 	"claude": "/loops:work", "copilot": "/loops:work", "gemini": "/loops:work",
 	"codex": "$work", "cursor": "/work", "opencode": "/loops/work", "windsurf": "the work skill",
+	"antigravity": "the work skill (/work in Antigravity CLI)",
 }
 
 // maxIdleBlocks is how many stop-gate blocks with no tool call between them
@@ -46,6 +49,12 @@ type handler struct {
 	d        Deps
 	platform string
 	langs    *detection // per Handle call; nil until first needed
+	rec      Recorder   // per Handle call: the workspace recorder when Deps.RecFor is set
+	// project is the project root for this call: projroot.Find of the payload
+	// workspace. Hooks launched from the plugin root, or from a subdirectory
+	// without a project-dir env var, must still find the project's manifest,
+	// .loops/config.json and run store (Greptile P1).
+	project string
 }
 
 // New returns the hook dispatcher; document behaviour here, not on handler.
@@ -88,6 +97,13 @@ type payload struct {
 	IsInterrupt         bool            `json:"is_interrupt"`
 	extraFiles          []string
 	WorkspaceRoots      []string `json:"workspace_roots"`
+	// Antigravity spellings (folded by normalize).
+	ToolCall *struct {
+		Name string          `json:"name"`
+		Args json.RawMessage `json:"args"`
+	} `json:"toolCall"`
+	WorkspacePaths []string `json:"workspacePaths"`
+	ConversationID string   `json:"conversationId"`
 }
 
 type toolInput struct {
@@ -124,6 +140,34 @@ func (h *handler) Handle(ctx context.Context, name, platform string, in io.Reade
 	return h.handle(ctx, name, platform, in, &o, &e)
 }
 
+// workspaceRecorder returns the recorder for the workspace the payload names,
+// so hooks launched from the plugin root still find the active run
+// (Greptile P1). It falls back to Deps.Rec when RecFor is nil, the workspace
+// equals the process root, or nothing resolves.
+func (h *handler) workspaceRecorder(_ payload, root string) Recorder {
+	if h.d.RecFor == nil || h.d.Rec == nil || root == "" {
+		return h.d.Rec
+	}
+	return h.d.RecFor(root)
+}
+
+// projectRoot is the project root for this Handle call, so pack detection,
+// read/write base paths and file ownership all use one root.
+func (h *handler) projectRoot(p payload) string {
+	if h.project != "" {
+		return h.project
+	}
+	return projroot.Find(h.repo(p))
+}
+
+// recorder is the recorder for this Handle call.
+func (h *handler) recorder() Recorder {
+	if h.rec != nil {
+		return h.rec
+	}
+	return h.d.Rec
+}
+
 func (h *handler) handle(ctx context.Context, name, platform string, in io.Reader, out, errw io.Writer) int {
 	raw, err := io.ReadAll(io.LimitReader(in, 8<<20))
 	if err != nil {
@@ -137,16 +181,20 @@ func (h *handler) handle(ctx context.Context, name, platform string, in io.Reade
 	d, failed := normalize(&p, platform)
 	h.platform = platform
 	h.langs = nil
+	h.project = projroot.Find(h.repo(p))
+	h.rec = h.workspaceRecorder(p, h.project)
 	h.absolutize(&p)
 	switch name {
 	case "session-start":
 		h.sessionStart(ctx, d, p, out)
 	case "read-guard":
-		return h.readGuard(ctx, p, errw)
+		return h.readGuard(ctx, p, out, errw)
+	case "write-guard":
+		return h.writeGuard(ctx, p, out, errw)
 	case "model-guard":
-		return h.modelGuard(ctx, p, errw)
+		return h.modelGuard(ctx, p, out, errw)
 	case "test-guard", "race-guard":
-		return h.testGuard(ctx, p, errw)
+		return h.testGuard(ctx, p, out, errw)
 	case "toolchain-env", "go-env":
 		return h.toolchainEnv(ctx, d, p, out, errw)
 	case "post-edit", "go-post-edit":
@@ -179,7 +227,7 @@ func (h *handler) absolutize(p *payload) {
 	}
 	base := p.Cwd
 	if base == "" {
-		base = h.repo(*p)
+		base = h.projectRoot(*p)
 	}
 	if base == "" {
 		return
@@ -215,9 +263,9 @@ func (h *handler) sessionStart(ctx context.Context, d dialect, p payload, out io
 		text = fmt.Sprintf("loops plugin active. Plugin root: %s. Work tickets with %s (WORKFLOW: %s/specs/WORKFLOW.md).", root, entryPoint[h.platform], strings.TrimRight(root, "/"))
 	}
 	brief := ""
-	if id, err := h.d.Rec.Current(ctx); err == nil && id != "" {
-		if st, err := h.d.Rec.State(ctx, id); err == nil {
-			dir, _ := h.d.Rec.Dir(ctx, id)
+	if id, err := h.recorder().Current(ctx); err == nil && id != "" {
+		if st, err := h.recorder().State(ctx, id); err == nil {
+			dir, _ := h.recorder().Dir(ctx, id)
 			text += fmt.Sprintf(" Active run %s: phase %s, %d lanes running, run dir %s.", id, st.Phase, len(run.Running(st)), dir)
 			// After a compaction or a resumed session the lead re-anchors
 			// on the run instead of its memory (WORKFLOW §2.7).
@@ -299,13 +347,17 @@ func writeFileAtomic(path string, data []byte) error {
 	return err
 }
 
-func (h *handler) deny(ctx context.Context, p payload, guardName, reason string, errw io.Writer) int {
+func (h *handler) deny(ctx context.Context, p payload, guardName, reason string, out, errw io.Writer) int {
+	_ = h.recorder().Record(ctx, run.Event{Kind: run.KindGuardDeny, Name: guardName, Agent: p.AgentID, Note: reason})
+	if h.platform == "antigravity" {
+		dialect{platform: h.platform}.emit(out, map[string]string{"decision": "deny", "reason": reason})
+		return 0
+	}
 	fmt.Fprintln(errw, reason)
-	_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindGuardDeny, Name: guardName, Agent: p.AgentID, Note: reason})
 	return 2
 }
 
-func (h *handler) readGuard(ctx context.Context, p payload, errw io.Writer) int {
+func (h *handler) readGuard(ctx context.Context, p payload, out, errw io.Writer) int {
 	cfg := guard.DefaultConfig()
 	cfg.Off = strings.EqualFold(h.d.Env("READ_GUARD"), "off")
 	for _, kv := range []struct {
@@ -320,7 +372,7 @@ func (h *handler) readGuard(ctx context.Context, p payload, errw io.Writer) int 
 			*kv.dst = n
 		}
 	}
-	repo := h.repo(p)
+	repo := h.projectRoot(p)
 	cwd := p.Cwd
 	if cwd == "" {
 		cwd = repo
@@ -329,20 +381,213 @@ func (h *handler) readGuard(ctx context.Context, p payload, errw io.Writer) int 
 	if reason == "" {
 		return 0
 	}
-	return h.deny(ctx, p, "read-guard", reason, errw)
+	return h.deny(ctx, p, "read-guard", reason, out, errw)
 }
 
-func (h *handler) modelGuard(ctx context.Context, p payload, errw io.Writer) int {
+func (h *handler) writeGuard(ctx context.Context, p payload, out, errw io.Writer) int {
+	if !isWriteTool(p.ToolName) {
+		return 0
+	}
+	targets := h.writeTargets(p)
+	if len(targets) == 0 {
+		return 0
+	}
+	id, runDir, ok := h.activeRunDir(ctx)
+	if !ok {
+		return 0
+	}
+	role := h.writeRole(ctx, id, p)
+	if role == "" {
+		return 0
+	}
+	resolvedRunDir := resolvePath(runDir)
+	resolvedProjectDir := resolvePath(h.projectRoot(p))
+	for _, target := range targets {
+		if reason := guard.CheckWrite(role, resolvePath(target), resolvedRunDir, resolvedProjectDir); reason != "" {
+			return h.deny(ctx, p, "write-guard", reason, out, errw)
+		}
+	}
+	return 0
+}
+
+func isWriteTool(name string) bool {
+	return name == "Write" || name == "Edit" || name == "MultiEdit"
+}
+
+func (h *handler) activeRunDir(ctx context.Context) (id, dir string, ok bool) {
+	if h.d.Rec == nil {
+		return "", "", false
+	}
+	id, err := h.recorder().Current(ctx)
+	if err != nil || id == "" {
+		return "", "", false
+	}
+	dir, err = h.recorder().Dir(ctx, id)
+	if err != nil || dir == "" {
+		return "", "", false
+	}
+	return id, dir, true
+}
+
+func (h *handler) writeTargets(p payload) []string {
+	var in toolInput
+	_ = json.Unmarshal(p.ToolInput, &in)
+	var targets []string
+	// A write target is relative to the directory the tool ran in, not the
+	// project root: resolving it against the root would mis-place a write made
+	// from a subdirectory.
+	base := p.Cwd
+	if base == "" {
+		base = h.projectRoot(p)
+	}
+	if in.FilePath != "" {
+		fp := in.FilePath
+		if !filepath.IsAbs(fp) && base != "" {
+			fp = filepath.Join(base, fp)
+		}
+		targets = append(targets, fp)
+	}
+	for _, f := range p.extraFiles {
+		if f == "" {
+			continue
+		}
+		if !filepath.IsAbs(f) && base != "" {
+			f = filepath.Join(base, f)
+		}
+		targets = append(targets, f)
+	}
+	return targets
+}
+
+func (h *handler) writeRole(ctx context.Context, runID string, p payload) string {
+	if r := roleName(p.AgentType); r != "" {
+		return r
+	}
+	st, _ := h.recorder().State(ctx, runID)
+	if r := laneRole(st.Lanes, p.AgentID); r != "" {
+		return r
+	}
+	if r := laneRole(st.Lanes, p.SessionID); r != "" {
+		return r
+	}
+	if p.AgentID == "" {
+		if r := soleRunningRole(st.Lanes); r != "" {
+			return r
+		}
+	}
+	return roleName(p.AgentID)
+}
+
+func laneRole(lanes []run.Lane, id string) string {
+	if id == "" {
+		return ""
+	}
+	for _, l := range lanes {
+		if (l.Agent == id || l.Label == id) && l.Role != "" {
+			if r := roleName(l.Role); r != "" {
+				return r
+			}
+		}
+	}
+	return ""
+}
+
+func soleRunningRole(lanes []run.Lane) string {
+	var role string
+	for _, l := range lanes {
+		if !l.Running || l.Role == "" {
+			continue
+		}
+		r := roleName(l.Role)
+		if r == "" {
+			continue
+		}
+		if role != "" {
+			return ""
+		}
+		role = r
+	}
+	return role
+}
+
+// resolvePath returns path with every symlink followed and ".." applied to the
+// resolved tree, not lexically. Cleaning first would let <run>/link/../file
+// pass a containment check while the filesystem resolves it outside the run
+// (Greptile P1: writes escape the run directory).
+func resolvePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	// Split the raw path: filepath.Abs/Clean would collapse "link/.." lexically
+	// before the symlink is followed, which is exactly the escape to catch.
+	abs := path
+	if !filepath.IsAbs(abs) {
+		if wd, err := os.Getwd(); err == nil {
+			abs = filepath.Join(wd, abs)
+		}
+	}
+	vol := filepath.VolumeName(abs)
+	rest := strings.TrimPrefix(abs[len(vol):], string(filepath.Separator))
+	cur := vol + string(filepath.Separator)
+	parts := strings.Split(rest, string(filepath.Separator))
+	hops := 0
+	for i := 0; i < len(parts); i++ {
+		switch parts[i] {
+		case "", ".":
+			continue
+		case "..":
+			if parent := filepath.Dir(cur); parent != cur {
+				cur = parent
+			}
+			continue
+		}
+		next := cur + parts[i]
+		if cur != string(filepath.Separator) && !strings.HasSuffix(cur, string(filepath.Separator)) {
+			next = cur + string(filepath.Separator) + parts[i]
+		}
+		if hops < 64 && isSymlink(next) {
+			hops++
+			if target, ok := readLink(next); ok {
+				if filepath.IsAbs(target) {
+					tvol := filepath.VolumeName(target)
+					cur = tvol + string(filepath.Separator)
+					parts = append(strings.Split(strings.TrimPrefix(target[len(tvol):], string(filepath.Separator)), string(filepath.Separator)), parts[i+1:]...)
+				} else {
+					parts = append(strings.Split(target, string(filepath.Separator)), parts[i+1:]...)
+				}
+				i = -1
+				continue
+			}
+		}
+		cur = next
+	}
+	return filepath.Clean(cur)
+}
+
+func isSymlink(path string) bool {
+	fi, err := os.Lstat(path)
+	return err == nil && fi.Mode()&os.ModeSymlink != 0
+}
+
+func readLink(path string) (string, bool) {
+	target, err := os.Readlink(path)
+	if err != nil {
+		return "", false
+	}
+	return target, true
+}
+
+func (h *handler) modelGuard(ctx context.Context, p payload, out, errw io.Writer) int {
 	if p.ToolName != "" && p.ToolName != "Agent" {
 		return 0
 	}
 	switch h.platform {
-	case "cursor", "opencode", "gemini":
+	case "cursor", "opencode", "gemini", "antigravity":
 		// No documented model field on these platforms' agent calls.
 		return 0
 	}
 	if reason := guard.CheckModel(p.ToolInput); reason != "" {
-		return h.deny(ctx, p, "model-guard", reason, errw)
+		return h.deny(ctx, p, "model-guard", reason, out, errw)
 	}
 	return 0
 }
@@ -385,15 +630,15 @@ func (h *handler) target(p payload, in toolInput, repo string) string {
 }
 
 func (h *handler) trace(ctx context.Context, p payload, failed bool) {
-	if id, err := h.d.Rec.Current(ctx); err != nil || id == "" {
+	if id, err := h.recorder().Current(ctx); err != nil || id == "" {
 		return
 	}
 	var in toolInput
 	_ = json.Unmarshal(p.ToolInput, &in)
 	ok := !failed
-	_ = h.d.Rec.Record(ctx, run.Event{
+	_ = h.recorder().Record(ctx, run.Event{
 		Kind: run.KindStep, Agent: p.AgentID, Role: roleName(p.AgentType), Name: p.ToolName,
-		Target: h.target(p, in, h.repo(p)), OK: run.Bool(ok), DurationMS: int64(p.DurationMS),
+		Target: h.target(p, in, h.projectRoot(p)), OK: run.Bool(ok), DurationMS: int64(p.DurationMS),
 	})
 }
 
@@ -414,7 +659,7 @@ func (h *handler) traceAgent(ctx context.Context, p payload) {
 	default:
 		return
 	}
-	_ = h.d.Rec.Record(ctx, e)
+	_ = h.recorder().Record(ctx, e)
 }
 
 // closestLane fills e.Agent for a stop that carries no agent id: the most
@@ -423,7 +668,7 @@ func (h *handler) closestLane(ctx context.Context, e *run.Event) bool {
 	if e.Role == "" {
 		return false
 	}
-	st, err := h.d.Rec.State(ctx, "")
+	st, err := h.recorder().State(ctx, "")
 	if err != nil {
 		return false
 	}
@@ -443,7 +688,7 @@ func (h *handler) closestLane(ctx context.Context, e *run.Event) bool {
 // stalled reports whether the gate already blocked maxIdleBlocks times with
 // no step event since the first of those blocks.
 func (h *handler) stalled(ctx context.Context) bool {
-	evs, err := h.d.Rec.Events(ctx, "")
+	evs, err := h.recorder().Events(ctx, "")
 	if err != nil {
 		return false
 	}
@@ -464,16 +709,16 @@ func (h *handler) stopGate(ctx context.Context, d dialect, p payload, out io.Wri
 	if p.StopHookActive || strings.EqualFold(h.d.Env("LOOPS_GATE"), "off") {
 		return
 	}
-	st, err := h.d.Rec.State(ctx, "")
+	st, err := h.recorder().State(ctx, "")
 	if err != nil {
 		return
 	}
 	if reason := run.StopReason(st); reason != "" {
 		if h.stalled(ctx) {
-			_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindNote, Name: "stop-gate", Note: "released after 3 blocks without progress"})
+			_ = h.recorder().Record(ctx, run.Event{Kind: run.KindNote, Name: "stop-gate", Note: "released after 3 blocks without progress"})
 			return
 		}
-		_ = h.d.Rec.Record(ctx, run.Event{Kind: run.KindNote, Name: "stop-gate", Note: "blocked"})
+		_ = h.recorder().Record(ctx, run.Event{Kind: run.KindNote, Name: "stop-gate", Note: "blocked"})
 		d.blockStop(out, reason)
 	}
 }

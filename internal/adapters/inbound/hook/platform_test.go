@@ -14,7 +14,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
-var allPlatforms = []string{"claude", "codex", "cursor", "gemini", "copilot", "windsurf"}
+var allPlatforms = []string{"claude", "codex", "cursor", "gemini", "copilot", "windsurf", "antigravity"}
 
 func fixture(t *testing.T, platform, name string) string {
 	t.Helper()
@@ -38,9 +38,30 @@ func sessionText(entry string) string {
 		" loops binary: /plug/bin/loops — if `loops` is not on PATH, call it by that absolute path (or install it: `curl -fsSL https://raw.githubusercontent.com/arxdsilva/ai-loops/main/install.sh | sh`)."
 }
 
+func assertAntigravityDeny(t *testing.T, code int, out, errOut, wantSubstr string, evs []run.Event) {
+	t.Helper()
+	if code != 0 || errOut != "" {
+		t.Fatalf("want exit 0 and empty stderr, got %d %q %q", code, out, errOut)
+	}
+	var got struct {
+		Decision string `json:"decision"`
+		Reason   string `json:"reason"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("bad deny JSON %q: %v", out, err)
+	}
+	if got.Decision != "deny" || !strings.Contains(got.Reason, wantSubstr) {
+		t.Fatalf("unexpected deny payload %+v (want %q)", got, wantSubstr)
+	}
+	if len(evs) != 1 || evs[0].Kind != run.KindGuardDeny {
+		t.Fatalf("expected KindGuardDeny recorded, got %+v", evs)
+	}
+}
+
 func TestPlatformSessionStart(t *testing.T) {
 	entry := map[string]string{"claude": "/loops:work", "copilot": "/loops:work", "gemini": "/loops:work",
-		"codex": "$work", "cursor": "/work", "opencode": "/loops/work", "windsurf": "the work skill"}
+		"codex": "$work", "cursor": "/work", "opencode": "/loops/work", "windsurf": "the work skill",
+		"antigravity": "the work skill (/work in Antigravity CLI)"}
 	for p, en := range entry {
 		text := sessionText(en)
 		want := mustJSON(map[string]any{"hookSpecificOutput": map[string]string{"hookEventName": "SessionStart", "additionalContext": text}})
@@ -49,6 +70,8 @@ func TestPlatformSessionStart(t *testing.T) {
 			want = mustJSON(map[string]string{"additional_context": text})
 		case "copilot":
 			want = mustJSON(map[string]string{"additionalContext": text})
+		case "antigravity":
+			want = mustJSON(map[string]any{"injectSteps": []map[string]string{{"userMessage": text}}})
 		}
 		fx := "claude"
 		if p != "opencode" {
@@ -67,6 +90,10 @@ func TestPlatformReadGuardDeny(t *testing.T) {
 	for _, p := range allPlatforms {
 		e := setup("r")
 		c, o, er := e.runP(p, "read-guard", fixture(t, p, "read-guard"))
+		if p == "antigravity" {
+			assertAntigravityDeny(t, c, o, er, "read_guard:", e.rec.evs)
+			continue
+		}
 		if c != 2 || o != "" || !strings.Contains(er, "read_guard:") || len(e.rec.evs) != 1 || e.rec.evs[0].Kind != run.KindGuardDeny {
 			t.Errorf("%s: %d %q %q %+v", p, c, o, er, e.rec.evs)
 		}
@@ -81,7 +108,7 @@ func TestPlatformModelGuard(t *testing.T) {
 			t.Errorf("%s: %d %q", p, c, er)
 		}
 	}
-	for _, p := range []string{"cursor", "gemini", "opencode"} { // no documented model field: no-op
+	for _, p := range []string{"cursor", "gemini", "opencode", "antigravity"} { // no documented model field: no-op
 		e := setup("r")
 		if c, _, er := e.runP(p, "model-guard", fixture(t, "cursor", "model-guard")); c != 0 || er != "" {
 			t.Errorf("%s: %d %q", p, c, er)
@@ -100,12 +127,13 @@ func TestPlatformModelGuard(t *testing.T) {
 func TestPlatformGoPostEdit(t *testing.T) {
 	reason := "go-post-edit: gofmt failed for /repo/pkg/a.go:\nsyntax error"
 	failOut := map[string]string{
-		"claude":   mustJSON(map[string]string{"decision": "block", "reason": reason}),
-		"codex":    mustJSON(map[string]string{"decision": "block", "reason": reason}),
-		"windsurf": mustJSON(map[string]string{"decision": "block", "reason": reason}),
-		"cursor":   mustJSON(map[string]string{"additional_context": reason}),
-		"copilot":  mustJSON(map[string]string{"additionalContext": reason}),
-		"gemini":   mustJSON(map[string]any{"hookSpecificOutput": map[string]string{"hookEventName": "AfterTool", "additionalContext": reason}}),
+		"claude":      mustJSON(map[string]string{"decision": "block", "reason": reason}),
+		"codex":       mustJSON(map[string]string{"decision": "block", "reason": reason}),
+		"windsurf":    mustJSON(map[string]string{"decision": "block", "reason": reason}),
+		"antigravity": mustJSON(map[string]any{"injectSteps": []map[string]string{{"userMessage": reason}}}),
+		"cursor":      mustJSON(map[string]string{"additional_context": reason}),
+		"copilot":     mustJSON(map[string]string{"additionalContext": reason}),
+		"gemini":      mustJSON(map[string]any{"hookSpecificOutput": map[string]string{"hookEventName": "AfterTool", "additionalContext": reason}}),
 	}
 	for _, p := range allPlatforms {
 		e := setup("r")
@@ -177,8 +205,9 @@ func TestPlatformStopGate(t *testing.T) {
 	block := mustJSON(map[string]string{"decision": "block", "reason": r})
 	want := map[string]string{
 		"claude": block, "codex": block, "copilot": block, "windsurf": block,
-		"cursor": mustJSON(map[string]string{"followup_message": r}),
-		"gemini": mustJSON(map[string]string{"decision": "deny", "reason": r}),
+		"antigravity": mustJSON(map[string]string{"decision": "continue", "reason": r}),
+		"cursor":      mustJSON(map[string]string{"followup_message": r}),
+		"gemini":      mustJSON(map[string]string{"decision": "deny", "reason": r}),
 	}
 	for _, p := range allPlatforms {
 		e := setup("r")
@@ -199,6 +228,7 @@ func TestDetectPlatform(t *testing.T) {
 		want string
 	}{
 		{"cursor", nil, "cursor"}, {"OpenCode", nil, "opencode"}, {"devin", nil, "windsurf"},
+		{"antigravity", nil, "antigravity"}, {"agy", nil, "antigravity"}, {"AGY", nil, "antigravity"}, {"antigravity-cli", nil, "antigravity"},
 		{"", map[string]string{"CURSOR_PROJECT_DIR": "/x", "CLAUDE_PROJECT_DIR": "/x"}, "cursor"},
 		{"", map[string]string{"CURSOR_PLUGIN_ROOT": "/x"}, "cursor"},
 		{"", map[string]string{"GEMINI_CWD": "/x"}, "gemini"},
@@ -229,6 +259,59 @@ func TestProjectDirPerPlatform(t *testing.T) {
 	e.runP("cursor", "go-post-edit", `{"tool_name":"Write","tool_input":{"path":"pkg/a.go"},"workspace_roots":["/repo"]}`)
 	if len(e.cmd.calls) != 2 {
 		t.Errorf("%v", e.cmd.calls)
+	}
+	e = setup("r") // antigravity workspacePaths fallback
+	e.vars = nil
+	e.runP("antigravity", "go-post-edit", `{"toolCall":{"name":"write_to_file","args":{"TargetFile":"pkg/a.go"}},"workspacePaths":["/repo"]}`)
+	if fmt.Sprint(e.cmd.calls) != "[gofmt -w /repo/pkg/a.go go vet ./pkg]" {
+		t.Errorf("antigravity workspacePaths: %v", e.cmd.calls)
+	}
+}
+
+func TestAntigravityPayloadsAndFailOpen(t *testing.T) {
+	// Antigravity toolCall{name,args} normalization across tools and aliases.
+	for _, plat := range []string{"antigravity", "agy", "antigravity-cli"} {
+		e := setup("r")
+		c, o, er := e.runP(plat, "read-guard", fixture(t, "antigravity", "read-guard"))
+		assertAntigravityDeny(t, c, o, er, "read_guard:", e.rec.evs)
+		e = setup("r")
+		c, o, er = e.runP(plat, "test-guard", `{"hook_event_name":"PreToolUse","toolCall":{"name":"run_command","args":{"CommandLine":"go test ./..."}}}`)
+		assertAntigravityDeny(t, c, o, er, "race_guard:", e.rec.evs)
+	}
+	// JSON-encoded string toolCall.args and tool trace mappings.
+	e := setup("r")
+	e.runP("agy", "trace", `{"hook_event_name":"PostToolUse","conversationId":"c1","workspacePaths":["/repo"],"toolCall":{"name":"multi_replace_file_content","args":"{\"TargetFile\":\"pkg/a.go\"}"}}`)
+	e.runP("antigravity-cli", "trace", `{"hook_event_name":"PostToolUse","toolCall":{"name":"run_command","args":{"CommandLine":"go test -race ./..."}}}`)
+	e.runP("antigravity", "trace", `{"hook_event_name":"PostToolUse","toolCall":{"name":"find_by_name","args":{"pattern":"*.go"}}}`)
+	e.runP("antigravity", "trace", `{"hook_event_name":"PostToolUse","toolCall":{"name":"invoke_subagent","args":{"subagent_type":"planner","description":"plan"}}}`)
+	if len(e.rec.evs) != 4 ||
+		e.rec.evs[0].Name != "MultiEdit" || e.rec.evs[0].Target != "pkg/a.go" ||
+		e.rec.evs[1].Name != "Bash" || e.rec.evs[1].Target != "go test -race ./..." ||
+		e.rec.evs[2].Name != "Glob" || e.rec.evs[2].Target != "*.go" ||
+		e.rec.evs[3].Name != "Agent" {
+		t.Fatalf("unexpected trace events: %+v", e.rec.evs)
+	}
+	// Fail open (exit 0, empty stdout/stderr) on garbage input across hooks.
+	for _, plat := range []string{"antigravity", "agy", "antigravity-cli"} {
+		for _, hk := range []string{"session-start", "read-guard", "model-guard", "test-guard", "toolchain-env", "post-edit", "trace", "trace-agent", "stop-gate"} {
+			e := setup("r")
+			if c, o, er := e.runP(plat, hk, "{not valid json"); c != 0 || o != "" || er != "" {
+				t.Errorf("%s %s fail-open: %d %q %q", plat, hk, c, o, er)
+			}
+		}
+		// Missing active run: session-start (no plugin root), trace, trace-agent, stop-gate, toolchain-env fail open.
+		for _, tc := range []struct{ hk, in string }{
+			{"session-start", fixture(t, "antigravity", "session-start")},
+			{"toolchain-env", `{"hook_event_name":"PreToolUse","toolCall":{"name":"run_command","args":{"CommandLine":"go build ./..."}}}`},
+			{"trace", fixture(t, "antigravity", "edit")},
+			{"trace-agent", `{"hook_event_name":"SubagentStart","agent_id":"a1"}`},
+			{"stop-gate", fixture(t, "antigravity", "stop")},
+		} {
+			e := setup("")
+			if c, o, er := e.runP(plat, tc.hk, tc.in); c != 0 || o != "" || er != "" {
+				t.Errorf("%s %s no-run fail-open: %d %q %q", plat, tc.hk, c, o, er)
+			}
+		}
 	}
 }
 
@@ -404,5 +487,37 @@ func TestSessionStartWritesUserLevelPluginRoot(t *testing.T) {
 	e.h.d.WriteFile = func(string, []byte) error { return errors.New("ro") }
 	if c, o, _ := e.runP("gemini", "session-start", "{}"); c != 0 || o == "" {
 		t.Fatal("write failure must be silent")
+	}
+}
+
+func TestNormalizeFallbackKeys(t *testing.T) {
+	fileKeys := []string{"absolute_path", "AbsolutePath", "path", "Path", "file", "filePath", "target_file", "TargetFile"}
+	for _, k := range fileKeys {
+		in := fmt.Sprintf(`{"hook_event_name":"PreToolUse","cwd":"/repo","toolCall":{"name":"view_file","args":{%q:"big.go"}}}`, k)
+		e := setup("r")
+		c, o, er := e.runP("antigravity", "read-guard", in)
+		assertAntigravityDeny(t, c, o, er, "read_guard:", e.rec.evs)
+	}
+	for _, k := range []string{"CommandLine", "command_line", "cmd"} {
+		in := fmt.Sprintf(`{"hook_event_name":"PreToolUse","toolCall":{"name":"run_command","args":{%q:"go test ./..."}}}`, k)
+		e := setup("r")
+		c, o, er := e.runP("antigravity", "test-guard", in)
+		assertAntigravityDeny(t, c, o, er, "race_guard:", e.rec.evs)
+	}
+	// Missing path on Read and Edit (without patch) fail open without modifying anything.
+	e := setup("r")
+	if c, o, er := e.runP("antigravity", "read-guard", `{"toolCall":{"name":"view_file","args":{}}}`); c != 0 || o != "" || er != "" {
+		t.Errorf("missing read path: %d %q %q", c, o, er)
+	}
+	if c, o, er := e.runP("antigravity", "go-post-edit", `{"toolCall":{"name":"replace_file_content","args":{"command":"not a patch"}}}`); c != 0 || o != "" || er != "" {
+		t.Errorf("missing edit path: %d %q %q", c, o, er)
+	}
+	// PostToolUse with empty tool name and interrupt/response failure paths.
+	e = setup("r")
+	e.runP("claude", "trace", `{"hook_event_name":"PostToolUse","tool_response":{"interrupted":true}}`)
+	e.runP("claude", "trace", `{"hook_event_name":"PostToolUse","tool_name":"Read","tool_response":{"result_type":"error"}}`)
+	e.runP("claude", "trace", `{"hook_event_name":"PostToolUse","tool_name":"Read","is_interrupt":true}`)
+	if len(e.rec.evs) != 3 || *e.rec.evs[0].OK || *e.rec.evs[1].OK || *e.rec.evs[2].OK {
+		t.Fatalf("unexpected failure events: %+v", e.rec.evs)
 	}
 }

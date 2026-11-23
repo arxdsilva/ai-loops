@@ -17,7 +17,8 @@ var Commands = []string{"work", "init", "status", "report"}
 // Options tunes a build.
 type Options struct {
 	// Models maps a tier to a platform model id; a missing or empty entry
-	// means "inherit the session model" (omit the field).
+	// means "inherit the session model" (model(o, a.Tier) returns "", so
+	// emitters omit the field or emit "inherit").
 	Models map[plugin.Tier]string
 	// Module is the Go module path the package shims `go install`
 	// (github.com/arxdsilva/ai-loops); Version the tag (v0.2.0).
@@ -27,15 +28,16 @@ type Options struct {
 
 // emitters maps platforms to their builders (one file per platform).
 var emitters = map[plugin.Platform]emitter{
-	plugin.Claude:   buildClaude,   // claude.go   (P1): the plugin-directory package (no-download shim)
-	plugin.Copilot:  buildCopilot,  // copilot.go  (P1): README only — Copilot reads the root
-	plugin.Codex:    buildCodex,    // codex.go    (P1)
-	plugin.Cursor:   buildCursor,   // cursor.go   (P1)
-	plugin.Gemini:   buildGemini,   // gemini.go   (P2)
-	plugin.OpenCode: buildOpenCode, // opencode.go (P2)
-	plugin.Amp:      buildAmp,      // amp.go      (P2)
-	plugin.Windsurf: buildWindsurf, // windsurf.go (P2)
-	plugin.Cline:    buildCline,    // cline.go    (P2)
+	plugin.Claude:      buildClaude,      // claude.go   (P1): the plugin-directory package (no-download shim)
+	plugin.Copilot:     buildCopilot,     // copilot.go  (P1): README only — Copilot reads the root
+	plugin.Codex:       buildCodex,       // codex.go    (P1)
+	plugin.Cursor:      buildCursor,      // cursor.go   (P1)
+	plugin.Gemini:      buildGemini,      // gemini.go   (P2)
+	plugin.OpenCode:    buildOpenCode,    // opencode.go (P2)
+	plugin.Amp:         buildAmp,         // amp.go      (P2)
+	plugin.Windsurf:    buildWindsurf,    // windsurf.go (P2)
+	plugin.Cline:       buildCline,       // cline.go    (P2)
+	plugin.Antigravity: buildAntigravity, // antigravity.go
 }
 
 // Load parses the canonical sources (embed.go's layout) into a Plugin:

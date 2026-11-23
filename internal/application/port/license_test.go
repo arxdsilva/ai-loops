@@ -12,7 +12,7 @@ import (
 func TestPackagesCarryLicense(t *testing.T) {
 	p, src := loadFixture(t)
 	src["LICENSE"] = &fstest.MapFile{Data: []byte("MIT License\n")}
-	for _, target := range []plugin.Platform{plugin.Codex, plugin.Cursor, plugin.Gemini, plugin.OpenCode, plugin.Amp, plugin.Windsurf, plugin.Cline} {
+	for _, target := range []plugin.Platform{plugin.Codex, plugin.Cursor, plugin.Gemini, plugin.OpenCode, plugin.Amp, plugin.Windsurf, plugin.Cline, plugin.Antigravity} {
 		files, _, err := Build(p, src, target, Options{Version: "v9.9.9"})
 		if err != nil {
 			t.Fatalf("%s: %v", target, err)

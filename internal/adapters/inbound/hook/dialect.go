@@ -138,6 +138,16 @@ package hook
 //     the bash/powershell toolArgs field names are not documented and the
 //     PascalCase variant says nothing about it. -> DENY (unverified).
 //   - OPENCODE: its plugin does not call go-env. -> DENY if invoked.
+//   - ANTIGRAVITY (https://antigravity.google/docs/hooks and
+//     https://antigravity.google/docs/build-plugins, read 2026-11-21):
+//     SessionStart, PreToolUse, PostToolUse, Stop; payload carries
+//     toolCall{name,args}, workspacePaths, conversationId. Non-zero exits
+//     are logged and ignored (fail open), so every hook exits 0 and emits
+//     stdout JSON: PreToolUse deny {"decision":"deny","reason":...};
+//     PreToolUse rewrite {"overwrite":{...}} (shallow merge into
+//     toolCall.args); Stop {"decision":"continue","reason":...};
+//     SessionStart/PostToolUse context {"injectSteps":[{"userMessage":...}]}.
+//     -> REWRITE (VERIFIED).
 
 import (
 	"encoding/json"
@@ -166,6 +176,8 @@ func (d dialect) sessionContext(out io.Writer, text, msg string) {
 	switch {
 	case d.platform == "cursor":
 		v = map[string]any{"additional_context": text}
+	case d.platform == "antigravity":
+		v = map[string]any{"injectSteps": []map[string]string{{"userMessage": text}}}
 	case d.camel:
 		v = map[string]any{"additionalContext": text}
 	default:
@@ -186,6 +198,8 @@ func (d dialect) postEditFailure(out io.Writer, reason string) {
 		d.emit(out, map[string]string{"additional_context": reason})
 	case d.platform == "gemini":
 		d.emit(out, map[string]any{"hookSpecificOutput": map[string]string{"hookEventName": "AfterTool", "additionalContext": reason}})
+	case d.platform == "antigravity":
+		d.emit(out, map[string]any{"injectSteps": []map[string]string{{"userMessage": reason}}})
 	case d.camel:
 		d.emit(out, map[string]string{"additionalContext": reason})
 	default:
@@ -199,6 +213,8 @@ func (d dialect) blockStop(out io.Writer, reason string) {
 		d.emit(out, map[string]string{"followup_message": reason})
 	case "gemini":
 		d.emit(out, map[string]string{"decision": "deny", "reason": reason})
+	case "antigravity":
+		d.emit(out, map[string]string{"decision": "continue", "reason": reason})
 	default:
 		d.emit(out, map[string]string{"decision": "block", "reason": reason})
 	}
@@ -213,6 +229,12 @@ func (d dialect) rewriteTool(out io.Writer, input map[string]any, allow bool) {
 		d.emit(out, map[string]any{"permission": "allow", "updated_input": input})
 	case "gemini":
 		d.emit(out, map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "BeforeTool", "tool_input": input}})
+	case "antigravity":
+		if _, ok := input["CommandLine"]; ok {
+			input["CommandLine"] = input["command"]
+			delete(input, "command")
+		}
+		d.emit(out, map[string]any{"overwrite": input})
 	default:
 		hso := map[string]any{"hookEventName": "PreToolUse", "updatedInput": input}
 		if allow {

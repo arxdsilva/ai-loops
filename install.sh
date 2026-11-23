@@ -6,9 +6,10 @@
 #     [--version vX.Y.Z] [--target <platform>] [--scope project|user] [--bin-dir dir] [--force]
 #
 # With --target it then runs `loops install --target <platform>` in the current
-# directory. Env: LOOPS_RELEASE_BASE (asset host, default the GitHub releases
-# download URL), LOOPS_LATEST_URL (redirect used to find the latest tag),
-# LOOPS_SKIP_VERIFY=1 (allow installing without sha256sum/shasum).
+# directory (platforms: claude, copilot, codex, cursor, gemini, opencode, amp,
+# windsurf, cline, antigravity). Env: LOOPS_RELEASE_BASE (asset host, default
+# the GitHub releases download URL), LOOPS_LATEST_URL (redirect used to find the
+# latest tag), LOOPS_SKIP_VERIFY=1 (allow installing without sha256sum/shasum).
 set -e
 
 repo='arxdsilva/ai-loops'
@@ -32,10 +33,18 @@ while [ $# -gt 0 ]; do
     --scope) [ $# -ge 2 ] || die "--scope needs a value"; scope=$2; shift 2 ;;
     --bin-dir) [ $# -ge 2 ] || die "--bin-dir needs a value"; bindir=$2; shift 2 ;;
     --force) force=1; shift ;;
-    -h | --help) sed -n '2,11p' "$0" 2>/dev/null; exit 0 ;;
+    -h | --help) sed -n '2,12p' "$0" 2>/dev/null; exit 0 ;;
     *) die "unknown option $1" ;;
   esac
 done
+
+if [ -n "$target" ]; then
+  target=$(printf '%s' "$target" | tr '[:upper:]' '[:lower:]')
+  case $target in
+    claude | copilot | codex | cursor | gemini | opencode | amp | windsurf | cline | antigravity) ;;
+    *) die "unknown target $target (want one of: claude, copilot, codex, cursor, gemini, opencode, amp, windsurf, cline, antigravity)" ;;
+  esac
+fi
 
 fetch() {
   if command -v curl >/dev/null 2>&1; then
