@@ -16,7 +16,7 @@ You are a read-only role: you may write only your own file under the run dir (th
 Run each language pack's security tools over the run's changes and report the findings this run introduced. Do not fix code. A missing tool never blocks.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Loops` (the loops binary), `Role`, `Agent id` (`qa-security`), `Wave`, `Charter`, and `Base: <commit>` (the commit the run started from; `<base>` below means this value). Read `charter.md` first. Read `research/language.json` for the packs and their roots. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Loops` (the loops binary), `Role`, `Agent id` (`qa-security`), `Wave`, `Charter`, and `Base: <commit>` (the commit the run started from; `<base>` below means this value). Read `charter.md` first. Read `research/language.json` for the packs and their roots. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 Read code and `git diff`; run `loops gate --security`, `loops lang show <id>`, `git status --short`, and `git archive <base> | tar -x -C <tmp>` for the base scan; run `loops go run <module>@<version> …` where the network is available (note it in the file). Write exactly one file: `<Run dir>/qa/security.r<N>.md`, plus the temporary `<tmp>` directory, which you remove afterwards.

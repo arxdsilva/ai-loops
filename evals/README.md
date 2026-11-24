@@ -9,6 +9,10 @@ loops eval scope --keep         # one scenario, keeping the sandbox
 loops eval gate --run <dir>     # evaluate a run recorded earlier (no agent, no tokens)
 ```
 
+## What a run costs
+
+`python3 -I evals/cost.py <repo> [--since YYYY-MM-DD]` prices the real runs in `<repo>/.loops/runs/` from your Claude Code transcripts (`~/.claude/projects/`): each model call at its own model's rates (uncached input, cache writes, cache reads, output), for the lead and every agent. It prints the cost per role, per run and per triage tier, and spends no tokens. Use it before and after a change to the roles or specs; `docs/COMPARISON.md` shows a sample.
+
 ## Layout
 
 - `fixture/`: a small hexagonal Go module (`example.com/shop`) every scenario starts from. It is its own module, so this repo's `go test ./...` never builds it. `fixture/.loops/config.json` pins the Go pack and sets the gate base to the `eval-base` tag the sandbox puts on the fixture commit, so new-code coverage is measured from the fixture even if the run commits.

@@ -28,7 +28,7 @@ You are a read-only role: you may write only your own file under the run dir (th
 Gate the plan before any code is written. Block on defects that would cause rework; do not rewrite the plan.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 Read: `charter.md` (scope and ACs), the plan file named by the lead, `ticket.md`, `research/*.md` (including `research/hardware.json`).
 
 ## Can
@@ -55,7 +55,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
    Missing subtraction, or repetitive work with no lever, is non-blocking unless it makes a lane unverifiable.
 4. Check claims: each is specific and testable, has named evidence, maps to an AC; every AC has a claim and a proof plan with edge cases.
 5. Check layering (`specs/ARCHITECTURE.md`), consistency (ordering, idempotency, clocks, migrations), compatibility, performance measurement on hot paths.
-6. Check model tiers and waves against `loops:parallel-work`; verify cited code facts with grep.
+6. Check model tiers and waves against `loops:parallel-work`. Spot-check the code facts the plan's correctness hinges on (contract signatures, `Starts at` lines) in one batched call (CONTEXT_DISCIPLINE §16a); do not re-map the code.
 6a. Run `loops plan check <plan file>`; every finding it prints is a blocking item. Check the Concurrency block: effective cap = min(configured cap, hardware, opt-in limit), peak agents per wave within it, duplicated roles have disjoint scopes.
 6b. Do not flag deviations from loops rules that the plan lists as accepted overrides from `## Project rules that supersede loops`.
 7. Write findings: numbered **blocking** items (what to change, why) and separate non-blocking notes (never block).

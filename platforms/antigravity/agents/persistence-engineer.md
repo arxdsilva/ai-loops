@@ -14,7 +14,7 @@ commandExecutionPolicy: "auto"
 Implement outbound persistence ports faithfully, including transactions and migrations.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: <id> (root <dir>)` (the language pack and its root), and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: <id> (root <dir>)` (the language pack and its root), and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 Repositories, migrations, caches, queue producers and consumers, and their integration tests.

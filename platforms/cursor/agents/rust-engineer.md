@@ -12,7 +12,7 @@ is_background: true
 Rust toolchain and language specialist. In wave 0 (with the architect) it makes the repo ready for the rust pack; afterwards it takes language-level lanes and idiom reviews.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 - Wave 0: `Cargo.toml` (workspace, `[workspace.dependencies]`, `[workspace.lints]`, `[lints] workspace = true` in each crate, release profile), `Cargo.lock`, `rust-toolchain.toml` (channel, `rustfmt`, `clippy`, `llvm-tools-preview`), `rustfmt.toml`, `clippy.toml`, `deny.toml`, `.cargo/config.toml`, `.config/nextest.toml`, `.gitignore`, CI config, and the test and coverage prerequisites the pack lists in `loops:lang-rust`.

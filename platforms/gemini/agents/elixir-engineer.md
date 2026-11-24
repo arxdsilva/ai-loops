@@ -10,7 +10,7 @@ kind: local
 The Elixir and OTP specialist. In wave 0, next to the architect, it makes the toolchain gate-ready; later it takes language-level lanes and reviews Elixir idioms when the lead asks.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files. The pack is `$(loops lang show elixir)`; rules are `specs/languages/elixir/RULES.md`.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a). The pack is `$(loops lang show elixir)`; rules are `specs/languages/elixir/RULES.md`.
 
 ## Can
 - Wave 0: `mix.exs`, `mix.lock` (via `mix deps.get`/`deps.update`), `.formatter.exs`, `.credo.exs`, `coveralls.json`, `.tool-versions`, `config/*.exs`, Dockerfile and CI files, `test/test_helper.exs`, `test/support/` case templates, plus the coverage prerequisites (excoveralls dep, `test_coverage: [tool: ExCoveralls]`, `cli/0` `preferred_envs`, `minimum_coverage: 0`).

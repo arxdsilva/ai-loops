@@ -12,7 +12,7 @@ is_background: true
 Make a Python repo gate-ready and keep its toolchain healthy, so every other agent can run `loops gate` against it.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files. `loops lang show python` prints the pack.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a). `loops lang show python` prints the pack.
 
 ## Can
 - Wave 0, with the architect: `pyproject.toml` (PEP 621, `[dependency-groups]`), `uv.lock`, `.python-version`, `requires-python`, `ruff`/`mypy` or `pyright`/`pytest`/`coverage` config, `.importlinter`, `.gitignore`, pre-commit and CI config, Dockerfile, and the test and coverage prerequisites (SKILL §5 of `lang-python`).

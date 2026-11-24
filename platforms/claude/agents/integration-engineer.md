@@ -10,7 +10,7 @@ color: green
 Wrap an external system behind a port; handle failure explicitly.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: <id> (root <dir>)` (the language pack and its root), and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: <id> (root <dir>)` (the language pack and its root), and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 Clients for external APIs and brokers, retries and timeouts, contract tests with fakes (a fake server from the pack's test stack, e.g. Go `httptest`).

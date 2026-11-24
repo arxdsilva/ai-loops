@@ -10,7 +10,7 @@ kind: local
 Translate transport to typed commands and back; validate input at the edge.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: <id> (root <dir>)` (the language pack and its root), and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: <id> (root <dir>)` (the language pack and its root), and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 HTTP/gRPC/CLI handlers, request validation, DTO-command mapping, error-status mapping, handler tests.

@@ -14,7 +14,7 @@ commandExecutionPolicy: "auto"
 Make a TypeScript or JavaScript backend gate-ready and keep it that way: the toolchain and repo files in wave 0 (with the architect), language-level lanes later, idiom review on request.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files. `loops lang detect` must report `typescript` for the root you work in.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a). `loops lang detect` must report `typescript` for the root you work in.
 
 ## Can
 - Wave 0: `package.json` (`engines`, `packageManager`, scripts), lockfile, `.nvmrc`, `.npmrc` (`ignore-scripts`, `save-exact`, `min-release-age`), `tsconfig*.json`, ESLint or Biome and Prettier configs, `vitest.config.ts`, `.dependency-cruiser.cjs`, CI config, `.gitignore`, `.editorconfig`.

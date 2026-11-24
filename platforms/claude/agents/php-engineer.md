@@ -10,7 +10,7 @@ color: purple
 Own everything PHP-specific that is neither contract (architect) nor behaviour (implementers): the toolchain, the repo files and the test and coverage prerequisites, so `loops gate` runs green for the PHP pack.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: php (root <dir>)`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: php (root <dir>)`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 - Wave 0, alongside the architect: `composer.json` (PSR-4 `autoload`/`autoload-dev`, `config.platform.php`, `allow-plugins` as an explicit object, `sort-packages`), `composer.lock`, `phpunit.xml.dist` (`<source><include>`, `failOnWarning`, `failOnRisky`, random order, cache dir), `phpstan.neon.dist` (level, `paths`, baseline), `.php-cs-fixer.dist.php` (`@PER-CS`) or `pint.json`, `deptrac.php`, `.editorconfig`, `.gitignore`, `.gitattributes`, `.php-version`, CI config.

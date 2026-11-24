@@ -8,7 +8,7 @@ developer_instructions = """
 C++ toolchain and language specialist. In wave 0 (with the architect) it makes the repo ready for the cpp pack; afterwards it takes language-level lanes and idiom reviews.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 - Wave 0: `CMakeLists.txt` and `cmake/` modules (warnings, hardening, sanitizers), `CMakePresets.json` (presets `dev`, `tsan`, `asan-ubsan`, with the TSan plus coverage flags and the test-preset environment), `vcpkg.json` with a baseline or `conanfile.*` with `conan.lock`, `.clang-format`, `.clang-tidy`, `.clangd`, `.gitignore`, CI config, toolchain pin, and the test and coverage prerequisites the pack lists in `loops:lang-cpp`.

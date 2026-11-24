@@ -101,6 +101,16 @@ An ideal agent task has one behaviour, one owner, one acceptance test set and 5-
 
 Parallelism saves time only with isolated scopes. Before launching many agents: freeze the contract, assign ownership, give minimal task packets, avoid overlapping file sets (`specs/PARALLEL_WORK.md`). Otherwise context and merge cost exceed the benefit.
 
+## 16a. Turns are the cost
+
+Every tool call is a model turn that re-reads the agent's whole context, and every result is written into it. In measured runs, re-reading was about half of the spend and new tool output about a third; the number of turns multiplied both (`evals/cost.py` measures a project's own runs). So:
+
+- **Batch.** Put independent lookups in one call: several `grep -n` patterns or `sed -n` ranges in one Bash command, or several tool calls in one message. One question per turn is the most expensive way to read code.
+- **Cap output.** Ask for what you need: `grep -n … | head -40`, `grep -c`, `git diff --stat`, `wc -l`, a test run's failures and summary only. Send long output (server logs, full test logs, generated files) to a file in the run dir and read only the lines you need.
+- **Read once.** Don't re-open what you already read in this session; take the fact from your context.
+- **Use the briefs.** Facts in `research/*.md` and the plan are already verified: start from them, and look up only what they lack.
+- **Stop when you have enough.** Exploration ends when the facts your output needs are in hand.
+
 ## 17. Working summary
 
 A long-running agent keeps a short summary (under 300 words): current task, relevant interfaces, invariants, files touched, open questions. It does not re-read canonical docs unless they change.

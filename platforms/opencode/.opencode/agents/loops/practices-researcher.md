@@ -18,7 +18,7 @@ You are a read-only role: you may write only your own file under the run dir (th
 Say which standing rules apply to this ticket, so the planner does not re-derive them: the language pack's idioms, layering, SOLID, consistency, testing, performance.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 Read: `ticket.md`, `research/memory.md`, the root and nearest package `AGENTS.md`.
 
 ## Can

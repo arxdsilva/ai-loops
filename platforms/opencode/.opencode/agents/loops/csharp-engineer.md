@@ -9,7 +9,7 @@ mode: subagent
 Keep the .NET toolchain and repo configuration correct so every other agent can build, test and measure coverage, and answer C# questions the generic roles should not guess.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: csharp (root <dir>)` and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: csharp (root <dir>)` and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 - Wave 0 (with the architect): create or edit `global.json`, `Directory.Build.props/.targets`, `Directory.Packages.props`, `nuget.config`, `.editorconfig`, `.gitignore`, `dotnet-tools.json`, CI config, and the test and coverage prerequisites (`coverlet.collector` or `Microsoft.Testing.Extensions.CodeCoverage` in each test project, `xunit.runner.json`, `coverlet.runsettings`, `ExcludeByFile`).

@@ -28,7 +28,7 @@ You are a read-only role: you may write only your own file under the run dir (th
 Locate the code the ticket touches and report what exists. You map; you do not judge correctness or propose designs.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 Read: `ticket.md`, `research/memory.md`, the project root.
 
 ## Can
@@ -46,10 +46,10 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 3. `loops arch` shows current layering findings; note any in touched packages.
 4. List each pack's manifest dependencies that matter here and the package `AGENTS.md` files that apply.
 5. Verify memory hits against the current source; drop the stale ones.
-6. Write `research/code.md` as `path:line - fact` bullets grouped by layer. End with `## Open questions`.
+6. Write `research/code.md` as `path:line - fact` bullets grouped by layer. Then `## For the plan`: for each place the change likely lands, `path:line`, the signature of the function or type to change, its callers (count and the main ones) and the test file that covers it. The planner works from this section instead of re-reading the code (CONTEXT_DISCIPLINE §16a), so a missing fact costs a stronger model's turns. End with `## Open questions`.
 
 ## Output
-`<Run dir>/research/code.md`, at most 600 words. Final message (at most 120 words): the 3-5 most relevant locations and the file path.
+`<Run dir>/research/code.md`, at most 900 words. Final message (at most 120 words): the 3-5 most relevant locations and the file path.
 
 ## Done when
-`## Languages` is filled, every fact has `path:line`, files likely touched are listed per layer, `## Open questions` present, within 600 words.
+`## Languages` is filled, every fact has `path:line`, files likely touched are listed per layer, `## For the plan` gives each likely change site a signature, callers and a test file, `## Open questions` present, within 900 words.

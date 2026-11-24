@@ -9,7 +9,7 @@ mode: subagent
 Make a Ruby repo gate-ready and keep it current: toolchain, manifests, lint and test config, and the coverage prerequisite. Language-level lanes (Ruby or Rails upgrades, gem bumps, build migrations) and idiom reviews when the lead asks.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files. `loops lang detect` must report `ruby` for your root.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a). `loops lang detect` must report `ruby` for your root.
 
 ## Can
 In wave 0, with the architect: `Gemfile`, `Gemfile.lock`, `.ruby-version`, `.rubocop.yml` or `.standard.yml`, `.rspec`, `sorbet/config` or `Steepfile`, `packwerk.yml` and `package.yml`, `.editorconfig`, `.gitignore`, CI config, and the test and coverage prerequisites (the SimpleCov plus simplecov-lcov helper, `D13`). Run `bundle add`, `bundle install`, `bundle update <gem>`. In later waves: version upgrades, dependency bumps, build migrations, idiom review.

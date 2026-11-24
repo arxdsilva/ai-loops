@@ -8,7 +8,7 @@ developer_instructions = """
 Own the Clojure toolchain so the gate can run: the manifests, the test and coverage prerequisites, and language-level changes. Applies to roots where `loops lang detect` reports `clojure`.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 - In wave 0, with the architect: `deps.edn` (paths and aliases), `build.clj`, `tests.edn`, `.clj-kondo/config.edn`, `.cljfmt.edn`, `.tool-versions`, `.gitignore`, CI config, Polylith `workspace.edn`; `project.clj` for Leiningen projects.

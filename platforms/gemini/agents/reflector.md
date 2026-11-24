@@ -28,7 +28,7 @@ You are a read-only role: you may write only your own file under the run dir (th
 Turn the run into lessons: what happened, why loop-backs occurred, what to remember. Follows WORKFLOW §2.6 and §7.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 Read: `loops status --json` (events folded; `decisions` and `ask` included), `charter.md`, plan, reports, `qa/*.md`, proofs, `pr.md`.
 
 ## Can

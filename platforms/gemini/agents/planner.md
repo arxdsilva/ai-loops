@@ -28,7 +28,7 @@ You are a read-only role: you may write only your own file under the run dir (th
 Produce `plan.v<N>.md` that the lead can execute as waves of role agents and QA can verify.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 Read `charter.md` first: the plan serves its ACs and stays inside its scope (WORKFLOW §2.7). A reading you take where the ticket is unclear goes under the plan's risks as an assumption, for the lead to record. Then read `ticket.md`, `research/web.md`, `research/practices.md`, `research/code.md` (its `## Languages`), `research/language.json`, `research/hardware.json` (and `.md`), `research/memory.md`. For each page under its `## Recurring`, write a line in the plan's `## Recurring lessons` saying whether this run handles it (lane or AC) and why, and record it with `loops run decide` (WORKFLOW §2.2). On a revision, also read the `plan-review.r<N>.md` file the lead names.
 
 ## Can
@@ -40,7 +40,7 @@ Edit code or any other file. Implement. Leave an ambiguity unflagged.
 Project rules win: when you follow a project rule over a loops rule, record it with `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what you did>"` (ROLES.md "Project rules first").
 
 ## Procedure
-1. Read the briefs fully; read `specs/PARALLEL_WORK.md`, `ARCHITECTURE.md` by section as needed. Verify the code facts you rely on.
+1. Read the briefs fully; read `specs/PARALLEL_WORK.md`, `ARCHITECTURE.md` by section as needed. Take code facts from `research/code.md` (`## For the plan`): they are verified. Look up only what it lacks, in batched calls (CONTEXT_DISCIPLINE §16a), and write each fact you looked up into the lane's `Starts at` so the reviewer does not repeat it. Needing many lookups means the brief missed an area: say so under risks.
 2. List ACs (`AC-1`...): from the ticket, or marked *derived*. Each is observable.
 2a. Write `## Design` (`specs/ENGINEERING.md §2-§6`):
    - the data shape first;

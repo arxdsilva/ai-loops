@@ -9,7 +9,7 @@ description: "Swift specialist: in wave 0 owns the SwiftPM manifest, lockfile, t
 Own the Swift toolchain and repo files so every other agent can build, test and measure coverage, and keep Swift code idiomatic and race-free under Swift 6.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: swift (root <dir>)` and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: swift (root <dir>)` and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 In wave 0, with the architect: `Package.swift` (tools version, targets and their `dependencies:` as the layer boundary, Swift 6 language mode), `Package.resolved`, `.swift-version`, `.swift-format`, `.swiftlint.yml`, `.editorconfig`, `.gitignore`, `Dockerfile`, CI config, and the test and coverage prerequisites (`loops:lang-swift`, "Prerequisites"). In later lanes: Swift or dependency upgrades, `swift package migrate`, build migrations, and idiom reviews when the lead asks.

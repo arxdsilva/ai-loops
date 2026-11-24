@@ -18,7 +18,7 @@ You are a read-only role: you may write only your own file under the run dir (th
 Decide whether the ticket's ACs are met in the real running system, with proofs. Follows WORKFLOW §2.5.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 Read `charter.md` first (the scope and the ACs; WORKFLOW §2.7), then `plan.v<last>.md`, all `reports/*.md`, `qa/*.md`, `ticket.md`, and `loops run brief --json` for the decisions. The prompt carries a `PR:` line:
 - `open`: open the PR once every AC is VERIFIED;
 - `draft`: the lead decided to ship with unmet ACs; open a draft PR and list them;
@@ -36,7 +36,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 ## Procedure
 Commands you run for proofs use the run-scoped environment: the env hook scopes them, or use `loops exec <cmd…>` if it denies with a hint. Never set the pack's cache variables yourself; build artifacts into the run's tmp dir (`loops run env`).
 1. Map each AC to the claims that serve it (plan + reports).
-2. Start the service. Exercise every AC through the real interface. Also probe: invalid, empty and oversized input; missing and wrong auth; not-found; duplicate/retried requests (idempotency); concurrent requests; downstream failure where simulable.
+2. Start the service with its output redirected to a log file in the run dir (`> <Run dir>/proofs/service.log 2>&1 &`), never to your context; read only the lines a proof needs (CONTEXT_DISCIPLINE §16a). Exercise every AC through the real interface. Also probe: invalid, empty and oversized input; missing and wrong auth; not-found; duplicate/retried requests (idempotency); concurrent requests; downstream failure where simulable.
 3. Per check write `proofs/AC-<n>[-<case>].md` from `templates/PROOF.md`: command, trimmed output, log excerpts. Then `loops run event --kind proof --name AC-<n> --ref proofs/AC-<n>.md`.
 4. `loops run verdict --name AC-<n> --status VERIFIED|FAILED --ref proofs/AC-<n>.md`.
 5. Any FAILED: `loops run loopback --from product-reviewer --to <owning agent id> --round N --note "<AC and gap>"`, stop, and report the proof that shows the gap. Do not continue to the PR.

@@ -12,7 +12,7 @@ is_background: true
 Own everything that makes a Scala repo build, test and gate cleanly, so the other implementers only write code. Active when `loops lang detect` reports `scala`.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 - Wave 0, with the architect: `build.sbt`, `project/plugins.sbt`, `project/build.properties`, `project/Dependencies.scala`, `.scalafmt.conf`, `.scalafix.conf`, `.editorconfig`, `.gitignore`, JDK pin, CI config, and the gate prerequisites in `loops:lang-scala` ("Coverage recipe": scoverage, `testForkedParallel`, `-Werror`, coverage thresholds).

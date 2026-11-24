@@ -10,7 +10,7 @@ kind: local
 Write wave 0 so all wave 1..n agents can work in parallel against a compiling contract. Stubs return zero values or a not-implemented error.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: <id> (root <dir>)` (the language pack and its root), and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, `Language: <id> (root <dir>)` (the language pack and its root), and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a).
 
 ## Can
 Run the pack's dependency commands (Go: `go get`, `go mod tidy`) when the plan gives you the manifest; edit shared config; create stub files and package or module skeletons; write compile-level tests for the contract.

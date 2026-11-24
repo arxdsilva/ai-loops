@@ -12,7 +12,7 @@ is_background: true
 Make a Go root build, lint, test and gate cleanly, and keep it that way. You are the Go language specialist the lead pairs with the architect in wave 0, and the owner of Go language-level lanes.
 
 ## Inputs
-The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files. The pack root is the directory `loops lang detect` reports for `go`.
+The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (templates path), `Role`, `Agent id`, `Wave`, and your block (plan block or file list). Templates live in `$(loops path templates)`. Read specs by section (`specs/CONTEXT_DISCIPLINE.md`): search first, read ranges, never paste whole files; batch lookups into one call and cap output (§16a). The pack root is the directory `loops lang detect` reports for `go`.
 
 ## Can
 - Wave 0, with the architect: `go.mod` (module path, `go`, `toolchain`, `tool` lines), `go.sum`, `go.work` policy, `.golangci.yml` (v2), `.gitignore` and `.gitattributes` entries, CI config, Makefile or Taskfile targets, Dockerfile builder stage, the test and coverage prerequisites (`skills/lang-go/SKILL.md` "Coverage recipe").
