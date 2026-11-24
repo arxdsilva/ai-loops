@@ -107,18 +107,23 @@ AI code that is "almost right" is the top frustration of 66% of developers, and 
 
 ## What is the best multi-agent coding workflow? How loops compares
 
-The right tool depends on the job. For turning tickets into PRs you can merge with confidence, these are the differences that matter (built in by default, as of November 2026, from each project's own docs; [corrections welcome](https://github.com/arxdsilva/ai-loops/issues)):
+The tools below are the ones that, like loops, plan a change with several agents and loop between implementation and verification. Each cell is from the tool's own docs, as of November 2026. Every cell's source, the tools left out and why, and what loops costs per run are in [docs/COMPARISON.md](docs/COMPARISON.md). [Corrections welcome](https://github.com/arxdsilva/ai-loops/issues).
 
-| | **loops** | One agent session (Claude Code, Copilot coding agent) | Spec and persona frameworks (Spec Kit, BMAD-METHOD) | Orchestrators (claude-flow, oh-my-claudecode) |
-|---|---|---|---|---|
-| Ticket in, PR out, end to end | ✅ | partial | — | partial |
-| Plan challenged by a second agent | ✅ | — | partial | partial |
-| Separate agent re-tests every claim, with repro | ✅ | — | add-on | partial |
-| Each acceptance criteria proven, proof in the PR | ✅ | — | — | — |
-| Hard gate: new-code coverage + race detector | ✅ ≥70% | — | — | — |
-| One master agent holds scope; asks only where you opt in | ✅ | — | — | partial |
-| Parallel specialists with disjoint file scopes | ✅ | — | — | ✅ |
-| Agent tools supported | 10 | 1 | many | 1–2 |
+| | **loops** | GSD Core | Superpowers | oh-my-claudecode | BMAD-METHOD | gstack |
+|---|---|---|---|---|---|---|
+| Ticket in, PR out | ✅ | partial | — | partial | partial | partial |
+| Second agent reviews the plan | ✅ | ✅ | not documented | ✅ | partial | ✅ |
+| Parallel implementers, disjoint file ownership | ✅ | ✅ | — | partial | — | partial |
+| Separate agent re-runs each claim | ✅ | partial | partial | partial | partial | partial |
+| Each acceptance criterion proven, proof in the PR | ✅ | opt-in | — | — | — | partial |
+| Gates enforced by code, not the prompt | ✅ | partial | prompt-only | partial | prompt-only | partial |
+| Run log of every call and verdict, HTML report | ✅ | partial | partial | partial | partial | not documented |
+| Evals of its own agents | ✅ | not documented | ✅ | not documented | ✅ | ✅ |
+| Language rules and gates | 15 languages | — | — | — | — | — |
+| Agent tools supported | 10 | 10+ | 16 | Claude Code | several | Claude Code (+8 experimental) |
+| Community | new (Nov 2026) | 11.8k ⭐ | 325.8k ⭐ | 41.0k ⭐ | 55.7k ⭐ | 142.6k ⭐ |
+
+**When to use something else.** For a one-line fix or a spike, a single agent is cheaper. For UI work, gstack drives a real browser; loops proves backend behaviour. For product discovery before there is a ticket, BMAD and GSD Core plan further upstream. For the biggest community and the most agent tools, Superpowers. loops is for the step after that: a ticket in, and a PR whose every acceptance criterion was proven by an agent that didn't write the code, behind gates the agents cannot talk past.
 
 ## Languages
 
@@ -180,6 +185,7 @@ Planning, plan review, architecture and product review run on the strongest mode
 ## Learn more
 
 - [docs/GUIDE.md](docs/GUIDE.md): install on every platform, updating, hooks, parallelism, limits, layout.
+- [docs/COMPARISON.md](docs/COMPARISON.md): loops next to GSD Core, Superpowers, oh-my-claudecode, BMAD-METHOD and gstack, with sources and measured cost.
 - [specs/WORKFLOW.md](specs/WORKFLOW.md): the full workflow spec. [ROLES.md](ROLES.md): the 32 agent roles.
 - [specs/PLATFORMS.md](specs/PLATFORMS.md): how each agent tool is supported.
 - [llms.txt](llms.txt): a map of this repo for AI assistants.
