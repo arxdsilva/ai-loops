@@ -167,7 +167,7 @@ loops run end --outcome done
 
 ## Escalations and failures
 
-- Use `loops run end --outcome failed` or `abandoned` if the user stops or the run cannot continue (abandoned and failed runs are cleaned up too); the Stop gate (WORKFLOW §6) otherwise blocks ending your turn while source files are dirty (WORKFLOW §6). `LOOPS_GATE=off` is the user's escape hatch, never yours.
+- Use `loops run end --outcome failed` or `abandoned` if the user stops or the run cannot continue (abandoned and failed runs are cleaned up too); the Stop gate (WORKFLOW §6) otherwise blocks ending your turn while source files are dirty, and the end gate refuses `--outcome done` over dirty sources or a red gate (WORKFLOW §6): run `loops gate`, never switch the outcome to dodge it. `LOOPS_GATE=off` is the user's escape hatch, never yours.
 - If a hook denies a read (`guard_deny`), do not retry the same call; use a range or search.
 - Agents that stall: message it once with the specific question; then stop it and relaunch with a tighter block.
 - Record every decision the run turns on: `loops run decide --topic <what> --note "<decision; reason>"` (WORKFLOW §2.7); other facts worth keeping: `loops run event --kind note --note "<text>"`.

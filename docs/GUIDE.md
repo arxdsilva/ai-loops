@@ -247,6 +247,7 @@ Your repository's own rules (AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING
 | post-edit (was go-post-edit) | Runs the language's single-file formatter and lint on every edited source file (Go: `goimports` or `gofmt`, then `go vet`). It sends the failure back to Claude when either one fails. |
 | trace, trace-agent | Records every tool call, and every agent start and stop, in the right agent's lane. |
 | stop-gate | The lead can't finish while a source file of any detected language has changed since the last green `loops gate`. This doesn't apply when no run is active, while agents are still running, or with `LOOPS_GATE=off`. |
+| end gate (`loops run end`) | `loops run end --outcome done` is refused while sources changed since the last green `loops gate` or its last `all` or `coverage` result is red. `failed` and `abandoned` always end; `LOOPS_GATE=off` skips it. |
 
 `loops arch` enforces the hexagonal dependency direction and the SOLID rules (`specs/`), with the pack's native tool where one exists. Size limits are reported as warnings only. The old hook names keep working as aliases.
 

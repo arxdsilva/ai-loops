@@ -401,7 +401,7 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 | Hook `post-edit` (PostToolUse on Edit/Write/MultiEdit; alias `go-post-edit`) | `step` with the pack's single-file format and lint result (Go: gofmt/goimports + go vet) |
 | Hook `trace-agent` (SubagentStart, SubagentStop) | `agent_start`, `agent_stop` |
 | Hooks `read-guard`, `model-guard`, `test-guard` (alias `race-guard`), `toolchain-env` (alias `go-env`) | `guard_deny` |
-| `loops run end` / `loops run clean` | `note` named `cleanup` (what was freed) |
+| `loops run end` / `loops run clean` | `note` named `cleanup` (what was freed); a refused `--outcome done` records a `note` named `end-gate` |
 | `loops gate` | `gate`, one per check (with `pack` when several packs are detected) plus `all` |
 
 The CLI commands that write these events:
@@ -420,7 +420,7 @@ The CLI commands that write these events:
 - `loops budget check --phase P [--spawn N] [--role R]` (writes a `budget` event when it blocks)
 - `loops budget parse [--max-agents N] [--budget p=200k,…] [--agents p=N,…] [--roles p=a,b]` prints the limits JSON for `loops run event --kind limits`. `loops budget show` prints usage against the limits.
 - `loops hw [--json] [--write]` and `loops plan check <plan> [--cap N]`
-- `loops run end [--outcome done|abandoned|failed] [--no-clean]`: ends the run and, unless `--no-clean`, deletes the run's caches and tmp dirs (the whole scratch folder) and the build leftovers created during the run, then records a `cleanup` note event with what was freed. Abandoned and failed runs are cleaned too. `--no-clean` keeps everything for debugging.
+- `loops run end [--outcome done|abandoned|failed] [--no-clean]`: ends the run and, unless `--no-clean`, deletes the run's caches and tmp dirs (the whole scratch folder) and the build leftovers created during the run, then records a `cleanup` note event with what was freed. Abandoned and failed runs are cleaned too. `--no-clean` keeps everything for debugging. `--outcome done` is refused (exit 1, nothing cleaned, the run stays active) while the end gate (§6) holds.
 - `loops run clean [--dry-run] [--json]`: the same cleanup on demand; `--dry-run` only lists what would be deleted and what is kept for review.
 - `loops run env [--shell sh|fish|powershell]`: prints the run-scoped environment of the detected packs (Go: `GOCACHE`, `GOTMPDIR`) as `export` lines for the chosen shell, so a shell can load them before running toolchain commands by hand.
 - `loops exec [--pack id] -- <cmd…>`: runs any command with the run-scoped environment of a pack (its `cache_env` and `env`, with its `cache_argv` inserted after the tool name; default: the detected pack that uses the tool, else the only detected pack). Without an active run it runs the command plain. Works on every platform; use it wherever `toolchain-env` can't rewrite a command.
@@ -485,6 +485,8 @@ A required race or substitute check that is skipped fails the full gate, as a sk
 A full pass records `gate all ok`, which clears the dirty flags (`run.State.SourceDirty` for any pack's sources; `GoDirty` for `.go` files, kept for compatibility). A scoped run (`--pkgs`, `--only`, `--enable` or `--security`) never records `all`, and `--security` records no `gate` events at all.
 
 The **Stop gate** (`stop-gate`) stops the lead from ending its turn while the run is active, a source file of any pack has changed since the last full pass (`run.State.SourceDirty`, JSON `source_dirty`; not only `.go` files), and no agent lane is running. The escape hatches are `LOOPS_GATE=off` and `loops run end --outcome abandoned`.
+
+The **end gate** closes the same hole at `loops run end --outcome done`, which would otherwise end the run and with it the Stop gate. It refuses `done` while a source file changed since the last green full pass (with no running-lane exemption: ending is final), or while the latest `all` or `coverage` gate result is red (`run.EndReason`). A run with no gate result and no source change (no detected pack, a docs-only run) may end `done`. `failed` and `abandoned` always end. `LOOPS_GATE=off` skips it.
 
 ## 7. Memory (ai-memory and the file store)
 

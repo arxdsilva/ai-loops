@@ -336,6 +336,9 @@ func (a *App) runEnd(ctx context.Context, args []string) int {
 	default:
 		return a.usageErr(fmt.Sprintf("run end: unknown outcome %q (want done, abandoned or failed)", *outcome))
 	}
+	if code := a.endGate(ctx, *outcome); code != 0 {
+		return code
+	}
 	if !*noClean {
 		dir, err := a.Tracker.Dir(ctx, "")
 		if err != nil {
@@ -347,6 +350,26 @@ func (a *App) runEnd(ctx context.Context, args []string) int {
 		return a.fail("run end", err)
 	}
 	return 0
+}
+
+// endGate refuses `run end --outcome done` while run.EndReason holds
+// (WORKFLOW §6): exit 1, a note event, nothing cleaned or ended. abandoned
+// and failed always end; LOOPS_GATE=off (the user's escape hatch) skips it.
+func (a *App) endGate(ctx context.Context, outcome string) int {
+	if outcome != run.OutcomeDone || strings.EqualFold(a.env("LOOPS_GATE"), "off") {
+		return 0
+	}
+	st, err := a.Tracker.State(ctx, "")
+	if err != nil {
+		return a.fail("run end", err)
+	}
+	reason := run.EndReason(st)
+	if reason == "" {
+		return 0
+	}
+	_ = a.Tracker.Record(ctx, run.Event{Kind: run.KindNote, Name: "end-gate", Note: "refused: " + reason})
+	fmt.Fprintf(a.Err, "loops run end: refusing --outcome done: %s (or end with --outcome failed|abandoned)\n", reason)
+	return 1
 }
 
 func (a *App) runDir(ctx context.Context, args []string) int {

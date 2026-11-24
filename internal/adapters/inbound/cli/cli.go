@@ -93,9 +93,20 @@ type App struct {
 	Applier Applier
 	Plugins PluginVersionReader
 
+	// Getenv reads the process environment (nil = empty); `loops run end`
+	// reads LOOPS_GATE through it.
+	Getenv func(string) string
+
 	In  io.Reader
 	Out io.Writer
 	Err io.Writer
+}
+
+func (a *App) env(key string) string {
+	if a.Getenv == nil {
+		return ""
+	}
+	return a.Getenv(key)
 }
 
 type command struct {

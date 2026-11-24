@@ -181,6 +181,47 @@ func TestStopReason(t *testing.T) {
 	}
 }
 
+func TestEndReason(t *testing.T) {
+	red, green := Bool(false), Bool(true)
+	cases := []struct {
+		name string
+		evs  []Event
+		want string // substring of the reason; "" = may end done
+	}{
+		{"no gate, no edits", nil, ""},
+		{"docs only", []Event{at(1, Event{Kind: KindStep, Name: "Edit", Target: "README.md"})}, ""},
+		{"edit, no gate", []Event{at(1, Event{Kind: KindStep, Name: "Edit", Target: "a.go"})}, "source files changed"},
+		{"edit, green all", []Event{
+			at(1, Event{Kind: KindStep, Name: "Edit", Target: "a.go"}),
+			at(2, Event{Kind: KindGate, Name: "coverage", OK: green}),
+			at(2, Event{Kind: KindGate, Name: GateAll, OK: green}),
+		}, ""},
+		{"edit after green all", []Event{
+			at(1, Event{Kind: KindGate, Name: GateAll, OK: green}),
+			at(2, Event{Kind: KindStep, Name: "Write", Target: "a.py"}),
+		}, "source files changed"},
+		{"running lane does not excuse", []Event{
+			at(1, Event{Kind: KindAgentStart, Agent: "a1", Role: "domain-engineer"}),
+			at(2, Event{Kind: KindStep, Agent: "a1", Name: "Edit", Target: "a.go"}),
+		}, "source files changed"},
+		{"red all without traced edits", []Event{at(1, Event{Kind: KindGate, Name: GateAll, OK: red})}, "all result is red"},
+		{"red coverage after green all", []Event{
+			at(1, Event{Kind: KindGate, Name: GateAll, OK: green}),
+			at(2, Event{Kind: KindGate, Name: "coverage", OK: red}),
+		}, "coverage result is red"},
+		{"red test then green all", []Event{
+			at(1, Event{Kind: KindGate, Name: "test", OK: red}),
+			at(2, Event{Kind: KindGate, Name: GateAll, OK: green}),
+		}, ""},
+	}
+	for _, c := range cases {
+		got := EndReason(Fold(c.evs))
+		if c.want == "" && got != "" || c.want != "" && !strings.Contains(got, c.want) {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
 func TestGreenAllDoesNotClearEditsMadeDuringGate(t *testing.T) {
 	s := Fold([]Event{
 		at(1, Event{Kind: KindStep, Name: "Edit", Target: "a.go"}),

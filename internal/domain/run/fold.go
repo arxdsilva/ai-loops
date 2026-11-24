@@ -264,6 +264,24 @@ func StopReason(s State) string {
 	return "loops: source files changed since the last green `loops gate` (build, lint, tests with the race policy, coverage). Run `loops gate` and fix failures before finishing, or `loops run end --outcome abandoned` to stop the run."
 }
 
+// EndReason returns a non-empty reason when the run must not end "done":
+// a source file changed since the last green full gate (the Stop gate's
+// condition, without its running-lane exemption: ending the run is final),
+// or the latest full-gate ("all") or coverage result is red. A run with no
+// gate result and no source change (no detected pack, a docs-only run) may
+// end done.
+func EndReason(s State) string {
+	if s.GoDirty || s.SourceDirty {
+		return "source files changed since the last green `loops gate`; run `loops gate` and fix failures first"
+	}
+	for _, g := range s.Gates {
+		if (g.Name == GateAll || g.Name == "coverage") && !g.OK {
+			return "the last `loops gate` " + g.Name + " result is red; fix it and run `loops gate` again"
+		}
+	}
+	return ""
+}
+
 func vphase(s *State, e Event) Phase {
 	if e.Phase != "" {
 		return e.Phase

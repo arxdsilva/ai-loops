@@ -208,6 +208,35 @@ func TestRunEndAbandoned(t *testing.T) {
 	}
 }
 
+func TestRunEndGate(t *testing.T) {
+	e := rcSetup(t, "")
+	e.do("run", "start", "--title", "x")
+	id := e.ptr.id
+	_ = e.app.Tracker.Record(context.Background(), run.Event{Kind: run.KindStep, Name: "Edit", Target: "a.go"})
+	if e.do("run", "end") != 1 || e.ptr.id == "" || !strings.Contains(e.err.String(), "refusing --outcome done") {
+		t.Fatalf("dirty run ended done: %q", e.err)
+	}
+	if n := e.log.m[id][len(e.log.m[id])-1]; n.Kind != run.KindNote || n.Name != "end-gate" {
+		t.Fatalf("%+v", n)
+	}
+	_ = e.app.Tracker.Record(context.Background(), run.Event{Kind: run.KindGate, Name: run.GateAll, OK: run.Bool(false)})
+	if e.do("run", "end", "--outcome", "done") != 1 || e.ptr.id == "" {
+		t.Fatal("red gate ended done")
+	}
+	e.app.Getenv = func(k string) string { return map[string]string{"LOOPS_GATE": "OFF"}[k] }
+	if e.do("run", "end") != 0 || e.ptr.id != "" || e.log.m[id][len(e.log.m[id])-1].Status != "done" {
+		t.Fatalf("LOOPS_GATE=off: %q", e.err)
+	}
+
+	e.app.Getenv = nil
+	e.do("run", "start", "--title", "y")
+	id = e.ptr.id
+	_ = e.app.Tracker.Record(context.Background(), run.Event{Kind: run.KindStep, Name: "Edit", Target: "a.go"})
+	if e.do("run", "end", "--outcome", "failed") != 0 || e.log.m[id][len(e.log.m[id])-1].Status != "failed" {
+		t.Fatalf("failed must always end: %q", e.err)
+	}
+}
+
 func TestGateCmd(t *testing.T) {
 	e := rcSetup(t, "")
 	e.app.GateSkip = []string{"vet"}

@@ -56,8 +56,12 @@ func TestProcessGeminiAndCursor(t *testing.T) {
 		if p.plat == "gemini" && !strings.HasPrefix(o, `{"hookSpecificOutput":{"additionalContext":"loops plugin active. Plugin root: /plug.`) {
 			t.Errorf("gemini session: %q", o)
 		}
-		if code, _, e := runLoops(t, repo, "", nil, "run", "end"); code != 0 {
-			t.Logf("run end: %s", e)
+		// the traced edit leaves the run dirty, so `done` is refused (end gate)
+		if code, _, e := runLoops(t, repo, "", nil, "run", "end", "--outcome", "done"); code != 1 || !strings.Contains(e, "refusing --outcome done") {
+			t.Errorf("%s end gate: %d %q", p.plat, code, e)
+		}
+		if code, _, e := runLoops(t, repo, "", nil, "run", "end", "--outcome", "abandoned"); code != 0 {
+			t.Fatalf("run end: %s", e)
 		}
 	}
 }
