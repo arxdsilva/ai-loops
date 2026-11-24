@@ -1,8 +1,6 @@
 package evalbox
 
 import (
-	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,47 +9,16 @@ import (
 
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/runstore"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
-	"github.com/arxdsilva/ai-loops/internal/platform/loopsdir"
 )
 
 // Runs reads run directories from disk.
 type Runs struct{}
 
-// Latest returns the newest run under dir/.loops/runs (run ids start with
-// their start time, so the greatest name is the newest), or "".
-func (Runs) Latest(dir string) (string, error) {
-	base := filepath.Join(dir, loopsdir.Name, "runs")
-	entries, err := os.ReadDir(base)
-	if errors.Is(err, fs.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	latest := ""
-	for _, e := range entries {
-		if e.IsDir() && e.Name() > latest {
-			latest = e.Name()
-		}
-	}
-	if latest == "" {
-		return "", nil
-	}
-	return filepath.Join(base, latest), nil
-}
+// Latest returns the newest run under dir/.loops/runs, or "".
+func (Runs) Latest(dir string) (string, error) { return runstore.LatestRun(dir) }
 
 // Events reads runDir/events.jsonl; a missing log is no events.
-func (Runs) Events(runDir string) ([]run.Event, error) {
-	f, err := os.Open(filepath.Join(runDir, "events.jsonl"))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return runstore.ReadEvents(f), nil
-}
+func (Runs) Events(runDir string) ([]run.Event, error) { return runstore.EventsIn(runDir) }
 
 // Read returns a file inside runDir. rel comes from the event log, so it
 // must stay inside the run directory.

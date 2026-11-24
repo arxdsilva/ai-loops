@@ -137,6 +137,7 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Version:   version,
 		Release:   releases,
 		Evals:     evaluator{root: root, pluginRoot: os.Getenv("LOOPS_PLUGIN_ROOT")},
+		Backlog:   backlogEnv(root),
 		Tracker:   trk,
 		Workspace: runspace.New(root).WithPacks(detected.all),
 		Gate:      gates,

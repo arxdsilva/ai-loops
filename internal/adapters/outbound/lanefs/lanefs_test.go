@@ -1,0 +1,71 @@
+package lanefs
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func write(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLatest(t *testing.T) {
+	wt := t.TempDir()
+	var l Lanes
+	if lane, err := l.Latest(wt); err != nil || lane.Dir != "" {
+		t.Fatalf("no runs = %+v, %v", lane, err)
+	}
+	if lane, err := l.Latest(""); err != nil || lane.Dir != "" {
+		t.Fatalf("no worktree = %+v, %v", lane, err)
+	}
+	runs := filepath.Join(wt, ".loops", "runs")
+	write(t, filepath.Join(runs, "20260101-old", "events.jsonl"), `{"kind":"run"}`+"\n")
+	newest := filepath.Join(runs, "20260202-new")
+	write(t, filepath.Join(newest, "events.jsonl"), `{"kind":"run","run":"x"}`+"\n"+`{"kind":"end","status":"done"}`+"\n")
+	write(t, filepath.Join(newest, "pr.md"), "## Open follow-ups\n- a\n")
+	lane, err := l.Latest(wt)
+	if err != nil || lane.Dir != newest || len(lane.Events) != 2 || lane.PRBody == "" {
+		t.Fatalf("latest = %+v, %v", lane, err)
+	}
+}
+
+func TestPhase(t *testing.T) {
+	wt := t.TempDir()
+	var l Lanes
+	if l.Phase(wt) != "" {
+		t.Fatal("phase without status")
+	}
+	p := filepath.Join(wt, ".loops", "status.json")
+	write(t, p, `{"active":true,"state":{"phase":"qa"}}`)
+	if got := l.Phase(wt); got != "qa" {
+		t.Fatalf("phase = %q", got)
+	}
+	write(t, p, `{"active":false,"state":{"phase":"reflect"}}`)
+	if l.Phase(wt) != "" {
+		t.Fatal("inactive run has no live phase")
+	}
+}
+
+func TestReadRef(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "findings", "a.md"), "details")
+	var l Lanes
+	if s, ok := l.ReadRef(dir, "findings/a.md"); !ok || s != "details" {
+		t.Fatalf("ref = %q %v", s, ok)
+	}
+	for _, bad := range []string{"../escape", "/etc/passwd", "missing.md"} {
+		if _, ok := l.ReadRef(dir, bad); ok {
+			t.Fatalf("%s read", bad)
+		}
+	}
+	if _, ok := l.ReadRef("", "a.md"); ok {
+		t.Fatal("no run dir read")
+	}
+}

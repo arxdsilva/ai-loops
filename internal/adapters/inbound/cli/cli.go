@@ -86,7 +86,10 @@ type App struct {
 	Update  Updater
 	Release Releaser // loops release (nil = unavailable)
 	// Evals runs behavioural evals (nil = unavailable).
-	Evals       Evaluator
+	Evals Evaluator
+	// Backlog builds backlog mode's service for the main checkout (nil =
+	// unavailable); warn receives best-effort failures.
+	Backlog     func(ctx context.Context, warn func(format string, args ...any)) BacklogEnv
 	UpdateState UpdateStore
 	UpdateOff   bool // .loops/config.json "update_check": false
 	// Applier runs `loops update --apply` (nil = unavailable); Plugins reads
@@ -124,6 +127,7 @@ var commands = map[string]command{
 	"go":      {cmdGo, "go <args…>   go with the active run's GOCACHE/GOTMPDIR (plain go without a run)"},
 	"exec":    {cmdExec, "exec [--pack id] -- <cmd…>   a command with the active run's cache env and cache_argv for its language pack (plain without a run)"},
 	"gate":    {(*App).cmdGate, "gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--security] [--fail-fast]   every detected language pack's checks (loops lang show <id>): build, format, lint, arch, tests under the race policy, coverage of new code (≥70%), vuln when enabled; --security runs only the packs' security checks"},
+	"backlog": {(*App).cmdBacklog, "backlog init|sync|status|work [n]|run [--max N]|finish <n> --status s|file --title T|clean   backlog mode: work every eligible issue in parallel worktrees, file findings for a human (specs/BACKLOG.md)"},
 	"ticket":  {(*App).cmdTicket, "ticket fetch [REF] [--source s] [--body-file f|-]"},
 	"arch":    {(*App).cmdArch, "arch [--json] [--root dir]"},
 	"status":  {(*App).cmdStatus, "status [--json|--statusline|--subagent]"},

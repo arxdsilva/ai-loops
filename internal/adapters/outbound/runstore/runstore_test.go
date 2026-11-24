@@ -217,3 +217,33 @@ func TestStatusFile(t *testing.T) {
 		t.Fatalf("after end: %+v", doc)
 	}
 }
+
+func TestLatestRunAndEventsIn(t *testing.T) {
+	root := t.TempDir()
+	if d, err := LatestRun(root); err != nil || d != "" {
+		t.Fatalf("no runs = %q, %v", d, err)
+	}
+	runs := filepath.Join(root, ".loops", "runs")
+	for _, id := range []string{"20260101-a", "20260303-c", "20260202-b"} {
+		if err := os.MkdirAll(filepath.Join(runs, id), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	os.WriteFile(filepath.Join(runs, "zz-not-a-dir"), nil, 0o644)
+	d, err := LatestRun(root)
+	if err != nil || filepath.Base(d) != "20260303-c" {
+		t.Fatalf("latest = %q, %v", d, err)
+	}
+	if ev, err := EventsIn(d); err != nil || ev != nil {
+		t.Fatalf("missing log = %v, %v", ev, err)
+	}
+	os.WriteFile(filepath.Join(d, "events.jsonl"), []byte(`{"kind":"run"}`+"\n"), 0o644)
+	if ev, err := EventsIn(d); err != nil || len(ev) != 1 {
+		t.Fatalf("events = %v, %v", ev, err)
+	}
+	empty := t.TempDir()
+	os.MkdirAll(filepath.Join(empty, ".loops", "runs"), 0o755)
+	if d, _ := LatestRun(empty); d != "" {
+		t.Fatalf("empty runs dir = %q", d)
+	}
+}
