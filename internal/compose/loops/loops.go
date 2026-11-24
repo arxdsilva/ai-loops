@@ -169,6 +169,7 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Checkpoints: cfg.Checkpoints(),
 		TriageOff:   cfg.Triage == "off",
 		Getenv:      os.Getenv,
+		RequireInit: true,
 		Source:      ailoops.Source,
 		Packages:    pkgs,
 		Root:        root,

@@ -121,6 +121,13 @@ func TestProcessTraceAndStopGate(t *testing.T) {
 		t.Fatal("trace without run created runs dir")
 	}
 
+	// run start needs `loops init` first (WORKFLOW §2.0), through the real wiring.
+	if code, _, e := runLoops(t, repo, "", nil, "run", "start", "--title", "proc test"); code != 1 || !strings.Contains(e, "run `loops init` first") {
+		t.Fatalf("uninitialized start: %d %q", code, e)
+	}
+	if code, o, e := runLoops(t, repo, "", nil, "init"); code != 0 || !strings.HasPrefix(o, "created .loops/config.json") {
+		t.Fatalf("init: %d %q %q", code, o, e)
+	}
 	if code, _, e := runLoops(t, repo, "", nil, "run", "start", "--title", "proc test"); code != 0 {
 		t.Fatal(e)
 	}

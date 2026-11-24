@@ -41,6 +41,7 @@ QA starts pipelined: a verifier launches as soon as its implementer reports, eve
 ### 2.0 Intake
 
 0. Update: `<plugin root>/bin/loops update --apply --platform <p>` (PLATFORMS §9; the session context gives the path, use `loops` only when it does not). Relay its one line to the user; never block.
+0a. **Init** (once per project): `loops init`. It writes the minimal `.loops/config.json` when the project has none (every value a default, written out so the project's choices are visible and committed), keeps an existing one, re-includes it in `.loops/.gitignore` and prints the detected packs. `loops run start` refuses a project without the file. When `init` created it, the lead tells the user in one line, and the PR commits it (§2.5).
 1. `loops run start --title "<short title>" [--ticket <ref>] [--source <s>]` prints the run ID and the run directory. It also creates the run's scratch folder outside the project and prepares the run-scoped caches and tmp dirs in it (Go: `<scratch>/go/{cache,tmp}`) and records a baseline of the untracked files already present, so cleanup (§2.6) can tell what the run created.
 2. Fetch the ticket:
    - GitHub (`#123`, `owner/repo#123`, a github.com URL) or GitLab (a gitlab URL): `loops ticket fetch <ref>`. This writes `ticket.md`.
@@ -172,6 +173,7 @@ The `product-reviewer` does the following, in order:
    2. Writes `pr.md` (`templates/PR_BODY.md`, at most ~40 lines plus `<details>` proof blocks).
    3. Stops and reports to the lead (proof summary + `pr.md` path). Unless `--no-pr` is set, the lead sends the same product-reviewer "open the PR" (resume or re-spawn per platform tier). When `product` is a checkpoint, the lead first shows the user `pr.md` and asks. Only then it:
       - creates the branch `loops/<ticket>-<slug>`;
+      - when `.loops/config.json` is untracked (`git ls-files --error-unmatch .loops/config.json` fails), commits it first, alone: `git commit -m "chore: loops init" -- .loops/config.json`;
       - commits in small ordered commits, wave 0 first and then each wave's lanes. Each is `git commit -m … -- <paths>`, with a conventional subject and a body saying why, what changed and how it was proven (claim ids, QA file, AC proofs) (`specs/ENGINEERING.md §18`);
       - when the run's last `memory-store` decision is `files` (reflect ran first, §2 order), the product-reviewer commits the pages the reflector listed under `## Memory writes` as the last commit, only those paths: `git add -f -- <paths>`, then `git commit -m "chore(memory): lessons from run <run id>" -- <paths>`. Under `--no-pr` the pages stay uncommitted and the lead says so;
       - pushes;
@@ -392,7 +394,7 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 
 ## 5. Events
 
-`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). `.loops/` is local: whatever creates it (a run, the installer, session start in a project that has one) adds a `.loops/.gitignore` of `*`, so git never lists it. `loops memory init` re-includes `.loops/memory/` there (`!memory/`, `!memory/**`), and loops keeps those lines when it recreates the file in a clone. Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `ask`, `decision`, `triage`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
+`.loops/runs/<id>/events.jsonl` holds one JSON object per line (`run.Event`). `.loops/` is local: whatever creates it (a run, the installer, session start in a project that has one, `loops init`) adds a `.loops/.gitignore` of `*` then `!config.json`, so git lists only the project settings. `loops init` appends `!config.json` to an older `.gitignore`. `loops memory init` re-includes `.loops/memory/` there (`!memory/`, `!memory/**`), and loops keeps those lines when it recreates the file in a clone. Kinds are `run`, `phase`, `agent_start`, `agent_stop`, `label`, `override`, `limits`, `budget`, `step`, `loop_back`, `verdict`, `gate`, `proof`, `guard_deny`, `memory`, `note`, `pr`, `ask`, `decision`, `triage`, `end`. The fields per kind are documented in `internal/domain/run/event.go`. The schema is additive-only.
 
 | Source | Emits |
 |---|---|
@@ -434,6 +436,7 @@ Language packs (`specs/languages/<id>/pack.json`):
 - `loops lang detect [--json] [--write] [--root dir]`: the packs that apply to the project (id, root, variant). `--write` saves `research/language.json` in the run dir (§2.1). `languages` in `.loops/config.json` pins them instead.
 
 Memory (§7):
+- `loops init`: the project's first-run setup (§2.0 step 0a). Writes `.loops/config.json` when absent, with `version` 1 and the defaults written out (`languages` `[]` = detect, `ask` `[]`, `triage` `auto`, `gate.coverage_min` 70); never rewrites an existing file. Re-includes `!config.json` in `.loops/.gitignore`. Prints `created .loops/config.json` or `kept .loops/config.json (already initialized)`, then `added to .loops/.gitignore: !config.json` when it appended it, `languages: <detected packs>` (never pinned), and a last line to commit the file. Exit 0; 2 on bad usage; 1 when it cannot write. `loops run start` exits 1 without the file.
 - `loops memory init`: creates `.loops/memory/` if absent, and adds `!memory/` and `!memory/**` to `.loops/.gitignore` (creating it with `*` first if absent), appending only the lines not already there. Idempotent. Prints one line per change, in this order: `created .loops/memory/`; `added to .loops/.gitignore: <lines>`; `nothing to change: .loops/memory/ is set up`; and always last, `pages under .loops/memory/ are committed with the PR; set "memory": {"store": "files"} in .loops/config.json to prefer them over ai-memory; delete the folder to leave`. Exit 0; exit 2 on bad usage; exit 1 when it cannot write (for example `.loops/memory` is a file or the directory is read-only), with the error on stderr.
 
 Gates:

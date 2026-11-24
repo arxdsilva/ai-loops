@@ -32,8 +32,9 @@ Every role agent you spawn gets the same instruction, through the prompt header 
 ## 0. Parse and intake (WORKFLOW §2.0)
 
 1. Parse flags from `$ARGUMENTS`: `--ask <phases>`, `--approve` (= `--ask plan`), `--no-pr`, `--full`, `--models=cheap`, and the opt-in limits `--max-agents N`, `--budget …`, `--agents …`, `--roles …` (WORKFLOW §4a). Also read the user's own words for checkpoints: "let me approve the plan" = `plan`, "ask me before the PR" = `pr`, "check with me at every phase" = `all`; they win over flags. Read `.loops/config.json` if present (`ask`, `memory`).
-2. Start the run and capture the id and dir:
+2. Init, then start the run and capture the id and dir. `loops init` is a no-op once the project has `.loops/config.json`. When it prints `created`, tell the user in one line that the file records the project's loops settings and goes in the PR (WORKFLOW §2.0 step 0a, §2.5):
 ```
+loops init
 loops run start --title "<short title>" [--ticket <ref>] [--source <s>]
 loops run dir; loops path specs; loops path templates
 ```

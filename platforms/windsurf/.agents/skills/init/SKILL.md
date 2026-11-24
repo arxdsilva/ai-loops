@@ -1,6 +1,6 @@
 ---
 name: init
-description: Set up loops in the current repository (any language pack) - detect the languages, create .loops/config.json, install AGENTS.md and CLAUDE.md pointers, and check the tools the detected packs need. Use when the user runs /loops:init or asks to set up loops.
+description: Set up loops in the current repository (any language pack) - detect the languages, run loops init (the committed .loops/config.json), install AGENTS.md and CLAUDE.md pointers, and check the tools the detected packs need. Use when the user runs /loops:init or asks to set up loops.
 disable-model-invocation: true
 ---
 
@@ -12,26 +12,24 @@ Idempotent setup for the current repo. **Never overwrite an existing file withou
 1a. **Languages.** Run `loops lang detect` and show each detected pack with its root and variant (`loops lang list` shows every available pack).
    - Nothing detected, or a root is wrong (an unusual layout, a monorepo, a manifest deeper than detection looks): explain that `languages` in `.loops/config.json` pins packs and replaces detection, e.g. `"languages": [{"id": "python", "root": "services/api", "variant": "uv"}, {"id": "go", "root": "."}]` (`root` defaults to `.`; `variant` picks a build tool, `loops lang show <id> --variant v`). Offer to add it, then re-run `loops lang detect`.
    - A language with no pack: say that loops still runs the workflow there, but the gate checks nothing for it. Continue setup.
-2. **`.loops/config.json`.** If absent, create it with these defaults (JSON has no comments; explain each key to the user in your reply):
+2. **`.loops/config.json`.** Run `loops init` (WORKFLOW §5). It writes the minimal file below when absent and keeps an existing one; `loops run start` refuses a project without it. Every value is the default, written out so the team sees and reviews its choices:
 ```json
 {
-  "layers": {},
+  "version": 1,
   "languages": [],
   "ask": [],
-  "gate": { "skip": [], "vuln": false },
-  "memory": { "workspace": "", "project": "", "store": "" },
-  "parallel": { "max_agents": 100, "agent_ram_gib": 1, "cpu_slots_per_core": 4, "max_test_runs": 0 }
+  "triage": "auto",
+  "gate": { "coverage_min": 70 }
 }
 ```
+   Explain each key in your reply:
    - `languages`: pinned packs (step 1a); `[]` means detect.
-   - `layers`: object mapping layer keys (domain, application, ports, adapters, inbound, outbound, platform, compose, cmd, pkg) to lists of module-relative dir prefixes; omitted keys keep defaults. Example: `{"domain":["internal/core"]}`. Leave `{}` unless the repo uses non-standard dirs.
-   - `ask`: the phases where the lead stops for the user (WORKFLOW §2.7): `[]` (the default) means it decides every phase and opens the PR itself; e.g. `["plan", "pr"]` to approve the plan and the push, or `"all"`. `--ask` on `/loops:work`, or the user's own words, override it per run. Older configs: `"approval": "always"` still adds `plan`; `auto_pr` is ignored (the PR opens unless `pr` is a checkpoint).
-   - `gate.skip`: check names to skip, taken from the detected packs (`loops lang show <id>`; Go: `build`, `gofmt`, `vet`, `staticcheck`, `arch`, `test`, `govulncheck`). `coverage` and the race checks cannot be skipped. `gate.vuln`: include the packs' vulnerability checks (off by default).
-   - `memory`: ai-memory scope; leave empty to derive from `.ai-memory.toml` or the git remote `owner/repo`. `store`: `"files"` picks the opt-in file store `.loops/memory/` even when ai-memory is connected; `""` means auto (WORKFLOW §7).
-   - `parallel`: concurrency. `max_agents` is the configured agent cap (default 100; the effective cap is also bounded by `loops hw`); `agent_ram_gib` and `cpu_slots_per_core` feed the hardware estimate; `max_test_runs` 0 means derive from the CPU count.
-   - `limits` (opt-in, omitted by default; add only when the user wants caps): `"limits": {"max_agents": 12, "budget": {"research": "200k", "implement": "2M"}, "agents": {"implement": 12}, "roles": {"implement": ["domain-engineer", "api-engineer"]}}`. Nothing is limited and nothing asks without it.
-   If it exists, show it and ask before changing anything.
-3. **Git.** Nothing to add: `loops` keeps `.loops/` out of git itself with a `.loops/.gitignore` of `*` (run data, caches and settings are local). If the team wants to share the settings, tell the user `git add -f .loops/config.json`. If `.loops/` files are already tracked from an older setup, suggest `git rm -r --cached .loops` (the user decides; never run it).
+   - `ask`: the phases where the lead stops for the user (WORKFLOW §2.7): `[]` means it decides every phase and opens the PR itself; e.g. `["plan", "pr"]`, or `"all"`. `--ask` on `/loops:work`, or the user's own words, override it per run.
+   - `triage`: `"auto"` sizes each run to the ticket (WORKFLOW §2.8); `"off"` makes every run full.
+   - `gate.coverage_min`: the new-code coverage floor; it can only be raised above 70.
+   Other keys are optional; add one only when the user wants it: `layers` (arch layer dir prefixes, e.g. `{"domain":["internal/core"]}`), `gate.skip` (check names from `loops lang show <id>`; `coverage` and the race checks cannot be skipped), `gate.vuln`, `gate.base`, `memory` (`workspace`, `project`, `store`: `"files"` picks `.loops/memory/`, WORKFLOW §7), `parallel` (`max_agents`, `agent_ram_gib`, `cpu_slots_per_core`, `max_test_runs`), `limits` (opt-in caps: `{"max_agents": 12, "budget": {"implement": "2M"}}`), `update_check`. `parallel` and `limits` describe a machine more than a project: suggest them only when the whole team shares the setting.
+   If the file existed, `loops init` left it alone: show it and ask before changing anything.
+3. **Git.** `.loops/.gitignore` keeps run data and caches out of git and re-includes `config.json`: tell the user to commit `.loops/config.json` (the first `/loops:work` PR commits it otherwise). If other `.loops/` files are tracked from an older setup, suggest `git rm -r --cached .loops` and re-adding `config.json` (the user decides; never run it).
    - Optional file store (WORKFLOW §7): `loops memory init` creates `.loops/memory/` and re-includes it in git. Mention it once in your report; it is not a question.
 4. **AGENTS.md.** If absent, copy `$(loops path templates)/ROOT_AGENTS.md` to `./AGENTS.md`. If present, offer to append a "loops" section (the relevant headings from the template); do not replace.
 5. **CLAUDE.md.** If absent, create it with exactly:

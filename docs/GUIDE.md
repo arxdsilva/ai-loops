@@ -128,6 +128,8 @@ Then, in your repo (Claude Code shown; other platforms use their own command syn
 /loops:work #42  # or a GitLab URL, a Jira or Linear key, or plain text
 ```
 
+Every project runs `loops init` once (`/loops:init` does, and so does `/loops:work` when the file is missing; `loops run start` refuses without it). It writes a minimal `.loops/config.json` with the defaults spelled out (`version`, `languages`, `ask`, `triage`, `gate.coverage_min`) and keeps an existing one. The file is the project's loops settings, so commit it and review changes to it like code: `.loops/.gitignore` keeps run data out of git but re-includes `config.json`, and the first `/loops:work` PR commits it if you have not.
+
 
 ## Updating
 

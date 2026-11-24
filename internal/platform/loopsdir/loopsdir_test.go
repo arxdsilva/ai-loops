@@ -60,8 +60,9 @@ func TestEnsureErrors(t *testing.T) {
 	}
 }
 
-// git must not list anything under .loops, the .gitignore included.
-func TestGitSeesNothing(t *testing.T) {
+// git lists nothing under .loops but config.json (the project's settings,
+// committed by the team): not run data, not the .gitignore itself.
+func TestGitSeesOnlyConfig(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("no git")
 	}
@@ -82,7 +83,7 @@ func TestGitSeesNothing(t *testing.T) {
 		}
 	}
 	out, err := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=all").CombinedOutput()
-	if err != nil || strings.TrimSpace(string(out)) != "" {
+	if err != nil || strings.TrimSpace(string(out)) != "?? .loops/config.json" {
 		t.Fatalf("git sees: %q %v", out, err)
 	}
 }
@@ -266,8 +267,61 @@ func TestMissingMemoryLines(t *testing.T) {
 		{"*\n!memory/\n*\n", both},
 	}
 	for _, c := range cases {
-		if got := missingMemoryLines(c.in); !reflect.DeepEqual(got, c.want) {
+		if got := missingLines(c.in, IgnoreMemoryDir, IgnoreMemoryTree); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%q: %v", c.in, got)
 		}
+	}
+}
+
+func TestEnsureConfigFresh(t *testing.T) {
+	root := t.TempDir()
+	if HasConfig(root) {
+		t.Fatal("fresh root has a config")
+	}
+	res, err := EnsureConfig(root)
+	if err != nil || !res.Created || len(res.Added) != 0 {
+		t.Fatalf("%+v %v", res, err) // the default Ignore already re-includes it
+	}
+	b, err := os.ReadFile(filepath.Join(root, ".loops", "config.json"))
+	if err != nil || string(b) != InitConfig || !HasConfig(root) {
+		t.Fatalf("%q %v", b, err)
+	}
+	if got := readIgnore(t, root); got != Ignore || !strings.Contains(got, "*\n!config.json\n") {
+		t.Fatalf("%q", got)
+	}
+	res, err = EnsureConfig(root) // idempotent
+	if err != nil || res.Created || len(res.Added) != 0 {
+		t.Fatalf("%+v %v", res, err)
+	}
+}
+
+func TestEnsureConfigKeepsExistingAndPatchesOldIgnore(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, ".loops")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mine := `{"ask":"plan"}`
+	_ = os.WriteFile(filepath.Join(dir, "config.json"), []byte(mine), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("*\n!memory/\n"), 0o644) // from before loops init
+	res, err := EnsureConfig(root)
+	if err != nil || res.Created || !reflect.DeepEqual(res.Added, []string{"!config.json"}) {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "config.json")); string(b) != mine {
+		t.Fatalf("existing config rewritten: %q", b)
+	}
+	if got := readIgnore(t, root); got != "*\n!memory/\n!config.json\n" {
+		t.Fatalf("%q", got)
+	}
+}
+
+func TestEnsureConfigDirIsNotAConfig(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".loops", "config.json"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if HasConfig(root) {
+		t.Fatal("a directory is not a config")
 	}
 }

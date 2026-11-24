@@ -34,6 +34,9 @@ func TestProcessGeminiAndCursor(t *testing.T) {
 		if code, o, _ := runLoops(t, repo, fx(t, p.plat, "stop", repo), nil, "hook", "stop-gate", "--platform", p.plat); code != 0 || o != "" {
 			t.Errorf("%s no run: %d %q", p.plat, code, o)
 		}
+		if code, _, e := runLoops(t, repo, "", nil, "init"); code != 0 {
+			t.Fatal(e)
+		}
 		if code, _, e := runLoops(t, repo, "", nil, "run", "start", "--title", p.plat); code != 0 {
 			t.Fatal(e)
 		}

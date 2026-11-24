@@ -10,6 +10,7 @@
 //	exec_cmd.go    exec [--pack id] -- <cmd…>                      (run-scoped pack env for any tool)
 //	gate_cmd.go    gate                                            (gate pipeline; --security: the packs' security checks)
 //	lang_cmd.go    lang list|show|validate|detect                  (language packs)
+//	init_cmd.go    init                                            (first-run project config, WORKFLOW §2.0)
 //	memory_cmd.go  memory init                                     (opt-in file store, WORKFLOW §7)
 //	ticket_cmd.go  ticket fetch                                    (tickets)
 //	arch_cmd.go    arch                                            (arch checker)
@@ -93,6 +94,10 @@ type App struct {
 	Applier Applier
 	Plugins PluginVersionReader
 
+	// RequireInit makes `loops run start` refuse a project with no
+	// .loops/config.json (`loops init` first, WORKFLOW §2.0).
+	RequireInit bool
+
 	// Getenv reads the process environment (nil = empty); `loops run end`
 	// reads LOOPS_GATE through it.
 	Getenv func(string) string
@@ -129,6 +134,7 @@ var commands = map[string]command{
 	"hw":      {(*App).cmdHW, "hw [--json] [--write]   hardware facts + parallelism recommendation for the planner"},
 	"budget":  {(*App).cmdBudget, "budget check [--phase p] [--spawn n] [--role r] [--verbose] | show | parse [--budget …] [--agents …] [--roles …] [--max-agents n]   opt-in limits (exit 3 = over budget)"},
 	"lang":    {cmdLang, "lang list [--json] | show <id> [--variant v] | validate [pack.json…] | detect [--json] [--write] [--root dir]   language packs (specs/languages/<id>/pack.json)"},
+	"init":    {cmdInit, "init   first run in a project: write the minimal .loops/config.json (kept if present) and re-include it in .loops/.gitignore to commit"},
 	"memory":  {cmdMemory, "memory init   opt-in file store: create .loops/memory/ and re-include it in .loops/.gitignore (idempotent)"},
 	"plan":    {(*App).cmdPlan, "plan check <plan.md> [--cap n] [--json]   waves vs parallelism cap and scope overlap"},
 	"watch":   {(*App).cmdWatch, "watch [--interval 2s] [--once]   live run view in a terminal (any platform)"},

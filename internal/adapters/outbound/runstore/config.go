@@ -16,6 +16,8 @@ import (
 
 // Config is .loops/config.json. Every field is optional.
 type Config struct {
+	// Version is the config format `loops init` wrote (1); 0 = older file.
+	Version int `json:"version,omitempty"`
 	// Layers overrides the arch checker's layer prefixes (zero fields keep defaults).
 	Layers archrule.Layers `json:"layers"`
 	// Ask lists the phases where the lead stops for the user (WORKFLOW

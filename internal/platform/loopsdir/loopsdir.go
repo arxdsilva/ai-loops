@@ -17,10 +17,35 @@ import (
 // Name is the directory loops keeps in a project root.
 const Name = ".loops"
 
-// Ignore is the content of .loops/.gitignore: everything, itself included.
-const Ignore = "# Created by loops: run data, caches and local settings stay out of git.\n" +
-	"# To share the project settings, run: git add -f .loops/config.json\n" +
-	"*\n"
+// Ignore is the content of .loops/.gitignore: everything, itself included,
+// except config.json, the project's settings, which the team commits.
+const Ignore = "# Created by loops: run data and caches stay out of git.\n" +
+	"# config.json (written by `loops init`) holds the project's settings: commit it.\n" +
+	"*\n" + IgnoreConfig + "\n"
+
+// The project settings file (`loops init`), re-included after the catch-all.
+const (
+	ConfigFile   = "config.json"
+	IgnoreConfig = "!" + ConfigFile
+)
+
+// InitConfig is the minimal .loops/config.json `loops init` writes: every
+// value is the default, written out so the project's choices are visible
+// and reviewed like code. It must load to the same settings as no file.
+const InitConfig = `{
+  "version": 1,
+  "languages": [],
+  "ask": [],
+  "triage": "auto",
+  "gate": { "coverage_min": 70 }
+}
+`
+
+// ConfigInit reports what EnsureConfig changed.
+type ConfigInit struct {
+	Created bool     // .loops/config.json did not exist and was written
+	Added   []string // lines appended to .loops/.gitignore, in order
+}
 
 // The opt-in file store (WORKFLOW §7): .loops/memory/ is re-included after the
 // catch-all `*`. Git needs both lines: the directory, then its tree.
@@ -97,29 +122,71 @@ func EnsureMemory(root string) (MemoryInit, error) {
 	if err != nil {
 		return res, err
 	}
-	content := string(b)
-	missing := missingMemoryLines(content)
-	if len(missing) == 0 {
-		if ignoreNew {
-			// Ensure wrote the file (clone case): report what it holds.
-			res.Added = []string{IgnoreMemoryDir, IgnoreMemoryTree}
+	missing, err := appendIgnore(p, b, IgnoreMemoryDir, IgnoreMemoryTree)
+	if err != nil {
+		return res, err
+	}
+	res.Added = missing
+	if len(missing) == 0 && ignoreNew {
+		// Ensure wrote the file (clone case): report what it holds.
+		res.Added = []string{IgnoreMemoryDir, IgnoreMemoryTree}
+	}
+	return res, nil
+}
+
+// HasConfig reports whether <root>/.loops/config.json exists: the project
+// ran `loops init` (or kept a config from before it).
+func HasConfig(root string) bool {
+	fi, err := os.Stat(filepath.Join(root, Name, ConfigFile))
+	return err == nil && !fi.IsDir()
+}
+
+// EnsureConfig is `loops init`: it creates .loops (with its .gitignore),
+// writes InitConfig when .loops/config.json is absent, never touches an
+// existing one, and re-includes config.json in .loops/.gitignore. It is
+// idempotent.
+func EnsureConfig(root string) (ConfigInit, error) {
+	var res ConfigInit
+	dir, err := Ensure(root)
+	if err != nil {
+		return res, err
+	}
+	cfg := filepath.Join(dir, ConfigFile)
+	if _, err := os.Lstat(cfg); errors.Is(err, fs.ErrNotExist) {
+		if err := atomicfile.WriteFile(cfg, []byte(InitConfig), 0o644); err != nil {
+			return res, err
 		}
-		return res, nil
+		res.Created = true
+	} else if err != nil {
+		return res, err
+	}
+	p := filepath.Join(dir, ".gitignore")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return res, err
+	}
+	res.Added, err = appendIgnore(p, b, IgnoreConfig)
+	return res, err
+}
+
+// appendIgnore appends to the .gitignore at p (content b) the want lines git
+// would not honour yet, and returns them.
+func appendIgnore(p string, b []byte, want ...string) ([]string, error) {
+	content := string(b)
+	missing := missingLines(content, want...)
+	if len(missing) == 0 {
+		return nil, nil
 	}
 	if content != "" && !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
 	content += strings.Join(missing, "\n") + "\n"
-	if err := atomicfile.WriteFile(p, []byte(content), 0o644); err != nil {
-		return res, err
-	}
-	res.Added = missing
-	return res, nil
+	return missing, atomicfile.WriteFile(p, []byte(content), 0o644)
 }
 
-// missingMemoryLines returns the memory re-include lines that git would not
+// missingLines returns the re-include lines in want that git would not
 // honour yet: a line counts only when it follows the last `*` line.
-func missingMemoryLines(content string) []string {
+func missingLines(content string, want ...string) []string {
 	lines := strings.Split(content, "\n")
 	last := -1
 	for i, l := range lines {
@@ -132,9 +199,9 @@ func missingMemoryLines(content string) []string {
 		have[strings.TrimSpace(l)] = true
 	}
 	var missing []string
-	for _, want := range []string{IgnoreMemoryDir, IgnoreMemoryTree} {
-		if !have[want] {
-			missing = append(missing, want)
+	for _, w := range want {
+		if !have[w] {
+			missing = append(missing, w)
 		}
 	}
 	return missing

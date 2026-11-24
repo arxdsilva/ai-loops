@@ -118,6 +118,9 @@ func (a *App) runStart(ctx context.Context, args []string) int {
 	if strings.TrimSpace(*title) == "" {
 		return a.usageErr("run start: --title is required")
 	}
+	if code := a.requireInit(); code != 0 {
+		return code
+	}
 	id, err := a.Tracker.Start(ctx, tracker.StartInput{Title: *title, Ticket: *ticket, Source: *source})
 	if err != nil {
 		return a.fail("run start", err)

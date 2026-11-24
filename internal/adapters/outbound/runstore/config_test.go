@@ -9,6 +9,7 @@ import (
 
 	"github.com/arxdsilva/ai-loops/internal/domain/hw"
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
+	"github.com/arxdsilva/ai-loops/internal/platform/loopsdir"
 )
 
 func writeConfig(t *testing.T, body string) string {
@@ -140,5 +141,35 @@ func TestConfigMemoryStore(t *testing.T) {
 		if m.Store != c.store || m.Workspace != c.ws || m.Project != c.proj {
 			t.Errorf("%s: %+v", c.body, m)
 		}
+	}
+}
+
+// The file `loops init` writes changes no behaviour: it loads to the same
+// settings as no file at all.
+func TestInitConfigIsTheDefaults(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".loops"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".loops", "config.json"), []byte(loopsdir.InitConfig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Version != 1 {
+		t.Fatalf("version %d", c.Version)
+	}
+	if ask, err := run.ParseAsk(c.Checkpoints()); err != nil || len(ask) != 0 {
+		t.Fatalf("ask %v %v", ask, err)
+	}
+	if c.Triage == "off" || c.Gate.CoverageMin > 70 || len(c.Languages) != 0 {
+		t.Fatalf("%+v", c)
+	}
+	// Everything else is the zero Config, as with no file.
+	c.Version, c.Triage, c.Gate.CoverageMin, c.Languages = 0, "", 0, nil
+	if !reflect.DeepEqual(c, Config{}) {
+		t.Fatalf("%+v", c)
 	}
 }
