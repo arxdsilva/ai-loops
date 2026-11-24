@@ -113,14 +113,14 @@ The tools below are the ones that, like loops, plan a change with several agents
 |---|---|---|---|---|---|---|
 | Ticket in, PR out | ✅ | partial | — | partial | partial | partial |
 | Second agent reviews the plan | ✅ | ✅ | not documented | ✅ | partial | ✅ |
-| Parallel implementers, disjoint file ownership | ✅ | ✅ | — | partial | — | partial |
+| Parallel implementers, disjoint file ownership | ✅ | ✅ | — | partial | partial | partial |
 | Separate agent re-runs each claim | ✅ | partial | partial | partial | partial | partial |
 | Each acceptance criterion proven, proof in the PR | ✅ | opt-in | — | — | — | partial |
 | Gates enforced by code, not the prompt | ✅ | partial | prompt-only | partial | prompt-only | partial |
-| Run log of every call and verdict, HTML report | ✅ | partial | partial | partial | partial | not documented |
+| Run log of every call and verdict, HTML report | ✅ | partial | partial | partial | partial | partial |
 | Evals of its own agents | ✅ | not documented | ✅ | not documented | ✅ | ✅ |
 | Language rules and gates | 15 languages | — | — | — | — | — |
-| Agent tools supported | 10 | 10+ | 16 | Claude Code | several | Claude Code (+8 experimental) |
+| Agent tools supported | 10 | 15+ | 15 | Claude Code | several | Claude Code (+10 experimental) |
 | Community | new (Nov 2026) | 11.8k ⭐ | 325.8k ⭐ | 41.0k ⭐ | 55.7k ⭐ | 142.6k ⭐ |
 
 **When to use something else.** For a one-line fix or a spike, a single agent is cheaper. For UI work, gstack drives a real browser; loops proves backend behaviour. For product discovery before there is a ticket, BMAD and GSD Core plan further upstream. For the biggest community and the most agent tools, Superpowers. loops is for the step after that: a ticket in, and a PR whose every acceptance criterion was proven by an agent that didn't write the code, behind gates the agents cannot talk past.
