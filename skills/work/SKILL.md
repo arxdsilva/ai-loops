@@ -25,6 +25,7 @@ Every role agent you spawn gets the same instruction, through the prompt header 
 - Every spawn names the role and (when limits are in force) first passes `loops budget check` (section 0a); never exceed the effective concurrency cap (section 3); spawn all agents of a wave together, in parallel and in the background where your platform allows. Pass a model only to escalate or under `--models=cheap`.
 - Tier D (solo mode): where "spawn" appears, play the role yourself in phase order, write the same run-dir files, and re-read only that role's input files first (PLATFORMS §4).
 - Never ask agents to commit. Only `product-reviewer` commits, after confirmation (or you, when triage skipped `product-proof`).
+- **Unattended backlog lane.** When the prompt says it is one, BACKLOG §4 overrides this skill: skip step 0, record `loops run ask none` at step 6, never ask, record findings as `finding` notes, never file issues.
 - **Skip what triage skipped.** Before each step below that names a triage step, the brief's `Triage:` line (or `loops run step <step>`) says `run` or `skip`; a skipped step is replaced as WORKFLOW §2.8's table says. `loops gate` always runs.
 
 **Models.** Spawn each role at its tier. The planner and plan-reviewer default to opus. If a model is unavailable, fall back to the best one the user has and record it (WORKFLOW §3a).
