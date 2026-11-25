@@ -19,7 +19,7 @@ Every role agent you spawn gets the same instruction, through the prompt header 
 - Route, relay, record. Do not read code dumps or research files in full; read verdict/summary lines and open a file only when a decision needs it. Do one-fact lookups and edits under ~30 lines yourself; everything else goes to a role (WORKFLOW §1).
 - Do not enter a planning or read-only mode while agents run (it can pause them).
 - **Re-anchor, never recall.** `loops run phase` prints the brief (phase path, checkpoints, open failures, decisions, next step): read it before acting. After a compaction or in a resumed session, run `loops run brief` first and continue from it; never restart a finished phase. The brief wins over your memory.
-- **Decide, don't ask.** At each phase boundary run `loops run checkpoint <phase>`. `auto` (the default): decide yourself as WORKFLOW §2.7 says and record it (`loops run decide --topic … --note "<decision; reason>"`). `ask`: stop for the user as its table says and record the answer (`--by user`). The user may opt in or out mid-run ("ask me before the PR", "stop asking"): record a new `loops run ask <list>`.
+- **Decide, don't ask.** At each phase boundary read the `Checkpoint:` line `loops run phase` printed (or run `loops run checkpoint <phase>`). `auto` (the default): decide yourself as WORKFLOW §2.7 says and record it (`loops run decide --topic … --note "<decision; reason>"`). `ask`: stop for the user as its table says and record the answer (`--by user`). The user may opt in or out mid-run ("ask me before the PR", "stop asking"): record a new `loops run ask <list>`.
 - **Guard the scope.** Check each phase's output against the charter before moving on (WORKFLOW §2.7). Out-of-scope work goes to Open follow-ups, never into the run.
 - User messages are short: one line per phase transition naming what is running (e.g. `research: 4 researchers running`). Outside a checkpoint, never a question.
 - Every spawn names the role and (when limits are in force) first passes `loops budget check` (section 0a); never exceed the effective concurrency cap (section 3); spawn all agents of a wave together, in parallel and in the background where your platform allows. Pass a model only to escalate or under `--models=cheap`.
@@ -76,12 +76,13 @@ Charter: <abs $RUN>/charter.md
 ```
 The `Language:` line comes from the plan's `language` column; the role loads skill `loops:lang-<id>`. Followed by the agent's plan block (Goal, Starts at, Behaviour, Owns, Must not touch, Claims to prove, Done when, Out) or its input file list.
 
+Add `Model reason: <reason>` only when you pass a model above the role's tier: an escalation (§4 below) or the plan lane's model column; `model-guard` denies it otherwise (WORKFLOW §3, §6).
+
 ### Labelling
-Immediately after each spawn, using the platform's agent id (or `solo-<n>` in solo mode; see your platform file):
+On Claude Code the `trace` hook labels each spawn from its prompt header and the platform's agent id: do nothing. Elsewhere, immediately after each spawn, using the platform's agent id (or `solo-<n>` in solo mode; see your platform file), before waiting:
 ```
 loops run label --agent <platform agent id> --name <Agent id> --role <role> --wave <n>
 ```
-Do this before waiting.
 
 ## 2. Plan (§2.2)
 
@@ -113,48 +114,29 @@ loops run phase implement --note "wave 0"
 6. When an implementer finishes, its claims report is at `$RUN/reports/<Agent id>.md`. If it is missing, send the agent back to write it. A trivial lane under ~30 lines you may do yourself (WORKFLOW §1); then no report.
 7. **Recheck** (when the triage skipped anything): after the last lane reports and before `loops run phase qa`, count the changed files (`git status --porcelain --untracked-files=all | wc -l`) and run `loops run triage --recheck --files <N> [--touches <any new>]`. It only adds steps back; follow its new skip list from here.
 
-## 4. QA, pipelined (§2.4)
+## 4. QA, pipelined, with a concurrent tail (§2.4)
 
 ```
 loops run phase qa
 ```
-Triage: `qa-verify` skipped means no verifier (go to step 7, the gate); `qa-per-lane` skipped means one `qa-verifier` (Agent id `qa-all`) for every lane's report, spawned when the last lane reports; `qa-quality` and `qa-security` skipped mean steps 6 and 6a do not run.
-1. As soon as an implementer reports (even while its wave-mates still run), spawn `qa-verifier` (Agent id `qa-<id>`, wave = same, the implementer's `Language:` line) with the report path, the owned paths, the contract and its ACs. Label it.
-2. Read the verifier's final message. Record every claim verdict from its QA file:
-```
-loops run verdict --name <id>:C<n> --status VERIFIED|FAILED --round N --ref qa/<id>.r<N>.md
-```
-3. On any FAILED:
-```
-loops run loopback --from qa-verifier --to <id> --round N --note "<claims>"
-```
-   Send the **same** implementer (resume or re-spawn per your tier, adding its previous report, the QA file and a ≤10-line history): `Fix the FAILED claims in <abs QA file>; re-run your scope; overwrite your report.` Then have the same verifier re-verify (round N+1) the same way.
-   On the second failed round of the same claim, the implementer's report must open with `## Premise` (ENGINEERING §11). Record it with `loops run event --kind note --name premise --note "<sentence>"` and include it in any escalation.
-4. Limits (§4): after 2 failed rounds, relaunch the implementer one tier up (haiku -> sonnet -> opus) via a new spawn with a higher model, plus a history summary and the QA files; relabel it. After 3 failed rounds: at a `qa` checkpoint ask the user; otherwise decide per WORKFLOW §2.7 (back to plan for that lane, move the claim to Open follow-ups when no AC needs it, or end `failed`) and record it.
-5. Verified lanes: stop the implementer and verifier of a lane once all of that wave's claims are VERIFIED and you do not plan to resume them.
-6. **Quality pass** (WORKFLOW §2.4): when every lane is VERIFIED, spawn one `qa-verifier` with Agent id `qa-quality` (round N, every `Language:` line) to run `loops:quality` over the run's changed code. Label it. For each finding:
-   - record `loops run verdict --name quality:Q<n> --status FAILED --round N --ref qa/quality.r<N>.md`;
-   - record `loops run loopback --from qa-quality --to <id> --round N`;
-   - send it to its lane like a failed claim. That lane's verifier re-verifies, and the pass runs again.
-
-   Same limits.
-6a. **Security pass** (WORKFLOW §2.4): when the quality pass is VERIFIED, spawn one `security-reviewer` (Agent id `qa-security`, round N, the `Language:` line of each pack, `Charter:`, and `Base: <commit>`: the commit the run started from, from `git merge-base HEAD <default branch>`, or the HEAD recorded at `loops run start`). Label it. Record each finding as `loops run verdict --name security:S<n> --status FAILED --round N --ref qa/security.r<N>.md`, then `loops run loopback --from qa-security --to <id> --round N` and send it to the owning lane like a failed claim, with the same limits. On a platform whose plugin cache lacks the role, spawn a general agent with `agents/security-reviewer.md` as its prompt.
-7. When the quality and security passes are VERIFIED, run the full gate yourself. It runs every detected pack's checks at its root, each under the pack's race policy (WORKFLOW §6):
-```
-loops gate
-```
-   Failures: route to the owning lane (find it from the file path; `loopback --from gate --to <id>`) and repeat QA for that lane. Do not start product until `gate all` is green. Then `loops run checkpoint qa`; `ask`: show the verdicts and the quality pass and ask Continue / Stop.
+Triage: `qa-verify` skipped means no verifier (only the gate, step 4); `qa-per-lane` skipped means one `qa-verifier` (Agent id `qa-all`) for every lane's report, spawned when the last lane reports; `qa-quality` and `qa-security` skipped mean those passes do not run.
+1. As soon as an implementer reports (even while its wave-mates still run), spawn `qa-verifier` (Agent id `qa-<id>`, wave = same, the implementer's `Language:` line) with the report path, the owned paths, the contract and its ACs. It records its own verdicts and loop-back with `loops run ingest`; read only the line it returns.
+2. **The tail, together, when the last implementer reports** (WORKFLOW §2.4): start the full gate in the background (`loops gate`, every detected pack under its race policy; on Claude Code a background Bash call), and spawn the quality pass (`qa-verifier`, Agent id `qa-quality`, every `Language:` line, running `loops:quality` in a private copy of the tree) and the security pass (`security-reviewer`, Agent id `qa-security`, each pack's `Language:` line, `Charter:`, and `Base: <commit>`: `git merge-base HEAD <default branch>`, or the HEAD recorded at `loops run start`). Both record their findings with `loops run ingest`. On a platform whose plugin cache lacks the security role, spawn a general agent with `agents/security-reviewer.md` as its prompt.
+3. **Loop-backs** (already recorded by `loops run ingest`; for the gate, record `loops run loopback --from gate --to <id> --round N`, finding the lane from the file path). Send the **same** implementer (resume or re-spawn per your tier, adding its previous report, the QA file and a ≤10-line history): `Fix the FAILED items in <abs QA file>; re-run your scope; overwrite your report.` Then the same verifier re-verifies (round N+1). After the fix, re-run each pass whose result it can change (quality, security) and always the full gate, on the final tree.
+   On the second failed round of the same item, the implementer's report must open with `## Premise` (ENGINEERING §11). Record it with `loops run event --kind note --name premise --note "<sentence>"` and include it in any escalation.
+   Limits (§4): after 2 failed rounds, relaunch the implementer one tier up (haiku -> sonnet -> opus) with `Model reason: escalation after 2 failed rounds`, a history summary and the QA files; it is labelled anew. After 3 failed rounds: at a `qa` checkpoint ask the user; otherwise decide per WORKFLOW §2.7 (back to plan for that lane, move the item to Open follow-ups when no AC needs it, or end `failed`) and record it.
+4. Done when every claim, the quality pass and the security pass are VERIFIED and `gate all` is green on the final tree. Stop the implementers and verifiers you will not resume. Then `loops run checkpoint qa`; `ask`: show the verdicts and the quality pass and ask Continue / Stop.
 
 ## 5. Product (§2.5)
 
 ```
 loops run phase product
 ```
-Triage step `product-proof` skipped: do the product step yourself, with no manual run, as WORKFLOW §2.8 says (AC verdicts citing tests or the gate, `pr.md`, `loops report`, then branch, commit, push and PR per §2.5 step 6, unless `--no-pr`; at a `product` checkpoint ask first). Otherwise spawn `product-reviewer` with the plan, reports, QA files and a `PR:` line: `none` under `--no-pr`; `hold` when `loops run checkpoint product` prints `ask`; otherwise `open`.
-- Gap found (FAILED AC): it records a loopback and returns proof paths. Run `loops run phase implement`, send the owning implementer the proof file (resume or re-spawn), then redo QA and the gate. After 2 product rounds (`MaxProductRounds`): at a `product` checkpoint ask the user; otherwise decide per WORKFLOW §2.7 (resume it with `PR: draft`, or end `failed`) and record it.
+Triage step `product-proof` skipped: after QA, do the product step yourself, with no manual run, as WORKFLOW §2.8 says (AC verdicts citing tests or the gate, `pr.md`, `loops report`, then branch, commit, push and PR per §2.5 step 6, unless `--no-pr`; at a `product` checkpoint ask first). Otherwise spawn `product-reviewer` **as soon as every lane is VERIFIED**, while step 4.2's tail still runs (unless `qa` is a checkpoint: then after the user continues), with the plan, reports, QA files, `Gate: pending` and a `PR:` line: `none` under `--no-pr`; `hold` when `loops run checkpoint product` prints `ask`; otherwise `open`. When QA is done (step 4.4), resume it with `Gate: green` and `Changed: <lane ids a QA loop-back changed since it started | none>`. The product-reviewer runs on its sonnet tier; spawn it on opus (with `Model reason:`) only when the plan's product lane says so.
+- Gap found (FAILED AC): it records a loopback and returns proof paths. Run `loops run phase implement`, send the owning implementer the proof file (resume or re-spawn), then redo QA for that lane and the gate. After 2 product rounds (`MaxProductRounds`): at a `product` checkpoint ask the user; otherwise decide per WORKFLOW §2.7 (resume it with `PR: draft`, or end `failed`) and record it.
 - `open`: it commits, pushes the branch `loops/<ticket>-<slug>`, opens the PR and records the `pr` event. `none`: it writes `pr.md` only.
 - `hold`: show the user `pr.md` (title, summary, decisions, Open follow-ups) and ask: "Push branch loops/<ticket>-<slug> and open the PR/MR (PR + overrides comment)?" Record the answer (`--by user`). On yes, resume the same reviewer with `PR: open`.
-- Reflect ran first (file store, WORKFLOW §2.5, §2.6 step 4): when the reviewer finishes, the lead appends its PR link and any product loop-back line to `$RUN/reflection.md`.
+- Reflect ran first (file store, WORKFLOW §2.5, §2.6 step 4): reflect runs once QA is done and before you resume the product-reviewer with `Gate: green`; when it finishes, append its PR link and any product loop-back line to `$RUN/reflection.md`.
 
 ## 6. Reflect and end (§2.6)
 

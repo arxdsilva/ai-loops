@@ -35,16 +35,19 @@ Project rules win: when you follow a project rule over a loops rule, record it w
    Keep every lane the smallest edit that ends in a state another agent can check, with each decision in one place.
 3. Write the contract: ports, consumer-owned interfaces, typed commands/DTOs, stubs, deps, shared config. This is wave 0 for the `architect`. Wave 0 also has one `<id>-engineer` per detected pack that a lane uses (`python-engineer`, `go-engineer`, ...): it sets up the toolchain, lint/format configs, CI and the test and coverage prerequisites (`loops:lang-<id>`). Manifests and lockfiles have one owner: that engineer, or the architect when its stubs need new dependencies.
 4. Split work into waves sized to the effective cap = min(`parallel.max_agents` in `.loops/config.json`, default 100; `research/hardware.json` `max_parallel_agents`; opt-in `limits.max_agents`). A wave larger than the cap becomes sub-waves (`W1a`, `W1b`). The same role may appear several times in a wave (`W1-domain-orders`, `W1-domain-payments`) when their globs are disjoint; each gets its own qa-verifier (WORKFLOW §2.2). Split work into waves (producers before consumers). Per implementer give: id (`W1-domain`), role, `language` (a detected pack id; the lead adds `Language: <id> (root <dir>)` to its prompt), model reason, **disjoint** `Owns` globs, `Must not touch`, Goal, Starts at (`file:line`), Behaviour (numbered, with edge cases), Claims to prove (`C1...`, each testable by a named test or command), Done when, Out. Default `Owns` per layer role: that layer of its pack root (`loops:lang-<id>` layout; Go: `internal/domain/**`). No two agents' globs may overlap; shared files go to the architect. A lane touching two packs is two lanes.
+   - Waves: a lane goes into a later wave only when it needs code another lane writes. Test lanes (`test-engineer`: failing tests against the stubs) and docs lanes that only need the contract go in wave 1 (WORKFLOW §2.3).
+   - Model: the role's tier (`ROLES.md`) by default. A higher one needs a reason in the model column (concurrency, consistency, migration; for the product lane, product judgement); the lead passes it on as `Model reason:` (WORKFLOW §3).
+4d. Self-check before you finish, against the reviewer's checklist (`templates/PLAN_REVIEW.md`): every file a Behaviour step edits is in one lane's Owns; each claim would fail on HEAD (a fake that makes it pass before the change is a defect); every AC is in a lane's claims, the QA pairing and the proof plan; no two lanes run tests over the same package scope; each recurring lesson has its decision.
 4a. Fill the **Concurrency** block of `templates/PLAN.md`, then run `loops plan check <Run dir>/plan.v<N>.md` and fix every finding before you finish.
 4b. Copy every entry of `research/practices.md` `## Project rules that supersede loops` into the plan as an accepted override (plan section Risks and open questions).
 4c. Source in a language with no pack (`research/code.md` `## Languages`): no `<id>-engineer` and no gate for it; list it under Risks and open questions.
 5. QA pairing: one `qa-verifier` per implementer. Add consistency, compatibility and performance notes (WORKFLOW §8).
 6. Proof plan: per AC, the manual command the product-reviewer will run and the expected result, plus edge cases.
-7. On revision: address every blocking item by number in a short "Changes since v<N-1>" list.
+7. On revision: apply each blocking item's edit as the review states it (or say why not), list them by number in a short "Changes since v<N-1>" list, and change nothing else: round 2 is a delta review (WORKFLOW §2.2).
 8. Smallest sufficient: one-file fix = one implementation lane; its `<id>-engineer` then only confirms the toolchain and prerequisites are in place.
 
 ## Output
-`<Run dir>/plan.v<N>.md` from `templates/PLAN.md` (and `TASK_PACKET.md` for blocks). Final message (at most 120 words): wave count, agent ids, open risks, file path.
+`<Run dir>/plan.v<N>.md` from `templates/PLAN.md` (and `TASK_PACKET.md` for blocks). Final message (at most 60 words): wave count, agent ids, open risks, file path.
 
 ## Done when
 `loops plan check` is clean; every AC has a claim and a proof; every agent has a `language`, Owns/Must-not-touch with no overlap; every pack a lane uses has its `<id>-engineer` in wave 0; every claim is verifiable; the contract is complete.

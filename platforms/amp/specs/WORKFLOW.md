@@ -14,7 +14,7 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 - **Send back with context.** A reviewer that rejects work says exactly what is wrong, how to reproduce it, and where to fix it. The lead sends the work back to the **same** author (resumed where the platform supports it, otherwise a new agent of the same role seeded with its previous report and the review file; see `specs/PLATFORMS.md` §4) so context carries over.
 - **Project rules win.** The target repository's own rules always take precedence over loops' specs, skills and templates. That means its AGENTS.md, CLAUDE.md, `.cursor/rules`, CONTRIBUTING, linter configs and established architecture. Any agent that follows a project rule instead of a loops rule records it immediately: `loops run override --rule "<loops rule>" --project "<project rule, file:line>" --note "<what was done>"`. The reflector posts the list as a PR comment (§2.6).
 - **Everything is visible.** Every phase change, agent lane, tool call, verdict, loop-back, gate, proof and memory access lands in `events.jsonl` (§5).
-- **Runs leave no trace.** Each run builds with its own build caches and tmp dirs in a private scratch folder outside the project (`$TMPDIR/loops-<uid>/<run id>-<suffix>`, recorded in the run dir's `scratch` file; a run without one keeps them in the run dir), one set per detected language pack (the pack's `cache_env` and `cache_argv`; Go: `GOCACHE`, `GOTMPDIR`). `loops run end` deletes them along with the build leftovers agents created (the pack's `artifacts`; §2.6, §5). Download and package caches stay shared (the pack's `shared_env`), and the user's global caches are never touched.
+- **Runs leave no trace.** Each run builds with its own build caches and tmp dirs in a private scratch folder outside the project (`$TMPDIR/loops-<uid>/<run id>-<suffix>`, recorded in the run dir's `scratch` file; a run without one keeps them in the run dir), one set per detected language pack (the pack's `cache_env` and `cache_argv`; Go: `GOCACHE`, `GOTMPDIR`). `loops run end` deletes them along with the build leftovers agents created (the pack's `artifacts`; §2.6, §5). Download and package caches stay shared (the pack's `shared_env`), and so does Go's build cache, which every run under the per-user base reuses (`$TMPDIR/loops-<uid>/shared/go-cache`): it is content-addressed and trims itself, so a run starts warm instead of recompiling the tree with `-race`. The user's global caches are never touched.
 - **Make it work, then make it right.** Every phase applies `specs/ENGINEERING.md`:
   - plan: smallest edit, data shape first, subtract before adding, redesign instead of bolting on, levers (§1–§6);
   - implement: test first with the red seen, the domain modelled, idempotency (§7–§9);
@@ -36,7 +36,7 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 
 Triage (§2.8) may skip steps of these phases. A skipped step writes no output, and its exit criterion is met by the replacement §2.8 names. A phase whose every step is skipped is not entered (research, for a trivial run).
 
-QA starts pipelined: a verifier launches as soon as its implementer reports, even while other implementers in the wave are still running. A phase can be re-entered: if product returns work, the run goes back to `implement`, and then through `qa` again. With the file store active (§7), reflect runs between qa and product (qa -> reflect -> product), so its pages land in the PR's commit; a product loop-back then goes implement -> qa -> product, and the lead appends each loop-back and the PR link to `reflection.md`. Otherwise reflect runs after the PR. The `run.Next` texts guide this (§2.7).
+QA starts pipelined: a verifier launches as soon as its implementer reports, even while other implementers in the wave are still running. Its tail is concurrent: when the last implementer reports, the full gate, the quality pass and the security pass start together beside the verifiers (§2.4), and product proofs start once every lane is VERIFIED (§2.5); only the PR waits for all of them. A phase can be re-entered: if product returns work, the run goes back to `implement`, and then through `qa` again. With the file store active (§7), reflect runs between qa and product (qa -> reflect -> product), so its pages land in the PR's commit; a product loop-back then goes implement -> qa -> product, and the lead appends each loop-back and the PR link to `reflection.md`. Otherwise reflect runs after the PR. The `run.Next` texts guide this (§2.7).
 
 ### 2.0 Intake
 
@@ -94,6 +94,7 @@ Flags on `/loops:work`:
   1. Record `loops run loopback --from plan-reviewer --to planner --round N --note "<one line>"`.
   2. Send the review file back to the same planner (resume or re-spawn per platform tier). It writes `plan.v<N+1>.md`.
   3. Review again.
+- **Round 2 is a delta.** Every blocking item states the exact edit (the section or lane, and the text to add, change or remove). The planner applies the edits and changes nothing else; the same reviewer, resumed, checks only that each item is resolved and that the edits broke nothing they touch, and runs `loops plan check`. Before it hands in any version, the planner checks its plan against the reviewer's checklist (`agents/planner.md` step 4d).
 - After `MaxPlanRounds` (3) rounds with blocking items still open, the lead rules on each one (§2.7), or asks the user when `plan` is a checkpoint.
 - **Scope check.** Before it accepts an approved plan, the lead checks it against `charter.md`: every AC is served by at least one lane, no lane serves nothing in scope, and every out-of-scope item stays out. A gap goes back to the planner as a new round. The lead then adds the plan version and the final ACs to the charter.
 - At a `plan` checkpoint the lead shows a ≤25-line plan summary (ask the user: Approve / Request changes / Stop). "Request changes" sends the user's notes to the planner as a new round. The answer is recorded with `loops run decide --by user`.
@@ -108,6 +109,8 @@ Flags on `/loops:work`:
 - **Waves 1…n:** launch every agent of a wave together, in parallel where the platform allows.
   - The order is producers (domain, application) before consumers (inbound and outbound adapters). Consumers may start early against the stubs.
   - Each agent gets its own block from the plan: Goal, Starts at, Behaviour, Owns, Must not touch, Claims to prove, Done when, and Out.
+  - A lane waits for a later wave only when it needs code another lane writes. Test lanes (failing tests against the stubs) and docs lanes that need only the contract start in wave 1.
+- Before it reports, every implementer runs on its owned scope the checks QA and the gate will run (build, lint, tests, `loops arch`, and the pack's CRAP and duplication tools; `ROLES.md` "Check before you report"), so a finding costs no QA round.
 - Every implementer finishes with a **claims report** (`templates/CLAIMS_REPORT.md`, at most 400 words) saved to `reports/<agent-id>.md`. Each claim has the form `C<n>: <statement> — evidence: <test name | command → result | file:line>`. Under `## Red first` the report gives each new test and the failure it showed before the change (`specs/ENGINEERING.md §7`).
 
 ### 2.4 QA
@@ -134,28 +137,29 @@ Flags on `/loops:work`:
   - a fix that only guards the symptom, with no reproducing test, fails;
   - a bug-fix claim without a regression test (`specs/TESTING.md §1`) fails;
   - an unexplained compiler or lint suppression fails.
-- For each verdict, record `loops run verdict --name <agent-id>:C<n> --status VERIFIED|FAILED --round N --ref qa/<file>`.
+- The verifier records its own result: `loops run ingest qa/<agent-id>.r<N>.md` records one `verdict` per claim (`<agent-id>:C<n>`) and, when the file's verdict is FAILED, the `loopback --from qa-verifier --to <agent-id> --round N`. The lead reads only the line it printed.
 - When anything has FAILED:
-  1. Record `loops run loopback --from qa-verifier --to <agent-id> --round N`.
+  1. The loop-back is already recorded (by `loops run ingest`).
   2. Send the QA file back to the same implementer (resume or re-spawn per platform tier).
   3. When it reports again, re-verify with the same verifier (resume or re-spawn).
 - After `EscalateAfter` (2) failed rounds, relaunch the implementer one model tier up (haiku → sonnet → opus), with a summary of the history.
 - After `MaxQARounds` (3) failed rounds, the lead decides (§2.7), or asks the user when `qa` is a checkpoint.
 - **Attack the premise.** When the same claim fails a second round, the implementer does not try a third fix on the same premise. Its next report states that premise under `## Premise`, and the lead records it (`specs/ENGINEERING.md §11`, §4).
-- **Quality pass.** When every lane is verified, one `qa-verifier` with Agent id `qa-quality` runs `skills/quality` on the run's changed code.
+- **The QA tail runs concurrently.** When the last implementer reports (its wave's verifiers may still be running), the lead starts together: the full `loops gate` in the background, the quality pass and the security pass. None of them edits the tree, and the quality pass runs its tools in a private copy of it (`skills/quality`), because mutation testing rewrites source files. Each counts against `max_concurrent_test_runs`. A loop-back from any of them, or from a verifier, changes code: once the fix is re-verified, every pass whose result it can change runs again, and the full gate always runs again on the final tree.
+- **Quality pass.** One `qa-verifier` with Agent id `qa-quality` runs `skills/quality` on the run's changed code.
   - It measures CRAP, structural duplication and mutation survivors (`specs/ENGINEERING.md §13`) and writes `qa/quality.r<N>.md` (`templates/QUALITY.md`).
-  - Each finding names its owning lane. The lead records `loops run verdict --name quality:Q<n> …` and sends the findings back to that lane like a failed claim (`loopback --from qa-quality --to <agent-id>`), with the same limits (§4). That lane's verifier then re-verifies, and the pass runs again.
+  - Each finding names its owning lane. The pass records them itself with `loops run ingest qa/quality.r<N>.md` (`quality:Q<n>` verdicts and one `loopback --from qa-quality --to <agent-id>` per lane), and the lead sends the findings back to that lane like a failed claim, with the same limits (§4). That lane's verifier then re-verifies, and the pass runs again.
   - A tool that isn't installed is recorded and never blocks.
-- **Security pass.** Once per QA round, after the quality pass, one `security-reviewer` runs as Agent id `qa-security` and writes `qa/security.r<N>.md` (`templates/SECURITY.md`, `agents/security-reviewer.md`).
+- **Security pass.** Once per QA round, beside the quality pass, one `security-reviewer` runs as Agent id `qa-security` and writes `qa/security.r<N>.md` (`templates/SECURITY.md`, `agents/security-reviewer.md`).
   - It runs `loops gate --security`: each pack's security tools (its `security.checks`; `loops lang show <id>`), for this pass only. A pack with no tools is noted with its reason.
   - The lead passes the run base as a `Base: <commit>` prompt line: the commit the run started from (`git merge-base HEAD <default branch>`, or the HEAD recorded at `loops run start`).
-  - Only a finding absent from the run base blocks. The lead records `loops run verdict --name security:S<n> …` and sends the finding to its lane like a failed claim (`loopback --from qa-security --to <id>`), with the same limits (§4).
+  - Only a finding absent from the run base blocks. The reviewer records them itself with `loops run ingest qa/security.r<N>.md` (`security:S<n>` verdicts and one `loopback --from qa-security --to <id>` per lane), and the lead sends each finding to its lane like a failed claim, with the same limits (§4).
   - A tool that isn't installed is recorded and never blocks.
-- Then the lead runs the full `loops gate`. Gate failures go back to the owning lane the same way.
+- The full `loops gate` the lead started in the background must be green on the final tree. Gate failures go back to the owning lane the same way (`loopback --from gate --to <id>`).
 
 ### 2.5 Product
 
-The `product-reviewer` does the following, in order:
+The `product-reviewer` does the following, in order. It starts as soon as every lane is VERIFIED, while the QA tail (§2.4) still runs, with a `Gate: pending` prompt line, unless `qa` is a checkpoint: then it starts after the user continues. It proves the ACs (steps 1-5) and stops; when the gate is green and the quality and security passes are VERIFIED, the lead resumes it with `Gate: green` and `Changed: <lane ids | none>`, the lanes a QA loop-back changed since. It re-proves the ACs those lanes serve, then goes on to step 6. A change only to test files changes no AC.
 
 1. Maps each AC to the claims that serve it.
 2. **Tests manually.** It builds and runs the service (the repo's `make run`, docker compose, or the language's run command, e.g. `go run ./cmd/<svc>`), then exercises every AC through the real interface (curl, grpcurl, the CLI). It also probes edge cases:
@@ -236,6 +240,7 @@ Every spawn passes `Charter: <abs path>` (§3), and every role reads it first. A
 **Context: re-anchor, never recall.** The run's state lives in `events.jsonl` and the run dir, not in the lead's context:
 - `loops run phase <p>` records the phase and prints the brief: the run, the charter path, the phase path, the checkpoints, running agents, open failures, the gate, the latest decisions and the next step. `loops run brief [--json]` prints it at any time.
 - After a compaction or in a resumed session, the `session-start` hook adds the same brief to the lead's context. The lead continues from it and does not restart finished phases.
+- Every lead turn re-reads the session, so a run belongs in a fresh session. When `loops run start` runs in a session that already holds a large context, the `trace` hook says so, and the lead tells the user once that `/clear` and "continue the loops run" resumes the run from the brief.
 - When the brief and the lead's memory disagree, the brief wins. The lead opens a file the brief names only when a decision needs it (§1).
 
 **Checkpoints: the user is opt-in, per phase.** By default there are none: the lead runs every phase without asking. The user opts in to any phase, or `all`:
@@ -354,19 +359,20 @@ The prompt is the agent's block from the plan plus these lines:
 - `Wave: <n>`
 - `Language: <id>` (implementers and QA; from `research/language.json`)
 - `Charter: <abs path to charter.md>` (§2.7)
+- `Model reason: <reason>`, only when the spawn passes a model above the role's tier: an escalation (§4) or the plan lane's model column. `model-guard` denies such a spawn without it (§6).
 
 ### 3a. Model fallback
 
 Each role's tier (`ROLES.md`) is a preference. The planner and plan-reviewer default to **opus**, the strongest available reasoning model.
 - If a spawn fails because the requested model is unavailable (not on the user's plan, not enabled for the org or platform, or over capacity), the lead re-spawns the same role with the next-best model the user has:
-  - reasoning roles (planner, plan-reviewer, architect, product-reviewer, escalated roles): opus → sonnet → the session model;
+  - reasoning roles (planner, plan-reviewer, architect, escalated roles, and a product lane the plan runs on opus): opus → sonnet → the session model;
   - other roles: one tier down at a time, then the session model.
 - Platforms that don't use Claude model names use the strongest reasoning model in their own list, or the session model.
 - Record each fallback: `loops run event --kind note --name model-fallback --role <role> --note "<wanted> unavailable → <used>"`, and label the lane with the model actually used (`loops run label … --model <used>`).
 - Plan quality matters most, so tell the user in one line when the planner or plan-reviewer had to run below opus.
 - Never stop the run because a preferred model is missing.
 
-Right after each spawn, the lead names the lane: `loops run label --agent <platform agent id, or solo-<n>> --name <W1-domain> --role <role> --wave <n>`. Hooks only see the platform's opaque agent id (or none, on platforms without subagent events); the label ties it to the plan id used in claims (`W1-domain:C3`), verdicts and the pane.
+Each lane is named once: `loops run label --agent <platform agent id, or solo-<n>> --name <W1-domain> --role <role> --wave <n>`. On Claude Code the `trace` hook records it from the spawn itself (the prompt's `Agent id:`, `Role:` and `Wave:` lines, the platform's agent id and the resolved model), so the lead does not; elsewhere the lead runs it right after each spawn. Hooks only see the platform's opaque agent id (or none, on platforms without subagent events); the label ties it to the plan id used in claims (`W1-domain:C3`), verdicts and the pane.
 
 ## 4. Loop limits
 
@@ -399,15 +405,16 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 | Source | Emits |
 |---|---|
 | Skills (lead), through `loops run …` | `phase`, `loop_back`, `verdict`, `proof`, `memory`, `note`, `pr`, `ask`, `decision`, `triage`, `end` |
-| Hook `trace` (PostToolUse, PostToolUseFailure) | `step`, with `agent_id`/`agent_type`, so steps land in their lane |
+| Hook `trace` (PostToolUse, PostToolUseFailure) | `step`, with `agent_id`/`agent_type`, so steps land in their lane; on Claude Code also the `label` of each spawn (§3) |
 | Hook `post-edit` (PostToolUse on Edit/Write/MultiEdit; alias `go-post-edit`) | `step` with the pack's single-file format and lint result (Go: gofmt/goimports + go vet) |
 | Hook `trace-agent` (SubagentStart, SubagentStop) | `agent_start`, `agent_stop` |
+| Hook `stop-gate` (Stop) | `note` named `lead-tokens`: the lead's own tokens since the run started, read from its transcript (`run.State.LeadTokens`) |
 | Hooks `read-guard`, `model-guard`, `test-guard` (alias `race-guard`), `toolchain-env` (alias `go-env`) | `guard_deny` |
 | `loops run end` / `loops run clean` | `note` named `cleanup` (what was freed); a refused `--outcome done` records a `note` named `end-gate` |
 | `loops gate` | `gate`, one per check (with `pack` when several packs are detected) plus `all` |
 
 The CLI commands that write these events:
-- `loops run phase <phase> [--note]`: records the phase, then prints the brief (§2.7).
+- `loops run phase <phase> [--note]`: records the phase, then prints the brief (§2.7) and a last line `Checkpoint: ask|auto` for that phase, the answer `loops run checkpoint` gives.
 - `loops run ask [<list>]`: records the checkpoints (phase names, `approve`, `pr`, `all` or `none`; no list = `.loops/config.json` `ask`) and prints them.
 - `loops run checkpoint <phase>`: prints `ask` when the lead stops for the user at that phase, else `auto`. Writes nothing.
 - `loops run decide --topic T --note text [--by lead|user] [--ref f] [--phase P]`: records a decision.
@@ -417,11 +424,13 @@ The CLI commands that write these events:
 - `loops run event --kind K [--name --target --from --to --status --ok --round --wave --role --agent --model --ref --note --phase --ms]`
 - `loops run loopback --from R --to A --round N [--note] [--phase]`
 - `loops run verdict --name X --status S [--round N] [--ref f] [--agent A] [--role R]`
+- `loops run ingest <qa file> [--json]`: records a QA file's results, written from the templates: `qa/<agent-id>.r<N>.md` gives a `verdict` per claim and, on a FAILED verdict, a `loopback` from `qa-verifier`; `qa/quality.r<N>.md` and `qa/security.r<N>.md` give a FAILED verdict per finding (`quality:Q<n>`, blocking `security:S<n>`) and a `loopback` per owning lane, or one `quality`/`security` VERIFIED verdict. Idempotent; prints one summary line. Exit 2 on a file it cannot read as a QA file.
 - `loops run label --agent <id> --name <plan id> --role R --wave N [--model M]`
 - `loops run override --rule <loops rule> --project <project rule> [--note] [--agent A] [--role R]`
 - `loops budget check --phase P [--spawn N] [--role R]` (writes a `budget` event when it blocks)
 - `loops budget parse [--max-agents N] [--budget p=200k,…] [--agents p=N,…] [--roles p=a,b]` prints the limits JSON for `loops run event --kind limits`. `loops budget show` prints usage against the limits.
 - `loops hw [--json] [--write]` and `loops plan check <plan> [--cap N]`
+- `loops stats [--json] [--root dir] [<run dir>…]`: measures recorded runs (default: every run under `.loops/runs`) from their events: wall time and minutes per phase, minutes with no agent running, agents and peak concurrency, tokens per role and the lead's, loop-backs by source, the longest gate test check and guard denials. Writes nothing.
 - `loops run end [--outcome done|abandoned|failed] [--no-clean]`: ends the run and, unless `--no-clean`, deletes the run's caches and tmp dirs (the whole scratch folder) and the build leftovers created during the run, then records a `cleanup` note event with what was freed. Abandoned and failed runs are cleaned too. `--no-clean` keeps everything for debugging. `--outcome done` is refused (exit 1, nothing cleaned, the run stays active) while the end gate (§6) holds.
 - `loops run clean [--dry-run] [--json]`: the same cleanup on demand; `--dry-run` only lists what would be deleted and what is kept for review.
 - `loops run env [--shell sh|fish|powershell]`: prints the run-scoped environment of the detected packs (Go: `GOCACHE`, `GOTMPDIR`) as `export` lines for the chosen shell, so a shell can load them before running toolchain commands by hand.
@@ -484,8 +493,9 @@ A required race or substitute check that is skipped fails the full gate, as a sk
 
 **Hooks.** The new names are canonical; the old names stay as aliases, so existing hook configs keep working.
 
-- **`test-guard`** (PreToolUse on Bash; alias `race-guard`) is the race-guard above. It matches commands against each pack's `test_commands`. It denies only in `flag` mode (Go `-race`, Swift `--sanitize=thread`): a test command without the pack's race flag (or race env, e.g. `GOFLAGS=-race`). In `build` and `none` mode it never denies; the policy is enforced by the full gate's `race.checks`, not per command.
+- **`test-guard`** (PreToolUse on Bash; alias `race-guard`) is the race-guard above. It matches commands against each pack's `test_commands`. It denies only in `flag` mode (Go `-race`, Swift `--sanitize=thread`): a test command without the pack's race flag (or race env, e.g. `GOFLAGS=-race`). A Go `go test` without `-race` is not denied where `toolchain-env` rewrites that command (it adds `-race` while it scopes the caches), so the agent loses no turn; every other case is denied. In `build` and `none` mode it never denies; the policy is enforced by the full gate's `race.checks`, not per command.
 - **`toolchain-env`** (PreToolUse on Bash; alias `go-env`) scopes every agent's toolchain command to the run's caches and tmp dirs (the pack's `cache_env`, `cache_argv`). For Go it rewrites the command where the platform's hooks can, and otherwise denies with a hint to use `loops go <args>` (or `loops exec -- <cmd>`) or `loops exec -- <cmd>`: the command is rewritten on Claude Code, Gemini CLI, Windsurf/Devin and Antigravity; on Codex and Cursor only a lone `go build|test|vet|list` is rewritten, and anything else is denied; on Copilot and OpenCode it is always denied (`specs/PLATFORMS.md` §5). For every other pack it only rewrites, on Claude Code, Gemini CLI, Windsurf/Devin and Antigravity, and otherwise fails open; it never denies. Agents there run toolchain commands through `loops exec -- <cmd>`. `loops gate` uses the run environment automatically. Agents never set cache variables themselves.
+- **`model-guard`** (PreToolUse on Agent/Task) denies a general-purpose spawn without a model, and a spawn whose `model` is above the role's tier (its `agents/<role>.md` frontmatter) unless the prompt carries a `Model reason:` line (§3).
 - **`post-edit`** (PostToolUse on Edit/Write/MultiEdit; alias `go-post-edit`) runs the pack's `post_edit` on the edited file: its single-file formatter, then its lint on the file's directory (Go: gofmt/goimports, then `go vet`). A failure is sent back to the agent. A pack with no single-file formatter has no post-edit step.
 
 A full pass records `gate all ok`, which clears the dirty flags (`run.State.SourceDirty` for any pack's sources; `GoDirty` for `.go` files, kept for compatibility). A scoped run (`--pkgs`, `--only`, `--enable` or `--security`) never records `all`, and `--security` records no `gate` events at all.

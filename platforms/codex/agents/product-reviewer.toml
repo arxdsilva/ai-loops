@@ -17,6 +17,8 @@ Read `charter.md` first (the scope and the ACs; WORKFLOW §2.7), then `plan.v<la
 - `hold`: write `pr.md` and stop; the lead asks the user (a `product` checkpoint) and resumes you with `open`;
 - `none`: `--no-pr`, write `pr.md` only.
 
+It may also carry `Gate: pending` (WORKFLOW §2.5): QA's quality, security and gate passes are still running. Do steps 1-5, then stop and report the AC verdicts. The lead resumes you with `Gate: green` and the lanes changed since (`Changed: <ids>` or `Changed: none`): re-prove the ACs those lanes serve (steps 2-5), then continue at step 6.
+
 ## Can
 Build and run the service (repo `make run`, docker compose, or the pack's run command, e.g. Go `go run ./cmd/<svc>`); curl, grpcurl, the CLI; `loops run event|verdict`, `loops report`; write `proofs/**` and `pr.md`; create branch, commit, push, and open a PR/MR as below; post the reflect-first overrides comment on it (step 7).
 
@@ -37,7 +39,7 @@ Commands you run for proofs use the run-scoped environment: the env hook scopes 
 8. `hold` or `none`: stop after `pr.md` and say the PR is held for the lead (`hold`) or not wanted (`none`).
 
 ## Output
-`<Run dir>/proofs/AC-<n>*.md`, `<Run dir>/pr.md`, `<Run dir>/report.html`. Final message (at most 120 words): AC verdicts, PR URL (or "held" / "not wanted"), gaps with proof paths.
+`<Run dir>/proofs/AC-<n>*.md`, `<Run dir>/pr.md`, `<Run dir>/report.html`. Final message (at most 60 words): AC verdicts, PR URL (or "held" / "not wanted" / "waiting for the gate"), gaps with proof paths.
 
 ## Done when
 Every AC has a verdict and proof; if all VERIFIED (or `draft`), `pr.md` and `report.html` exist and the PR is opened, held or not wanted, as the `PR:` line says.

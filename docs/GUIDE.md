@@ -164,7 +164,7 @@ When a newer release exists, the session context carries one line: `loops vX is 
 
 - **Runs leave no trace.** Agents build with run-scoped build caches and tmp dirs (per language pack) that are deleted at the end, along with any binaries or test artifacts they left behind; download caches stay shared and your global caches are untouched.
 
-Everything is recorded in `.loops/runs/<id>/events.jsonl`, written by the skills (`loops run …`) and by the plugin's hooks. Build caches never enter the project: each run's caches and tmp dirs live in a private folder under your temp directory (`$TMPDIR/loops-<uid>/`), deleted by `loops run end`. Git never sees `.loops/`: loops writes a `.loops/.gitignore` of `*` when it creates the folder, so run data, caches and settings stay local (share the settings with `git add -f .loops/config.json`). `loops run dir` prints a run's folder and `loops report` opens it as one HTML page.
+Everything is recorded in `.loops/runs/<id>/events.jsonl`, written by the skills (`loops run …`) and by the plugin's hooks. Build caches never enter the project: each run's caches and tmp dirs live in a private folder under your temp directory (`$TMPDIR/loops-<uid>/`), deleted by `loops run end`. Go's build cache is the exception that is kept: every run shares `$TMPDIR/loops-<uid>/shared/go-cache`, so the next run's first build and race-test compile start warm (go trims it itself; delete the folder to reset it). Git never sees `.loops/`: loops writes a `.loops/.gitignore` of `*` when it creates the folder, so run data, caches and settings stay local (share the settings with `git add -f .loops/config.json`). `loops run dir` prints a run's folder and `loops report` opens it as one HTML page. `loops stats` measures every recorded run at once: wall time and minutes per phase, minutes with no agent running, agents and peak concurrency, tokens per role and the lead's, loop-backs by source, the longest gate test and guard denials (`--json` for scripts).
 
 ## Languages
 
@@ -294,7 +294,7 @@ Each scenario gets a fresh git repo in your temp directory: the fixture is commi
   the lead (master agent) runs all seven, decides instead of asking, re-anchors with `loops run brief`
 ```
 
-In the QA phase, the `security-reviewer` runs the security pass once per round, after the quality pass: `loops gate --security` runs each pack's declared vulnerability and SAST checks (Go: `govulncheck`, `gosec`). A tool that is not installed is skipped and noted, not failed, and the pass records no gate events.
+In the QA phase, the `security-reviewer` runs the security pass once per round, beside the quality pass and the full gate: `loops gate --security` runs each pack's declared vulnerability and SAST checks (Go: `govulncheck`, `gosec`). A tool that is not installed is skipped and noted, not failed, and the pass records no gate events.
 
 ## Layout
 

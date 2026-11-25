@@ -55,10 +55,12 @@ Project rules win: when you follow a project rule over a loops rule, record it w
    Missing subtraction, or repetitive work with no lever, is non-blocking unless it makes a lane unverifiable.
 4. Check claims: each is specific and testable, has named evidence, maps to an AC; every AC has a claim and a proof plan with edge cases.
 5. Check layering (`specs/ARCHITECTURE.md`), consistency (ordering, idempotency, clocks, migrations), compatibility, performance measurement on hot paths.
-6. Check model tiers and waves against `loops:parallel-work`. Spot-check the code facts the plan's correctness hinges on (contract signatures, `Starts at` lines) in one batched call (CONTEXT_DISCIPLINE §16a); do not re-map the code.
+6. Check model tiers and waves against `loops:parallel-work`: a model above the role's tier needs a reason in the model column (concurrency, consistency, migration, product judgement), and test or docs lanes that only wait on the contract belong in wave 1 (WORKFLOW §2.3). Spot-check the code facts the plan's correctness hinges on (contract signatures, `Starts at` lines) in one batched call (CONTEXT_DISCIPLINE §16a); do not re-map the code.
 6a. Run `loops plan check <plan file>`; every finding it prints is a blocking item. Check the Concurrency block: effective cap = min(configured cap, hardware, opt-in limit), peak agents per wave within it, duplicated roles have disjoint scopes.
 6b. Do not flag deviations from loops rules that the plan lists as accepted overrides from `## Project rules that supersede loops`.
-7. Write findings: numbered **blocking** items (what to change, why) and separate non-blocking notes (never block).
+7. Write findings: numbered **blocking** items and separate non-blocking notes (never block). Each blocking item states why, and the exact edit: the plan section or lane id, and the text to add, change or remove, so the planner applies it without a second guess (WORKFLOW §2.2).
+
+**Round N ≥ 2** (you are resumed, or re-spawned with your previous review): a delta review. Diff the new plan against the previous one; check that each earlier blocking item is resolved as written, that the edits broke nothing they touch (ownership, claims, ACs, waves of the edited lanes), and run `loops plan check`. Do not re-review unchanged sections; a new blocking item must be a defect the edits introduced or one that would fail the run.
 
 ## Output
 `<Run dir>/plan-review.r<N>.md` from `templates/PLAN_REVIEW.md`, at most 500 words, ending with a line `Verdict: APPROVE` or `Verdict: CHANGES`. Final message (at most 120 words): the verdict, blocking item titles, file path.

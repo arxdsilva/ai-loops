@@ -28,6 +28,17 @@ Other packs: use the project's configured native tool from `skills/lang-<id>/tes
 
 The run's changed source files: tracked and untracked changes against the run's base. That is the set `git status --porcelain` shows while the run is uncommitted (loops' default), so the tools' `--changed` selects it. Otherwise pass the files explicitly. Test files, generated files and the pack's `coverage.exclude` are out of scope. Only functions the run **added or changed** are blocking. Read their line ranges from `git diff -U0`. Findings in other functions of the same files are notes.
 
+## Isolation
+
+The pass runs beside the full gate, the security pass and product proofs (WORKFLOW §2.4), and mutation rewrites source files while it runs. So run every tool in a private copy of the tree, never in the project itself:
+```
+T="$(cat <Run dir>/scratch 2>/dev/null || echo <Run dir>)/quality-tree"
+git worktree add --detach "$T" HEAD
+git diff HEAD --binary | git -C "$T" apply
+git ls-files --others --exclude-standard -z | tar --null -T - -cf - | tar -xf - -C "$T"
+```
+Run each tool from the project root through `loops exec`, so it keeps the run's environment, and change into the copy inside it: `loops exec --pack <id> -- sh -c 'cd "<T>" && <tool> …'`. Paths in the tools' output are relative to the copy's root, which is the project's. Keep the copy across rounds, so later rounds stay differential: at round N>1, refresh it with `git -C "$T" reset -q --hard HEAD && git -C "$T" clean -fdq -e .metrics/ -e target/`, then the last two lines above again. When your verdict is VERIFIED, remove it: `git worktree remove --force "$T"`.
+
 ## Steps
 
 1. **CRAP.** Run `loops exec --pack <id> -- crapper --changed`.
@@ -60,13 +71,13 @@ The run's changed source files: tracked and untracked changes against the run's 
 ## Verdict
 
 - `VERIFIED` when there are no findings. It is also `VERIFIED` when no tool could run; the file then says so, and the reflection notes it.
-- Otherwise `FAILED`. The lead records `loops run verdict --name quality:Q<n> --status FAILED --round N --ref qa/quality.r<N>.md` and sends each lane its findings (`loopback --from qa-quality --to <id>`).
+- Otherwise `FAILED`. Record it yourself: `loops run ingest <Run dir>/qa/quality.r<N>.md` records each `quality:Q<n>` verdict and one `loopback --from qa-quality --to <id>` per lane (or the `quality` VERIFIED verdict); the lead sends each lane its findings.
 - After the fixes, the same verifier re-runs the pass (round N+1).
 - The loop limits of WORKFLOW §4 apply, and so does ENGINEERING §11 when a finding survives two rounds.
 
 ## Outputs and cleanup
 
-The tools write `.metrics/` (the crapper and mutator snapshots, which uml-viewer reads) and `target/coverage/`. For the six packs these are pack artifacts, so `loops run end` removes them when the run created them. They are never committed. Do not write anything else in the repo.
+The tools write `.metrics/` (the crapper and mutator snapshots, which uml-viewer reads) and `target/coverage/` inside the copy, never in the project, and the copy goes with the run's scratch dir. Do not write anything in the project.
 
 ## Common rationalizations
 

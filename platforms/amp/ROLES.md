@@ -37,7 +37,7 @@ The "Owns (default)" column is the default scope, written for the layer homes of
 | docs-writer | implement | haiku | docs only | Package `AGENTS.md`, `README.md` sections, `docs/adr/**` | Write docs from facts the lead supplies | Edit code; invent facts |
 | qa-verifier | qa | sonnet | no | `qa/<agent-id>.r<N>.md`; as `qa-quality`, `qa/quality.r<N>.md` | Read; run tests, `loops gate --only <test checks>,coverage --pkgs <owned>`, `loops arch`; check test honesty (`specs/ENGINEERING.md §12`); as `qa-quality`, run crapper, dryer and mutator over the run's changed code (`loops:quality`); put counterexample test snippets in its QA file (never in the repo). Runs tools hook-scoped or through `loops exec` (Go: `loops go`), never sets cache variables, leaves no binaries | Edit repo code (it reports; the owner fixes). It FAILS a claim set when new-code coverage is below 70% or new code lacks tests, and puts the uncovered `file:line` list in the repro |
 | security-reviewer | qa | sonnet | no | `qa/security.r<N>.md` | Read; run `loops gate --security`, `loops lang show <id>`; scan the run base with `git archive` to tell new findings from old; map findings to lanes | Edit repo code; install tools; block on a missing tool |
-| product-reviewer | product | opus | no | `proofs/**`, `pr.md`, `report.html` | Run the service; curl, grpcurl, CLI; `loops report`; branch, commit, push (the reflector's memory pages with `git add -f`, last, when the file store is active); post `overrides.md` as a PR comment when reflect ran first; `gh` or `glab` PR when the lead's `PR:` line is `open` or `draft` | Edit code (unmet ACs go back); push to the main line, force-push, merge |
+| product-reviewer | product | sonnet | no | `proofs/**`, `pr.md`, `report.html` | Run the service; curl, grpcurl, CLI; `loops report`; branch, commit, push (the reflector's memory pages with `git add -f`, last, when the file store is active); post `overrides.md` as a PR comment when reflect ran first; `gh` or `glab` PR when the lead's `PR:` line is `open` or `draft` | Edit code (unmet ACs go back); push to the main line, force-push, merge |
 | reflector | reflect | sonnet | no | `reflection.md`, memory pages in the active store (WORKFLOW §7), `overrides.md` | Read the run dir; memory store read and write; `gh issue` on the loops plugin repo only (WORKFLOW §2.6) | Edit code; store secrets in memory |
 
 ## Language × layer
@@ -75,6 +75,7 @@ These come from rimworld-go PARALLEL_WORK §3.
   - No `git add`/`commit`/`push`. Only product-reviewer commits, when the lead sends the go.
 - **Producers not done?** Develop against the contract and stubs, then report what is still stubbed.
 - **Paths.** Use absolute paths; cwd may change between calls.
+- **Check before you report.** On your owned scope, run the checks QA and the gate will run: the pack's build, lint and test checks (`loops gate --pkgs <owned> --only <those checks>`), `loops arch`, and the quality tools your pack has for CRAP and duplication (`loops:quality`; mutation stays with QA). Fix what they find first: a finding QA or the gate sends back costs a whole round.
 - **Report.** Finish with a claims report (`templates/CLAIMS_REPORT.md`, at most 400 words). Every claim names its evidence.
 
 ## Model tiers
@@ -85,12 +86,12 @@ These come from rimworld-go PARALLEL_WORK §6.
 |---|---|---|
 | 1 | haiku | Mechanical, fully specified work: locating code, inventories, docs from supplied facts |
 | 2 | sonnet | Implementation against a written contract, tests, adapters, QA of ordinary code |
-| 3 | opus | Planning and plan review, contracts, consistency and concurrency, migrations, product judgement |
+| 3 | opus | Planning and plan review, contracts, consistency and concurrency, migrations; product judgement when the plan names it |
 
-Escalate one tier after two failed QA rounds (WORKFLOW §4). Never start higher "to be safe".
+Escalate one tier after two failed QA rounds (WORKFLOW §4). Never start higher "to be safe": a spawn above the role's tier carries a `Model reason:` line, or `model-guard` denies it (WORKFLOW §6).
 
 **When a model isn't available.** The tier is a preference, not a hard requirement (WORKFLOW §3a).
 - If the platform rejects a role's model (not available on the user's plan, not enabled, or over capacity), re-spawn the same role with the best model the user does have.
-- **Reasoning roles** (planner, plan-reviewer, architect, product-reviewer, and any escalated role) take the strongest reasoning model available: opus, then sonnet, then the session model, or the platform's equivalent.
+- **Reasoning roles** (planner, plan-reviewer, architect, and any escalated role, including a product lane the plan runs on opus) take the strongest reasoning model available: opus, then sonnet, then the session model, or the platform's equivalent.
 - **Other roles** step down one tier at a time.
 - Never stop the run because a preferred model is missing.

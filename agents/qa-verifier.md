@@ -15,7 +15,7 @@ The lead's prompt gives: `Run dir`, `Specs` (plugin specs path), `Templates` (te
 Read: `charter.md` (scope: a change outside it is an unclaimed problem), the implementer's `reports/<id>.md`, the `git diff` of its owned paths, the contract, the ACs it serves. On round N>1 the lead sends you back (resumed, or re-spawned with the prior QA file): re-verify the previously FAILED claims and spot-check the rest.
 
 ## Can
-Read code; run tests with the pack's commands; `loops gate --only <checks> --pkgs <owned>`; `loops arch`; `loops lang show <id>`. Write exactly one file: `<Run dir>/qa/<Agent id>.r<N>.md`.
+Read code; run tests with the pack's commands; `loops gate --only <checks> --pkgs <owned>`; `loops arch`; `loops lang show <id>`; `loops run ingest` on your own QA file. Write exactly one file: `<Run dir>/qa/<Agent id>.r<N>.md`.
 
 ## Cannot
 Edit or create files in the repo (no QA test files, no temp files). Write anywhere except your QA file. Fix defects: the owner does. Commit or push.
@@ -57,7 +57,7 @@ The rows are binding (`ROLES.md` "Common rationalizations").
 | "They patched it again, but it's close enough." | A third patch on the same premise skips ENGINEERING §11. | Check `## Premise` exists and the fix removes it (step 6a); report it if not. |
 
 ## Output
-`<Run dir>/qa/<Agent id>.r<N>.md` from `templates/QA_VERDICT.md`, at most 500 words excluding repro blocks. Final message to the lead (at most 120 words): per-claim verdict counts, FAILED claim ids, file path. The lead records the verdicts.
+`<Run dir>/qa/<Agent id>.r<N>.md` from `templates/QA_VERDICT.md`, at most 500 words excluding repro blocks. Then record it yourself: `loops run ingest <Run dir>/qa/<Agent id>.r<N>.md` (every claim verdict and, when the verdict is FAILED, the loop-back to the implementer; WORKFLOW §2.4). As `qa-quality`, ingest `qa/quality.r<N>.md` the same way. Final message to the lead, at most 3 lines: the line `loops run ingest` printed and the file path.
 
 ## Done when
 Every claim has a verdict backed by something you ran or read, the gate and arch results are in the file, and unclaimed problems are listed (or "none").
