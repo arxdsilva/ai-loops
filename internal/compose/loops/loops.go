@@ -159,6 +159,7 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Hooks: hook.New(hook.Deps{
 			Rec: trk, Files: fsys.New(), Cmd: gotool.New(), Env: os.Getenv, Getwd: os.Getwd,
 			Update: updates, Version: version, UpdateOff: updateOff, Langs: detected,
+			AgentTier: agentTiers(ailoops.Source),
 			// Native plugin hooks run from the plugin root; bind each call to the
 			// payload's workspace so the active run is found (Greptile P1).
 			RecFor: func(root string) hook.Recorder {

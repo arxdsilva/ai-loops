@@ -274,7 +274,7 @@ func TestAntigravityPayloadsAndFailOpen(t *testing.T) {
 		e := setup("r")
 		c, o, er := e.runP(plat, "read-guard", fixture(t, "antigravity", "read-guard"))
 		assertAntigravityDeny(t, c, o, er, "read_guard:", e.rec.evs)
-		e = setup("r")
+		e = setup("") // no run: toolchain-env cannot rewrite, so the guard denies
 		c, o, er = e.runP(plat, "test-guard", `{"hook_event_name":"PreToolUse","toolCall":{"name":"run_command","args":{"CommandLine":"go test ./..."}}}`)
 		assertAntigravityDeny(t, c, o, er, "race_guard:", e.rec.evs)
 	}
@@ -500,7 +500,7 @@ func TestNormalizeFallbackKeys(t *testing.T) {
 	}
 	for _, k := range []string{"CommandLine", "command_line", "cmd"} {
 		in := fmt.Sprintf(`{"hook_event_name":"PreToolUse","toolCall":{"name":"run_command","args":{%q:"go test ./..."}}}`, k)
-		e := setup("r")
+		e := setup("") // no run: toolchain-env cannot rewrite, so the guard denies
 		c, o, er := e.runP("antigravity", "test-guard", in)
 		assertAntigravityDeny(t, c, o, er, "race_guard:", e.rec.evs)
 	}

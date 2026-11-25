@@ -55,6 +55,10 @@ type Deps struct {
 	Langs Langs
 	// ReadFile reads a file for pack placeholders; nil uses the OS.
 	ReadFile func(path string) ([]byte, error)
+	// AgentTier returns a role's default model tier ("haiku", "sonnet",
+	// "opus") from its agent definition; "" = unknown. nil disables the
+	// model-guard's tier check.
+	AgentTier func(role string) string
 }
 
 // Langs is language-pack detection as the hooks need it: the lead wires

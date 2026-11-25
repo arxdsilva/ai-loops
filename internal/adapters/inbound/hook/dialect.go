@@ -220,6 +220,12 @@ func (d dialect) blockStop(out io.Writer, reason string) {
 	}
 }
 
+// postToolContext adds text to the model's context after a tool call
+// (Claude: PostToolUse hookSpecificOutput.additionalContext).
+func (d dialect) postToolContext(out io.Writer, text string) {
+	d.emit(out, map[string]any{"hookSpecificOutput": map[string]string{"hookEventName": "PostToolUse", "additionalContext": text}})
+}
+
 // rewriteTool replaces a PreToolUse call's input (the whole object, with
 // unchanged fields kept, since Claude and possibly Cursor replace rather
 // than merge); allow also approves the rewritten call.

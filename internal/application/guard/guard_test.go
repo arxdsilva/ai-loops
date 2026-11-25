@@ -228,7 +228,7 @@ func TestModel(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := guard.CheckModel(json.RawMessage(tc.in))
+			got := guard.CheckModel(json.RawMessage(tc.in), nil)
 			if tc.deny && got != want || !tc.deny && got != "" {
 				t.Fatalf("got %q", got)
 			}

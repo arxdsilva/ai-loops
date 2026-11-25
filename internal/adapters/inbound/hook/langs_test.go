@@ -176,7 +176,7 @@ func TestTestGuardPacks(t *testing.T) {
 			t.Errorf("%s: %d %q", ok, c, er)
 		}
 	}
-	e, _, _ = langSetup("r", swiftDet)
+	e, _, _ = langSetup("", swiftDet) // no run: toolchain-env cannot rewrite
 	if c, _, _ := e.run("race-guard", bash("go test ./...")); c != 2 || e.rec.evs[0].Name != "race-guard" {
 		t.Fatalf("go always checked, named race-guard: %d %+v", c, e.rec.evs)
 	}

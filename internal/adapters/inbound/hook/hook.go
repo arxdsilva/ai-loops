@@ -13,12 +13,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/arxdsilva/ai-loops/internal/platform/loopsdir"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/arxdsilva/ai-loops/internal/platform/loopsdir"
 
 	"github.com/arxdsilva/ai-loops/internal/application/guard"
 	"github.com/arxdsilva/ai-loops/internal/application/updatecheck"
@@ -80,6 +81,9 @@ type payload struct {
 	AgentID        string          `json:"agent_id"`
 	AgentType      string          `json:"agent_type"`
 	StopHookActive bool            `json:"stop_hook_active"`
+	// TranscriptPath is the lead session's transcript (Claude: every hook
+	// carries it); lead.go reads it for token counts and the context hint.
+	TranscriptPath string `json:"transcript_path"`
 	// SubagentStop: the stopped agent's own transcript (tokens.go).
 	AgentTranscriptPath      string `json:"agent_transcript_path"`
 	AgentTranscriptPathCamel string `json:"agentTranscriptPath"`
@@ -115,6 +119,8 @@ type toolInput struct {
 	Description  string `json:"description"`
 	URL          string `json:"url"`
 	Query        string `json:"query"`
+	Prompt       string `json:"prompt"` // Agent/Task: the spawn prompt
+	Model        string `json:"model"`  // Agent/Task: the model passed, if any
 }
 
 func (in toolInput) path() string {
@@ -200,7 +206,7 @@ func (h *handler) handle(ctx context.Context, name, platform string, in io.Reade
 	case "post-edit", "go-post-edit":
 		h.postEdit(ctx, d, p, out)
 	case "trace":
-		h.trace(ctx, p, failed)
+		h.trace(ctx, d, p, failed, out)
 	case "trace-agent":
 		h.traceAgent(ctx, p)
 	case "stop-gate":
@@ -586,7 +592,7 @@ func (h *handler) modelGuard(ctx context.Context, p payload, out, errw io.Writer
 		// No documented model field on these platforms' agent calls.
 		return 0
 	}
-	if reason := guard.CheckModel(p.ToolInput); reason != "" {
+	if reason := guard.CheckModel(p.ToolInput, h.d.AgentTier); reason != "" {
 		return h.deny(ctx, p, "model-guard", reason, out, errw)
 	}
 	return 0
@@ -629,7 +635,7 @@ func (h *handler) target(p payload, in toolInput, repo string) string {
 	return ""
 }
 
-func (h *handler) trace(ctx context.Context, p payload, failed bool) {
+func (h *handler) trace(ctx context.Context, d dialect, p payload, failed bool, out io.Writer) {
 	if id, err := h.recorder().Current(ctx); err != nil || id == "" {
 		return
 	}
@@ -640,6 +646,15 @@ func (h *handler) trace(ctx context.Context, p payload, failed bool) {
 		Kind: run.KindStep, Agent: p.AgentID, Role: roleName(p.AgentType), Name: p.ToolName,
 		Target: h.target(p, in, h.projectRoot(p)), OK: run.Bool(ok), DurationMS: int64(p.DurationMS),
 	})
+	if failed || p.AgentID != "" {
+		return // the lead's own successful calls carry the extras (lead.go)
+	}
+	switch p.ToolName {
+	case "Agent", "Task":
+		h.autoLabel(ctx, p, in)
+	case "Bash":
+		h.contextHint(ctx, d, p, in, out)
+	}
 }
 
 func (h *handler) traceAgent(ctx context.Context, p payload) {
@@ -706,11 +721,12 @@ scan:
 }
 
 func (h *handler) stopGate(ctx context.Context, d dialect, p payload, out io.Writer) {
-	if p.StopHookActive || strings.EqualFold(h.d.Env("LOOPS_GATE"), "off") {
-		return
-	}
 	st, err := h.recorder().State(ctx, "")
 	if err != nil {
+		return
+	}
+	h.recordLeadTokens(ctx, p, st) // a side record: never changes the decision below
+	if p.StopHookActive || strings.EqualFold(h.d.Env("LOOPS_GATE"), "off") {
 		return
 	}
 	if reason := run.StopReason(st); reason != "" {

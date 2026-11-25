@@ -62,6 +62,10 @@ type State struct {
 	// zero = not triaged, nothing skipped (WORKFLOW §2.8).
 	Triage Triage `json:"triage,omitzero"`
 
+	// LeadTokens is the highest `lead-tokens` note seen: tokens the lead's own
+	// session used since the run started (Stop hook, from its transcript).
+	LeadTokens int64 `json:"lead_tokens,omitempty"`
+
 	PR      string `json:"pr,omitempty"`
 	Ended   bool   `json:"ended"`
 	Outcome string `json:"outcome,omitempty"`

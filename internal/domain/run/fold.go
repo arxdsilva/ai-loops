@@ -97,6 +97,10 @@ func Fold(events []Event) State {
 			if json.Unmarshal([]byte(e.Note), &t) == nil {
 				s.Triage = t
 			}
+		case KindNote:
+			if e.Name == NoteLeadTokens && e.Tokens > s.LeadTokens {
+				s.LeadTokens = e.Tokens
+			}
 		case KindPR:
 			s.PR = e.Ref
 		case KindEnd:

@@ -108,7 +108,6 @@ func TestGoEnvIgnoresNonGoAndScopedCommands(t *testing.T) {
 			"GOCACHE=" + cache + " go build ./...",
 			"export GOCACHE='" + cache + "'; cd x && go test -race ./...",
 			`eval "$(loops run env)"; go vet ./...`,
-			"go test ./...", // race-guard denies it; go-env stays silent
 		} {
 			if c, o, er := e.runP(p, "go-env", bashPayload(p, cmd)); c != 0 || o != "" || er != "" {
 				t.Errorf("%s %q: %d %q %q", p, cmd, c, o, er)

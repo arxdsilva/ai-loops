@@ -65,7 +65,9 @@ func (g *guard) CheckRead(toolName string, toolInput json.RawMessage, cwd, repo 
 }
 
 // CheckModel returns a deny reason ("" = allow) for an Agent tool call:
-// subagent_type missing, "" or "general-purpose" with no model is denied.
-func CheckModel(toolInput json.RawMessage) string {
-	return checkModel(toolInput)
+// subagent_type missing, "" or "general-purpose" with no model is denied. A
+// model above the role's default tier (tierOf; nil = unchecked) is denied
+// unless the prompt carries a `Model reason: <text>` line.
+func CheckModel(toolInput json.RawMessage, tierOf TierOf) string {
+	return checkModel(toolInput, tierOf)
 }

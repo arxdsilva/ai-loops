@@ -3,10 +3,11 @@ package hook
 import (
 	"context"
 	"encoding/json"
-	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 
 	"github.com/arxdsilva/ai-loops/internal/application/guard"
 	"github.com/arxdsilva/ai-loops/internal/domain/workspace"
@@ -60,27 +61,56 @@ func (h *handler) toolchainEnv(ctx context.Context, d dialect, p payload, out, e
 		return 0
 	}
 	cmd, _ := in["command"].(string)
-	if cmd == "" || h.checkTests(p, cmd) != "" {
+	if cmd == "" {
 		return 0
 	}
-	id, err := h.recorder().Current(ctx)
-	if err != nil || id == "" {
+	dir := h.runScratch(ctx)
+	if dir == "" {
 		return 0
 	}
-	dir, err := h.recorder().Dir(ctx, id)
-	if err != nil || dir == "" {
-		return 0
+	goCmd := cmd
+	if h.checkTests(p, cmd) != "" {
+		// test-guard denies this command unless this hook rewrites it (goPlan is
+		// the shared predicate): then it adds the missing -race itself.
+		plan, ok := h.goPlan(ctx, p, cmd)
+		if !ok {
+			return 0
+		}
+		goCmd = plan.command
 	}
-	dir = scratch.Dir(dir) // the run's caches live in its scratch dir
-	if code, handled := h.goEnv(ctx, d, p, in, cmd, dir, out, errw); handled {
+	if code, handled := h.goEnv(ctx, d, p, in, goCmd, dir, out, errw); handled {
 		return code
 	}
 	h.packEnv(d, p, in, cmd, dir, out)
 	return 0
 }
 
+// runScratch is the active run's scratch dir (where its caches live), or ""
+// when no run is active or its directory is unknown.
+func (h *handler) runScratch(ctx context.Context) string {
+	id, err := h.recorder().Current(ctx)
+	if err != nil || id == "" {
+		return ""
+	}
+	dir, err := h.recorder().Dir(ctx, id)
+	if err != nil || dir == "" {
+		return ""
+	}
+	return scratch.Dir(dir)
+}
+
 // goEnv scopes go commands to the run's GOCACHE/GOTMPDIR. handled is false
 // when cmd runs no unscoped go command.
+//
+// What stays denied on Claude (the only shapes ScopeGo cannot make safe):
+// a command that sets its own GOCACHE (`GOCACHE=/x go build`) or removes it
+// (`env -u GOCACHE go build`), because prefixing the run's cache would be
+// overridden by, or fight with, the command's own setting; and anything whose
+// scoped form InspectGo still reports unscoped. Every common shape (cd x &&
+// go test, VAR=v go test, pipes, subshells, for loops, env FOO=1 go test,
+// assignments before cd) is scoped with an `export` statement instead.
+// Platforms without a safe rewrite (goEnvPolicy) deny every unscoped
+// command: use `loops go` or `loops exec --`.
 func (h *handler) goEnv(ctx context.Context, d dialect, p payload, in map[string]any, cmd, dir string, out, errw io.Writer) (code int, handled bool) {
 	cache, tmp := workspace.GoCache(dir), workspace.GoTmp(dir)
 	use := guard.InspectGo(cmd, cache)

@@ -38,6 +38,10 @@ const (
 	KindTriage     Kind = "triage"      // the steps the run skips (WORKFLOW §2.8): Name=tier, Note=JSON of run.Triage; the last one wins
 )
 
+// NoteLeadTokens is the name of the note event that carries the lead's own
+// token total in Event.Tokens (a running total: the highest one counts).
+const NoteLeadTokens = "lead-tokens"
+
 // Verdict statuses (Event.Status for KindVerdict).
 const (
 	StatusApprove  = "APPROVE"  // plan-reviewer approved the plan
@@ -79,7 +83,7 @@ type Event struct {
 	Ref        string    `json:"ref,omitempty"`
 	Note       string    `json:"note,omitempty"`
 	Pack       string    `json:"pack,omitempty"`   // gate: the language pack (and root) the check belongs to, when the project has several
-	Tokens     int64     `json:"tokens,omitempty"` // agent_stop: tokens the agent used (from its transcript, when the platform exposes one)
+	Tokens     int64     `json:"tokens,omitempty"` // agent_stop: tokens the agent used; note "lead-tokens": the lead session's total (from transcripts, when the platform exposes one)
 }
 
 // Bool returns a pointer to b, for Event.OK.
