@@ -57,6 +57,10 @@ func TestNormalize(t *testing.T) {
 	if _, err := ok.Normalize(); err != nil {
 		t.Fatalf("budget placeholder rejected: %v", err)
 	}
+	ok.Budget, ok.Agent = "none", "x {prompt}"
+	if s, err := ok.Normalize(); err != nil || s.Budget != "" {
+		t.Fatalf("--budget none = %q, %v", s.Budget, err)
+	}
 }
 
 func TestPRCap(t *testing.T) {

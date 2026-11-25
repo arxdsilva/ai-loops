@@ -146,15 +146,20 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 		return err
 	})
 	// The outcome is recorded: free the lane now, so a refill can claim the
-	// issue again while the forge calls below run.
-	held = false
-	release()
+	// issue again while the forge calls below run. A hand-off keeps it
+	// until done, so a sync meanwhile does not hand it off a second time.
+	if err != nil || res.Status != backlog.Human {
+		held = false
+		release()
+	}
 	if err != nil {
 		return res, err
 	}
 	s.edit(ctx, set, it.Number, Edit{RemoveLabels: []string{set.ClaimLabel}})
 	if res.Status == backlog.Human {
 		s.handoff(ctx, set, res.Item)
+		held = false
+		release()
 	}
 	s.queueFindings(ctx, res.Item, lane)
 	res.Findings = s.flush(ctx, set, it.Number)

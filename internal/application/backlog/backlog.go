@@ -99,7 +99,7 @@ func (s *Service) Init(ctx context.Context, in InitInput) (backlog.Settings, err
 	if set, err = set.Normalize(); err != nil {
 		return set, err
 	}
-	if set, err = s.fitMachine(set, in); err != nil {
+	if set, err = s.fitMachine(set, in, cur.Repo == ""); err != nil {
 		return set, err
 	}
 	for _, l := range [][2]string{
@@ -120,12 +120,14 @@ func (s *Service) Init(ctx context.Context, in InitInput) (backlog.Settings, err
 
 // fitMachine keeps lanes × agents per lane within the machine's cap
 // (BACKLOG §7): it lowers a lane count the user did not give, and refuses
-// one they did. One lane always fits.
-func (s *Service) fitMachine(set backlog.Settings, in InitInput) (backlog.Settings, error) {
-	if in.MachineCap <= 0 || set.Lanes <= 1 || set.Lanes*set.MaxAgents <= in.MachineCap {
+// one they did. One lane always fits. A later init that changes neither
+// keeps them: the cap is probed under the load of running lanes.
+func (s *Service) fitMachine(set backlog.Settings, in InitInput, first bool) (backlog.Settings, error) {
+	given := in.Settings.Lanes != 0 || in.Settings.MaxAgents != 0
+	if (!first && !given) || in.MachineCap <= 0 || set.Lanes <= 1 || set.Lanes*set.MaxAgents <= in.MachineCap {
 		return set, nil
 	}
-	if in.Settings.Lanes != 0 || in.Settings.MaxAgents != 0 {
+	if given {
 		return set, fmt.Errorf("%d lanes × %d agents = %d agents, over this machine's cap of %d (loops hw): lower --lanes or --max-agents",
 			set.Lanes, set.MaxAgents, set.Lanes*set.MaxAgents, in.MachineCap)
 	}
@@ -255,6 +257,10 @@ func (s *Service) recover(ctx context.Context, set backlog.Settings) (int, error
 	}
 	handed := 0
 	for _, it := range st.Unconfirmed() {
+		// A live lane is still handing it off itself.
+		if s.store.LaneHeld(it.Number) {
+			continue
+		}
 		if s.handoff(ctx, set, it) {
 			handed++
 		}

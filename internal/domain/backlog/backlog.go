@@ -94,6 +94,9 @@ func (s Settings) Normalize() (Settings, error) {
 	if s.MaxPRs == 0 {
 		s.MaxPRs = DefaultMaxPRs
 	}
+	if s.Budget == "none" {
+		s.Budget = ""
+	}
 	if s.FindingLabel == "" {
 		s.FindingLabel = DefaultFindingLabel
 	}
@@ -119,7 +122,7 @@ func (s Settings) Normalize() (Settings, error) {
 	// A custom lane command gets the budget only through its placeholder
 	// (BACKLOG §7): without it, the cap would silently not apply.
 	if s.Budget != "" && s.Agent != "" && !strings.Contains(s.Agent, "{budget}") {
-		return s, fmt.Errorf("--budget %s does not reach the --agent command: add {budget} to the template (for example --max-budget-usd {budget}), or drop the budget", s.Budget)
+		return s, fmt.Errorf("--budget %s does not reach the --agent command: add {budget} to the template (for example --max-budget-usd {budget}), or pass --budget none", s.Budget)
 	}
 	return s, nil
 }

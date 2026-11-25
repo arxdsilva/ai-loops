@@ -21,6 +21,7 @@ type fakeStore struct {
 	exists bool
 	st     backlog.State
 	held   map[int]bool
+	hm     sync.Mutex // guards held (LaneHeld runs inside Update too)
 	// failSave fails the save after fn ran (the state is not written).
 	failSave error
 }
@@ -51,14 +52,15 @@ func (f *fakeStore) Update(ctx context.Context, fn func(*backlog.State) error) e
 }
 func (f *fakeStore) LogPath(n int) string { return fmt.Sprintf("/logs/issue-%d.log", n) }
 func (f *fakeStore) HoldLane(n int) (func(), error) {
-	// Called under Update's lock.
+	f.hm.Lock()
+	defer f.hm.Unlock()
 	if f.held == nil {
 		f.held = map[int]bool{}
 	}
 	f.held[n] = true
-	return func() { f.mu.Lock(); delete(f.held, n); f.mu.Unlock() }, nil
+	return func() { f.hm.Lock(); delete(f.held, n); f.hm.Unlock() }, nil
 }
-func (f *fakeStore) LaneHeld(n int) bool { return f.held[n] }
+func (f *fakeStore) LaneHeld(n int) bool { f.hm.Lock(); defer f.hm.Unlock(); return f.held[n] }
 
 func clone(st backlog.State) backlog.State {
 	st.Items = slices.Clone(st.Items)
@@ -80,6 +82,7 @@ type fakeForge struct {
 	prs                     []string // open PR URLs
 	failPRs                 error
 	failCreate, failComment error
+	onComment               func(n int)
 }
 
 func (f *fakeForge) Repo(context.Context) (string, error) { return "o/r", nil }
@@ -113,6 +116,9 @@ func (f *fakeForge) Create(_ context.Context, _ string, in NewIssue) (string, er
 func (f *fakeForge) Comment(_ context.Context, _ string, n int, body string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.onComment != nil {
+		f.onComment(n)
+	}
 	if f.failComment != nil {
 		return f.failComment
 	}
@@ -559,7 +565,9 @@ func TestFinish(t *testing.T) {
 		t.Fatalf("re-queue edit = %+v", last)
 	}
 	// A live lane cannot be overruled.
+	r.store.hm.Lock()
 	r.store.held = map[int]bool{3: true}
+	r.store.hm.Unlock()
 	r.store.Update(ctx, func(st *backlog.State) error { it, _ := st.Item(3); it.Status = backlog.Running; return nil })
 	if _, err := r.svc.Finish(ctx, 3, backlog.Skipped, "", false); err == nil || !strings.Contains(err.Error(), "live lane") {
 		t.Fatalf("live lane overruled: %v", err)
@@ -940,5 +948,46 @@ func TestSyncRetriesUnconfirmedHandoffs(t *testing.T) {
 	r2.forge.failComment = nil
 	if res, _ := r2.svc.Sync(ctx); res.Handed != 1 || len(r2.forge.comments[4]) != 1 {
 		t.Fatalf("comment retry = %+v, %v", res, r2.forge.comments[4])
+	}
+}
+
+// The lane keeps its lock through the hand-off, so a sync meanwhile does
+// not hand the issue off (and comment) a second time.
+func TestHandoffHoldsTheLane(t *testing.T) {
+	r := newRig(t, is(1))
+	r.init(t, backlog.Settings{Attempts: 1})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.agent.outcome = func(string) (backlog.LaneRun, error) {
+		return backlog.LaneRun{Dir: "/run", Events: events("failed", "")}, nil
+	}
+	var heldAtComment bool
+	r.forge.onComment = func(n int) { heldAtComment = r.store.LaneHeld(n) }
+	res, err := r.svc.Work(ctx, 1)
+	if err != nil || res.Status != backlog.Human || !heldAtComment || r.store.LaneHeld(1) {
+		t.Fatalf("hand-off = %+v, %v, held at comment %v", res, err, heldAtComment)
+	}
+	// An unconfirmed hand-off whose lane is live is left to that lane.
+	r.store.Update(ctx, func(st *backlog.State) error {
+		it, _ := st.Item(1)
+		it.HandedOff, it.Commented = false, false
+		return nil
+	})
+	r.store.hm.Lock()
+	r.store.held = map[int]bool{1: true}
+	r.store.hm.Unlock()
+	if res, _ := r.svc.Sync(ctx); res.Handed != 0 || len(r.forge.comments[1]) != 1 {
+		t.Fatalf("sync handed off a live lane's issue: %+v, %d comments", res, len(r.forge.comments[1]))
+	}
+}
+
+func TestReinitKeepsLanes(t *testing.T) {
+	r := newRig(t)
+	r.init(t, backlog.Settings{Lanes: 3})
+	// The cap probed later, under load, is lower: an init that changes
+	// neither lanes nor agents keeps them.
+	set, err := r.svc.Init(context.Background(), InitInput{Settings: backlog.Settings{MaxPRs: 8}, MachineCap: 4})
+	if err != nil || set.Lanes != 3 || set.MaxAgents != 4 || set.MaxPRs != 8 || len(r.warns) != 0 {
+		t.Fatalf("re-init = %+v, %v, %v", set, err, r.warns)
 	}
 }

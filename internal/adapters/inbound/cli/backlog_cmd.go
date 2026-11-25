@@ -47,10 +47,16 @@ func (a *App) cmdBacklog(ctx context.Context, args []string) int {
 	})
 	sub, rest := args[0], args[1:]
 	if sub == "work" || sub == "run" {
-		// A stopped lane (Ctrl-C, a harness stopping the task) stops its
-		// agent and records the attempt instead of orphaning the agent.
+		// A stopped lane (Ctrl-C, a harness stopping the task, a closed
+		// terminal) stops its agent and records the attempt instead of
+		// orphaning the agent, which runs in its own process group. SIGHUP
+		// stays ignored under nohup.
+		sigs := []os.Signal{os.Interrupt, syscall.SIGTERM}
+		if !signal.Ignored(syscall.SIGHUP) {
+			sigs = append(sigs, syscall.SIGHUP)
+		}
 		var stop context.CancelFunc
-		ctx, stop = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+		ctx, stop = signal.NotifyContext(ctx, sigs...)
 		defer stop()
 	}
 	switch sub {
@@ -94,7 +100,7 @@ func (a *App) backlogInit(ctx context.Context, env BacklogEnv, args []string) in
 	exclude := fs.String("exclude-label", "", "never issues with these labels (default wontfix,duplicate,invalid,question)")
 	authors := fs.String("authors", "", "only issues by these authors, or any (default: the forge user)")
 	fs.StringVar(&s.Agent, "agent", "", "lane command template with {prompt} (default: claude -p {prompt} --permission-mode auto)")
-	fs.StringVar(&s.Budget, "budget", "", "USD cap per lane (default: none)")
+	fs.StringVar(&s.Budget, "budget", "", "USD cap per lane, or none to clear it (default: none)")
 	fs.IntVar(&s.MaxAgents, "max-agents", 0, "agents per lane (default: loops hw's cap / lanes)")
 	fs.IntVar(&s.Attempts, "attempts", 0, "lane attempts per issue before the hand-off (default 2)")
 	fs.StringVar(&s.Timeout, "timeout", "", "per-lane time limit (default 4h)")
