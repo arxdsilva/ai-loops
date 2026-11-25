@@ -79,7 +79,7 @@ The `Language:` line comes from the plan's `language` column; the role loads ski
 Add `Model reason: <reason>` only when you pass a model above the role's tier: an escalation (§4 below) or the plan lane's model column; `model-guard` denies it otherwise (WORKFLOW §3, §6).
 
 ### Labelling
-On Claude Code the `trace` hook labels each spawn from its prompt header and the platform's agent id: do nothing. Elsewhere, immediately after each spawn, using the platform's agent id (or `solo-<n>` in solo mode; see your platform file), before waiting:
+On Claude Code the `trace` hook labels each spawn from its prompt header and the platform's agent id: do nothing, unless the brief shows a running lane with no name; then label it as below. Elsewhere, immediately after each spawn, using the platform's agent id (or `solo-<n>` in solo mode; see your platform file), before waiting:
 ```
 loops run label --agent <platform agent id> --name <Agent id> --role <role> --wave <n>
 ```

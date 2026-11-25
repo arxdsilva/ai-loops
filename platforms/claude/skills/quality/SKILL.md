@@ -34,10 +34,13 @@ The pass runs beside the full gate, the security pass and product proofs (WORKFL
 ```
 T="$(cat <Run dir>/scratch 2>/dev/null || echo <Run dir>)/quality-tree"
 git worktree add --detach "$T" HEAD
-git diff HEAD --binary | git -C "$T" apply
+git diff HEAD --binary > "$T.patch"; if [ -s "$T.patch" ]; then git -C "$T" apply "$T.patch"; fi
 git ls-files --others --exclude-standard -z | tar --null -T - -cf - | tar -xf - -C "$T"
 ```
+(`git apply` refuses an empty patch, hence the size check.)
 Run each tool from the project root through `loops exec`, so it keeps the run's environment, and change into the copy inside it: `loops exec --pack <id> -- sh -c 'cd "<T>" && <tool> …'`. Paths in the tools' output are relative to the copy's root, which is the project's. Keep the copy across rounds, so later rounds stay differential: at round N>1, refresh it with `git -C "$T" reset -q --hard HEAD && git -C "$T" clean -fdq -e .metrics/ -e target/`, then the last two lines above again. When your verdict is VERIFIED, remove it: `git worktree remove --force "$T"`.
+
+**Fail closed.** If the copy cannot be made, never run mutation in the project while anything else runs: run CRAP and duplication (they only read sources), record `mutator: deferred, no private copy`, and tell the lead, which runs you again for mutation alone once the gate and product proofs are done.
 
 ## Steps
 

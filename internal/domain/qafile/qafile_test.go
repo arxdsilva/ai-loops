@@ -52,16 +52,80 @@ func TestParseNames(t *testing.T) {
 
 func TestParseErrors(t *testing.T) {
 	for name, tc := range map[string]struct{ file, body, want string }{
-		"empty":         {"W1.r1.md", "# QA\n\nnothing here\n", "no claims"},
-		"unfilled":      {"W1.r1.md", "### C1: x - VERIFIED|FAILED\n", "heading C1"},
-		"no status":     {"W1.r1.md", "### C1: statement only\n", "heading C1"},
-		"quality lane":  {"quality.r1.md", "### Q1: CRAP 12\n", "heading Q1"},
-		"security flag": {"security.r1.md", "### S1: gosec G1, severity low - W1 - maybe\n", "heading S1"},
-		"security lane": {"security.r1.md", "### S1: gosec - blocking\n", "heading S1"},
+		"empty":     {"W1.r1.md", "# QA\n\nnothing here\n", "no claims"},
+		"unfilled":  {"W1.r1.md", "### C1: x - VERIFIED|FAILED\n", "no claims"},
+		"no status": {"W1.r1.md", "### C1: statement only\n", "no claims"},
 	} {
 		_, err := Parse(tc.file, tc.body)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+// TestParseShapesSeenInRuns covers the shapes verifiers wrote in recorded
+// runs: bullets, table rows, free verdict lines, a qa- prefixed file name,
+// lane-qualified ids for qa-all, and findings with no lane or flag.
+func TestParseShapesSeenInRuns(t *testing.T) {
+	type lb struct{ to, note string }
+	for name, tc := range map[string]struct {
+		file, body string
+		verdicts   []string
+		lbs        []lb
+	}{
+		"bullets": {"W1-gate.r1.md", "## Claims\n- C1 PackChecks alone: VERIFIED. TestX\n- C2 Missing: FAILED, see repro\n- Note (not a FAILED): x\n",
+			[]string{"W1-gate:C1=VERIFIED", "W1-gate:C2=FAILED"}, []lb{{"W1-gate", "C2"}}},
+		"suffix ids and free verdict": {"qa-W1-api.r1.md", "Verdict: FAILED (C2a). All other claims VERIFIED.\n- C1a VERIFIED: x\n- C2a FAILED: y\n",
+			[]string{"W1-api:C1a=VERIFIED", "W1-api:C2a=FAILED"}, []lb{{"W1-api", "C2a"}}},
+		"table": {"W1-body.r1.md", "| Claim | Verdict | Evidence |\n|---|---|---|\n| C1 Poke gate | VERIFIED | ok |\n| C2 Never | VERIFIED | ok |\n",
+			[]string{"W1-body:C1=VERIFIED", "W1-body:C2=VERIFIED"}, nil},
+		"duplicate mention keeps the first": {"W1.r1.md", "| C1 x | VERIFIED | a |\n### C1: x - VERIFIED\n",
+			[]string{"W1:C1=VERIFIED"}, nil},
+		"verdict FAILED without a failed claim": {"W1.r2.md", "- C1 VERIFIED: x\nVerdict: FAILED (coverage 60%)\n",
+			[]string{"W1:C1=VERIFIED"}, []lb{{"W1", "verdict FAILED"}}},
+		"qa-all": {"qa-all.r1.md", "- W1-a:C1 VERIFIED: x\n- W2-b:C1 FAILED: y\n- C9 VERIFIED: unqualified, skipped\n",
+			[]string{"W1-a:C1=VERIFIED", "W2-b:C1=FAILED"}, []lb{{"W2-b", "C1"}}},
+		"quality without a lane": {"quality.r1.md", "### Q1: CRAP 12 in parse\n### Q2: dup 0.9 - W1-x\nVerdict: FAILED\n",
+			[]string{"quality:Q1=FAILED", "quality:Q2=FAILED"}, []lb{{"W1-x", "Q2"}}},
+		"sub-claim failed, named in the verdict": {"W1-decoders.r1.md", "- C4 VERIFIED for every site. One FAILED sub-claim, below.\n- C5 VERIFIED: x\n## Verdict: C1, C5 VERIFIED. C4 FAILED on the bound (keys.go:50).\n",
+			[]string{"W1-decoders:C4=FAILED", "W1-decoders:C5=VERIFIED"}, []lb{{"W1-decoders", "C4"}}},
+		"no FAILED claims": {"W3-fuzz.r1.md", "- C1 VERIFIED: ok\nC1-C5 VERIFIED (5/5). No FAILED claims.\n",
+			[]string{"W3-fuzz:C1=VERIFIED"}, nil},
+		"quality round 2 resolves": {"quality.r2.md", "Verdict: FAILED (Q3 residual only; Q1 and Q2 VERIFIED)\n- Q1 (W1-skills) VERIFIED. extracted\n- Q2 fixed: gone\n- Q3 (W0-architect) FAILED, the CRAP part only.\n",
+			[]string{"quality:Q1=VERIFIED", "quality:Q2=VERIFIED", "quality:Q3=FAILED"}, []lb{{"W0-architect", "Q3"}}},
+		"findings none": {"quality.r1.md", "## Findings\nNone.\n", []string{"quality=VERIFIED"}, nil},
+		"quality clean": {"quality.r1.md", "Verdict: VERIFIED (no blocking findings), notes N1-N3.\n",
+			[]string{"quality=VERIFIED"}, nil},
+		"security free heading": {"security.r2.md", "### S1: shell-expanded run text in W1-cli main.go\n### S2: gosec G104 - W2-x - note\nVerdict: FAILED\n",
+			[]string{"security:S1=FAILED"}, []lb{{"W1-cli", "S1"}}},
+		"security unflagged and clean": {"security.r1.md", "### S1: gosec G1 - W1\nVerdict: VERIFIED\n",
+			[]string{"security=VERIFIED"}, nil},
+	} {
+		d, err := Parse(tc.file, tc.body)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		p := d.Plan()
+		var got []string
+		for _, v := range p.Verdicts {
+			got = append(got, v.Name+"="+v.Status)
+		}
+		if strings.Join(got, " ") != strings.Join(tc.verdicts, " ") {
+			t.Errorf("%s: verdicts %v, want %v", name, got, tc.verdicts)
+		}
+		var gl []lb
+		for _, l := range p.LoopBacks {
+			gl = append(gl, lb{l.To, l.Note})
+		}
+		if len(gl) != len(tc.lbs) {
+			t.Errorf("%s: loop-backs %v, want %v", name, gl, tc.lbs)
+			continue
+		}
+		for i := range gl {
+			if gl[i] != tc.lbs[i] {
+				t.Errorf("%s: loop-backs %v, want %v", name, gl, tc.lbs)
+			}
 		}
 	}
 }

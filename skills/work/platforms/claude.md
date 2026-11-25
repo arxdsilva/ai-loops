@@ -22,7 +22,7 @@ Every lead turn re-reads the whole session. Start each run in a fresh session; w
 `SendMessage` to the same agent (use the `agentId` from the Agent tool result) with the QA or review file path. The agent keeps its context. If it was stopped, spawn anew with its report and a ≤10-line history.
 
 ## Labelling lanes
-Automatic: the `trace` hook records the label from the `Agent` call (the prompt's `Agent id:`, `Role:` and `Wave:` lines, the result's `agentId` and resolved model). Do not run `loops run label` yourself; keep the header lines exact.
+Automatic: the `trace` hook records the label from the `Agent` call (the prompt's `Agent id:`, `Role:` and `Wave:` lines, the result's `agentId` and resolved model). Do not run `loops run label` yourself; keep the header lines exact. If the brief shows a running lane with no name, label that one by hand.
 
 ## Ask the user
 `AskUserQuestion` (Approve / Request changes / Stop; Push branch?; how to proceed after limits).

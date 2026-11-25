@@ -30,7 +30,7 @@ Canonical spec for how a ticket moves through loops. Skills, role agents, hooks 
 | 1 | `research` | `web-researcher`, `practices-researcher`, `code-researcher`, `hardware-researcher` (parallel) | `research/web.md`, `research/practices.md`, `research/code.md`, `research/hardware.{json,md}` | All four outputs are written |
 | 2 | `plan` | `planner` ↔ `plan-reviewer` (+ the user at a `plan` checkpoint) | `plan.v<N>.md`, `plan-review.r<N>.md` | The latest review is `APPROVE` (and the user approved, at a checkpoint) |
 | 3 | `implement` | `architect` (wave 0), then role engineers in waves 1…n | `reports/<agent-id>.md` (claims reports) | Every lane has reported |
-| 4 | `qa` | one `qa-verifier` per implementer (pipelined), one `qa-quality` pass, one `qa-security` pass (`security-reviewer`), then the lead runs the gates | `qa/<agent-id>.r<N>.md`, `qa/quality.r<N>.md`, `qa/security.r<N>.md` | Every claim is `VERIFIED`, the quality pass and the security pass are `VERIFIED`, and `loops gate` is green |
+| 4 | `qa` | one `qa-verifier` per implementer (pipelined), then, together when the last lane reports, one `qa-quality` pass, one `qa-security` pass (`security-reviewer`) and the full gate the lead runs in the background | `qa/<agent-id>.r<N>.md`, `qa/quality.r<N>.md`, `qa/security.r<N>.md` | Every claim is `VERIFIED`, the quality pass and the security pass are `VERIFIED`, and `loops gate` is green |
 | 5 | `product` | `product-reviewer` | `proofs/AC-<n>.md`, `pr.md`, `report.html` | Every AC is `VERIFIED` with a proof, and the PR/MR is opened (or the PR body is written under `--no-pr`) |
 | 6 | `reflect` | `reflector` | `reflection.md` (+ memory pages in the active store, §7) | Reflection is written; `loops run end` |
 

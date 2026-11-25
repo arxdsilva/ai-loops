@@ -163,10 +163,10 @@ func TestRunIngestErrors(t *testing.T) {
 	}
 	e.do("run", "start", "--title", "x")
 	for name, tc := range map[string]struct{ file, body, want string }{
-		"empty":     {"W1.r1.md", "# QA\nnothing\n", "no claims"},
-		"bad name":  {"notes.md", "### C1: a - VERIFIED\n", "not a QA file name"},
-		"no round":  {"W1.md", "Verdict: VERIFIED\n", "not a QA file name"},
-		"bad claim": {"W1.r1.md", "### C1: a\n", "heading C1"},
+		"empty":                  {"W1.r1.md", "# QA\nnothing\n", "no claims"},
+		"bad name":               {"notes.md", "### C1: a - VERIFIED\n", "not a QA file name"},
+		"no round":               {"W1.md", "Verdict: VERIFIED\n", "not a QA file name"},
+		"claim without a status": {"W1.r1.md", "### C1: a\n", "no claims"},
 	} {
 		f := writeQA(t, tc.file, tc.body)
 		if code := e.do("run", "ingest", f); code != 2 || !strings.Contains(e.err.String(), tc.want) {

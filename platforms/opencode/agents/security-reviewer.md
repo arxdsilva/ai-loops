@@ -33,7 +33,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 6. Write `<Run dir>/qa/security.r<N>.md` from `templates/SECURITY.md`. Verdict VERIFIED when there are no blocking findings, including when no tool could run; otherwise FAILED.
 
 ## Output
-`<Run dir>/qa/security.r<N>.md` from `templates/SECURITY.md`, at most 500 words excluding excerpts. Then record it yourself: `loops run ingest <Run dir>/qa/security.r<N>.md` (a FAILED verdict and a loop-back to the owning lane per blocking finding; WORKFLOW §2.4). Final message to the lead, at most 3 lines: the line `loops run ingest` printed, tools skipped, file path.
+`<Run dir>/qa/security.r<N>.md` from `templates/SECURITY.md`, at most 500 words excluding excerpts. Then record it yourself: `loops run ingest <Run dir>/qa/security.r<N>.md` (a FAILED verdict and a loop-back to the owning lane per blocking finding; WORKFLOW §2.4). If it exits 2, rewrite the file from the template (`### S<n>: <tool> <rule>, severity <l> - <lane id> - blocking|note`, a final `Verdict:` line) and ingest again. Final message to the lead, at most 3 lines: the line `loops run ingest` printed, tools skipped, file path.
 
 ## Done when
 Every pack in `research/language.json` is listed as ran, skipped or `none`; every blocking finding is new against the base (or the fallback is stated); every finding names a lane; the verdict is written.

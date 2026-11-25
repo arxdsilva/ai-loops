@@ -230,24 +230,38 @@ func nextQA(s State, open []VerdictInfo) string {
 			if reflectFirst(s) && !visited(s, PhaseReflect) {
 				return "the gate is green: enter reflect (file store: the memory pages go in the PR commit)" + gateSuffix(s, PhaseQA)
 			}
+			if !Skips(s, StepProductProof) {
+				return "the gate is green: enter product and resume the product-reviewer with Gate: green and the lanes changed since it started" + gateSuffix(s, PhaseQA)
+			}
 			return "the gate is green: enter product" + gateSuffix(s, PhaseQA)
 		}
 	}
-	if len(s.Triage.Skip) == 0 {
-		return "every claim is verified: run the quality pass, then loops gate"
-	}
-	prefix := "every claim is verified: "
+	return qaTail(s)
+}
+
+// qaTail is the QA tail (WORKFLOW §2.4): the full gate, the quality pass and
+// the security pass start together when the last lane reports, and product
+// proofs start once every lane is VERIFIED.
+func qaTail(s State) string {
+	prefix := "when the last lane reports, "
 	if Skips(s, StepQAVerify) {
 		prefix = "triage skipped the verifiers: "
 	}
-	var todo []string
+	todo := []string{"loops gate in the background"}
 	if !Skips(s, StepQuality) {
 		todo = append(todo, "the quality pass")
 	}
 	if !Skips(s, StepSecurity) {
 		todo = append(todo, "the security pass")
 	}
-	return prefix + "run " + strings.Join(append(todo, "loops gate"), ", then ")
+	text := prefix + "run loops gate"
+	if len(todo) > 1 {
+		text = prefix + "start together " + strings.Join(todo, ", ")
+	}
+	if !Skips(s, StepProductProof) {
+		text += "; once every lane is VERIFIED, spawn the product-reviewer with Gate: pending (stay in qa)"
+	}
+	return text
 }
 
 // reflectFirst reports whether the latest memory-store decision picked the

@@ -39,7 +39,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
    Note a new test missing from the report's `## Red first`. On round ≥ 2, check that the report's `## Premise` exists and that the fix removes it rather than patching again (§11).
 7. List **unclaimed problems** found (layering, missing error handling, dead code).
 
-**Quality pass** (Agent id `qa-quality`, after every lane is VERIFIED): load `loops:quality` and follow it instead of steps 1-7. Your one file is `<Run dir>/qa/quality.r<N>.md` (`templates/QUALITY.md`). The tools' `.metrics/` and coverage outputs are run artifacts; write nothing else.
+**Quality pass** (Agent id `qa-quality`, when the last lane reports, beside the gate and the security pass; WORKFLOW §2.4): load `loops:quality` and follow it instead of steps 1-7. Run its tools only in the private copy of the tree it describes (in the run's scratch dir, outside the repo), never in the project. Your one file is `<Run dir>/qa/quality.r<N>.md` (`templates/QUALITY.md`); the tools' `.metrics/` and coverage outputs stay in the copy.
 
 ## Common rationalizations
 The rows are binding (`ROLES.md` "Common rationalizations").
@@ -56,7 +56,7 @@ The rows are binding (`ROLES.md` "Common rationalizations").
 | "They patched it again, but it's close enough." | A third patch on the same premise skips ENGINEERING §11. | Check `## Premise` exists and the fix removes it (step 6a); report it if not. |
 
 ## Output
-`<Run dir>/qa/<Agent id>.r<N>.md` from `templates/QA_VERDICT.md`, at most 500 words excluding repro blocks. Then record it yourself: `loops run ingest <Run dir>/qa/<Agent id>.r<N>.md` (every claim verdict and, when the verdict is FAILED, the loop-back to the implementer; WORKFLOW §2.4). As `qa-quality`, ingest `qa/quality.r<N>.md` the same way. Final message to the lead, at most 3 lines: the line `loops run ingest` printed and the file path.
+`<Run dir>/qa/<Agent id>.r<N>.md` from `templates/QA_VERDICT.md`, at most 500 words excluding repro blocks. Then record it yourself: `loops run ingest <Run dir>/qa/<Agent id>.r<N>.md` (every claim verdict and, when the verdict is FAILED, the loop-back to the implementer; WORKFLOW §2.4). As `qa-quality`, ingest `qa/quality.r<N>.md` the same way. If `loops run ingest` exits 2, the file is not in the template's shape: rewrite it from the template (one `### C<n>: <statement> - VERIFIED|FAILED` heading per claim, a final `Verdict:` line) and ingest again. Final message to the lead, at most 3 lines: the line `loops run ingest` printed and the file path.
 
 ## Done when
 Every claim has a verdict backed by something you ran or read, the gate and arch results are in the file, and unclaimed problems are listed (or "none").

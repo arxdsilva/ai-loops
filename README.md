@@ -163,13 +163,13 @@ Everything goes through one file, `bin/loops`. It runs the `loops` binary that m
   |---|---|---|---|
   | session-start | SessionStart | Tells Claude where the plugin lives, which run is active, and when an update exists | Adds text to the session's context; no files |
   | read-guard | PreToolUse (Read, Bash) | Denies a whole-file read of a very large file; Claude reads it in ranges | Nothing; it can only deny the call |
-  | test-guard | PreToolUse (Bash) | Denies a Go or Swift test run without its race flag | Nothing; it can only deny the call |
-  | toolchain-env | PreToolUse (Bash) | Points the language toolchain at the run's own cache directories | Rewrites that command's environment variables |
-  | model-guard | PreToolUse (Agent, Task) | Denies a general subagent launched without a model | Nothing; it can only deny the call |
+  | test-guard | PreToolUse (Bash) | Denies a Go or Swift test run without its race flag, except a Go run that toolchain-env fixes | Nothing; it can only deny the call |
+  | toolchain-env | PreToolUse (Bash) | Points the language toolchain at the run's cache directories (Go's build cache is shared across runs, in your temp dir); adds `-race` to a Go test run that lacks it | Rewrites that command's environment variables and, for `go test`, adds the `-race` flag; denies a Go command it cannot scope where the platform cannot rewrite it |
+  | model-guard | PreToolUse (Agent, Task) | Denies a general subagent launched without a model, and a loops role launched above its model tier without a `Model reason:` line | Nothing; it can only deny the call |
   | post-edit | PostToolUse (Edit, Write, MultiEdit) | Runs the language's formatter and linter on the edited file | Formats that file in place; sends lint failures back to Claude |
-  | trace | PostToolUse, PostToolUseFailure (every tool) | Records the tool call in the run's log | Appends one line to `.loops/runs/<id>/events.jsonl` |
+  | trace | PostToolUse, PostToolUseFailure (every tool) | Records the tool call in the run's log, names each spawned agent's lane, and after `loops run start` reads the end of the session transcript to tell Claude when the session is already large | Appends lines to `.loops/runs/<id>/events.jsonl`; may add one line of text to the session's context |
   | trace-agent | SubagentStart, SubagentStop | Records each agent's start and stop | Appends one line to the same log |
-  | stop-gate | Stop | Keeps Claude working while sources changed since the last green gate | Nothing; it can only block the stop |
+  | stop-gate | Stop | Keeps Claude working while sources changed since the last green gate, and counts the session's own tokens since the run started, from its transcript | Appends a `lead-tokens` line to the run's log; otherwise it can only block the stop |
 
 - **Live panes (mod, `mod/`)**. It adds the `/loops-pane` command, which shows the active run beside the chat, and `/loops-backlog`, which shows a backlog's lanes, queue and outcomes.
   - *What it reads:* `.loops/status.json` in your project (the active run's state, which the plugin's hooks keep up to date). When the project runs a backlog, it also reads `.loops/backlog/state.json` and each running lane's `.loops/status.json` in that lane's worktree, which sits beside your checkout. It reads them every 2 seconds and when you type either command. It starts no program.

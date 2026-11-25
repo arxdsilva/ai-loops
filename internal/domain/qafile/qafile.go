@@ -36,12 +36,13 @@ type Item struct {
 	Lane     string // quality and security: the owning lane id
 	Blocking bool   // security: blocking (false = note); lane claims: failed; quality: true
 	Title    string // the heading text after the id
+	flag     string // security: the blocking/note flag as written, "" when absent
 }
 
 // Doc is a parsed QA file.
 type Doc struct {
 	Kind    Kind
-	Name    string // agent id for a lane file, else "quality" or "security"
+	Name    string // the lane a lane file verifies ("" for qa-all), else "quality" or "security"
 	Round   int
 	Base    string // the file's basename
 	Items   []Item
@@ -49,13 +50,26 @@ type Doc struct {
 }
 
 var (
-	nameRe    = regexp.MustCompile(`^(.+)\.r(\d+)\.md$`)
-	headingRe = regexp.MustCompile(`^###\s+([CQS])(\d+):\s*(.*?)\s*$`)
-	verdictRe = regexp.MustCompile("^[*_`\\s]*Verdict[*_`]*:[*_`\\s]*(VERIFIED|FAILED)[*_`\\s]*$")
+	nameRe = regexp.MustCompile(`^(.+)\.r(\d+)\.md$`)
+	// An item line: a heading, bullet or table row that opens with an id,
+	// optionally lane-qualified for a verifier that covers several lanes
+	// (qa-all): "### C1: x - VERIFIED", "- C1a VERIFIED: x", "| C2 x | FAILED |",
+	// "- W1-api:C3: x - FAILED".
+	itemRe      = regexp.MustCompile("^[\\s#>*_|`-]*(?:([A-Za-z][\\w.-]*):)?([CQS]\\d+[a-z]?)\\b[*_`]*[:.)]?\\s*(.*)$")
+	statusRe    = regexp.MustCompile(`\b(VERIFIED|FAILED)\b`)
+	verdictRe   = regexp.MustCompile("^[\\s#>*_`-]*Verdict[*_`]*\\s*:(.*)$")
+	laneRe      = regexp.MustCompile(`\bW\d+[a-z]?(?:-[A-Za-z0-9]+)*\b`)
+	flagRe      = regexp.MustCompile(`(?i)\b(non-blocking|blocking|note)\b`)
+	claimIDRe   = regexp.MustCompile(`\bC\d+[a-z]?\b`)
+	notFailedRe = regexp.MustCompile(`(?i)\b(not (a )?|no )FAILED\b`)
+	resolvedRe  = regexp.MustCompile(`(?i)\b(VERIFIED|fixed|resolved|closed)\b`)
+	noneRe      = regexp.MustCompile(`(?i)^[\s*_-]*(none|no (blocking )?findings)\b`)
 )
 
 // Parse reads a QA file's content; file is its path or basename (the round
-// and the pass come from the basename).
+// and the pass come from the basename). It reads the templates' headings and
+// the shapes verifiers write in practice (bullets, table rows, free verdict
+// lines); a file with neither an item nor a Verdict line is an error.
 func Parse(file, content string) (Doc, error) {
 	base := path.Base(strings.ReplaceAll(file, "\\", "/"))
 	m := nameRe.FindStringSubmatch(base)
@@ -68,31 +82,121 @@ func Parse(file, content string) (Doc, error) {
 	}
 	d := Doc{Name: m[1], Round: round, Base: base, Kind: KindLane}
 	switch m[1] {
-	case "quality":
-		d.Kind = KindQuality
-	case "security":
-		d.Kind = KindSecurity
+	case "quality", "qa-quality":
+		d.Kind, d.Name = KindQuality, "quality"
+	case "security", "qa-security":
+		d.Kind, d.Name = KindSecurity, "security"
+	case "qa-all", "all":
+		d.Name = "" // every item names its lane
+	default:
+		// The verifier's own Agent id is qa-<lane>; the lane is what it verifies.
+		d.Name = strings.TrimPrefix(m[1], "qa-")
 	}
+	seen := map[string]int{}
+	add := func(it Item) {
+		k := it.Lane + ":" + it.ID
+		if i, ok := seen[k]; ok {
+			// A claim mentioned again keeps its first reading, except that
+			// FAILED wins: a missed failure costs more than a re-check.
+			if d.Kind == KindLane && it.Status == "FAILED" {
+				d.Items[i].Status, d.Items[i].Blocking = "FAILED", true
+			}
+			return
+		}
+		seen[k] = len(d.Items)
+		d.Items = append(d.Items, it)
+	}
+	var failedInVerdict []string
+	none := false
 	for _, line := range strings.Split(content, "\n") {
 		line = strings.TrimRight(line, " \t\r")
 		if v := verdictRe.FindStringSubmatch(line); v != nil {
-			d.Verdict = v[1]
+			if st := status(v[1]); st != "" {
+				d.Verdict = st
+			}
+			failedInVerdict = append(failedInVerdict, failedIDs(v[1])...)
 			continue
 		}
-		h := headingRe.FindStringSubmatch(line)
-		if h == nil || !headingMatches(d.Kind, h[1]) {
+		if noneRe.MatchString(line) {
+			none = true
+		}
+		h := itemRe.FindStringSubmatch(line)
+		if h == nil || !headingMatches(d.Kind, h[2][:1]) {
 			continue
 		}
-		it, err := parseItem(d.Kind, h[1]+h[2], h[3])
-		if err != nil {
-			return Doc{}, err
+		if it, ok := parseItem(d, h[1], h[2], h[3]); ok {
+			add(it)
 		}
-		d.Items = append(d.Items, it)
+	}
+	if d.Kind == KindLane && d.Name != "" {
+		for _, id := range failedInVerdict {
+			add(Item{ID: id, Status: "FAILED", Lane: d.Name, Blocking: true, Title: "named FAILED in the Verdict line"})
+		}
+	}
+	if d.Kind != KindLane && d.Verdict == "" && none && len(d.Items) == 0 {
+		d.Verdict = "VERIFIED" // "## Findings" followed by "None."
 	}
 	if len(d.Items) == 0 && d.Verdict == "" {
 		return Doc{}, errors.New("no claims, findings or Verdict line found (is this file written from its template?)")
 	}
+	if d.Kind == KindSecurity {
+		for i, it := range d.Items {
+			if it.flag == "" {
+				// No blocking/note flag: the file's verdict decides.
+				d.Items[i].Blocking = d.Verdict == "FAILED"
+			}
+		}
+	}
 	return d, nil
+}
+
+// failedIDs are the claim ids a Verdict line names as FAILED: "FAILED (C2a,
+// C2c)" or "C1, C2 VERIFIED. C4 FAILED on x" give C2a, C2c and C4. A
+// clause stating both words is split at commas first.
+func failedIDs(text string) []string {
+	var out []string
+	for _, clause := range regexp.MustCompile(`[.;]\s`).Split(text, -1) {
+		parts := []string{clause}
+		if strings.Contains(clause, "VERIFIED") && strings.Contains(clause, "FAILED") {
+			parts = strings.Split(clause, ",")
+		}
+		for _, part := range parts {
+			if !strings.Contains(part, "FAILED") || negated(part) {
+				continue
+			}
+			out = append(out, claimIDRe.FindAllString(part, -1)...)
+		}
+	}
+	return out
+}
+
+// negated reports a "not FAILED", "not a FAILED" or "no FAILED" aside.
+func negated(s string) bool {
+	return notFailedRe.MatchString(s) && !strings.Contains(notFailedRe.ReplaceAllString(s, ""), "FAILED")
+}
+
+// laneStatus is a claim line's status: FAILED anywhere in it (a failed
+// sub-claim fails the claim), else VERIFIED, else "".
+func laneStatus(s string) string {
+	if strings.Contains(s, "VERIFIED|FAILED") {
+		return ""
+	}
+	if strings.Contains(s, "FAILED") && !negated(s) {
+		return "FAILED"
+	}
+	if strings.Contains(s, "VERIFIED") {
+		return "VERIFIED"
+	}
+	return ""
+}
+
+// status is the VERIFIED or FAILED a text states, "" for none or for the
+// template's placeholder "VERIFIED|FAILED".
+func status(s string) string {
+	if strings.Contains(s, "VERIFIED|FAILED") {
+		return ""
+	}
+	return statusRe.FindString(s)
 }
 
 func headingMatches(k Kind, letter string) bool {
@@ -105,46 +209,56 @@ func headingMatches(k Kind, letter string) bool {
 	return letter == "C"
 }
 
-// rcut splits s at the last " - ".
-func rcut(s string) (before, after string, ok bool) {
-	i := strings.LastIndex(s, " - ")
-	if i < 0 {
-		return s, "", false
+// lane is the owning lane a finding names: the template's " - <lane id>"
+// segment, else the first plan-style lane id (W1-domain) in the text.
+func lane(rest string) string {
+	parts := strings.Split(rest, " - ")
+	for i := len(parts) - 1; i >= 1; i-- {
+		p := strings.Trim(parts[i], "*_` ")
+		if p != "" && !strings.ContainsAny(p, " ,") && !flagRe.MatchString(p) {
+			return p
+		}
 	}
-	return strings.TrimSpace(s[:i]), strings.TrimSpace(s[i+3:]), true
+	return laneRe.FindString(rest)
 }
 
-func parseItem(k Kind, id, rest string) (Item, error) {
-	bad := func(want string) (Item, error) {
-		return Item{}, fmt.Errorf("heading %s: want %s, got %q", id, want, rest)
-	}
-	switch k {
+// resolved reports a finding a later round marks fixed ("- Q1 (W1-x)
+// VERIFIED. bioRow is extracted").
+func resolved(rest string) bool {
+	return resolvedRe.MatchString(rest) && !strings.Contains(rest, "FAILED")
+}
+
+func parseItem(d Doc, qual, id, rest string) (Item, bool) {
+	title := strings.TrimSpace(rest)
+	switch d.Kind {
 	case KindLane:
-		title, st, ok := rcut(rest)
-		st = strings.ToUpper(strings.Trim(st, "*_` "))
-		if !ok || (st != "VERIFIED" && st != "FAILED") {
-			return bad("`<statement> - VERIFIED|FAILED`")
+		st := laneStatus(rest)
+		if st == "" {
+			return Item{}, false
 		}
-		return Item{ID: id, Status: st, Title: title, Blocking: st == "FAILED"}, nil
+		l := d.Name
+		if qual != "" {
+			l = qual
+		}
+		if l == "" {
+			return Item{}, false // qa-all needs lane-qualified ids
+		}
+		return Item{ID: id, Status: st, Lane: l, Title: title, Blocking: st == "FAILED"}, true
 	case KindQuality:
-		title, lane, ok := rcut(rest)
-		lane = strings.Trim(lane, "*_` ")
-		if !ok || lane == "" {
-			return bad("`<metric> <value> - <lane id>`")
+		if resolved(rest) {
+			return Item{ID: id, Status: "VERIFIED", Lane: laneRe.FindString(rest), Title: title}, true
 		}
-		return Item{ID: id, Status: "FAILED", Lane: lane, Title: title, Blocking: true}, nil
+		return Item{ID: id, Status: "FAILED", Lane: lane(rest), Title: title, Blocking: true}, true
 	}
-	head, flag, ok := rcut(rest)
-	flag = strings.ToLower(strings.Trim(flag, "*_` "))
-	if !ok || (flag != "blocking" && flag != "note") {
-		return bad("`<tool> <rule>, severity <l> - <lane id> - blocking|note`")
+	if resolved(rest) {
+		return Item{ID: id, Status: "VERIFIED", Lane: laneRe.FindString(rest), Title: title, flag: "resolved"}, true
 	}
-	title, lane, ok := rcut(head)
-	lane = strings.Trim(lane, "*_` ")
-	if !ok || lane == "" {
-		return bad("`<tool> <rule>, severity <l> - <lane id> - blocking|note`")
+	it := Item{ID: id, Status: "FAILED", Lane: lane(rest), Title: title}
+	if f := flagRe.FindAllString(rest, -1); len(f) > 0 {
+		it.flag = strings.ToLower(f[len(f)-1])
+		it.Blocking = it.flag == "blocking"
 	}
-	return Item{ID: id, Status: "FAILED", Lane: lane, Title: title, Blocking: flag == "blocking"}, nil
+	return it, true
 }
 
 // Verdict is one verdict event to record.
@@ -173,19 +287,28 @@ func (d Doc) Plan() Plan {
 		return d.findingsPlan(RoleSecurity, "security")
 	}
 	var p Plan
-	var failed []string
+	var lanes []string
+	failed := map[string][]string{}
 	for _, it := range d.Items {
-		p.Verdicts = append(p.Verdicts, Verdict{Name: d.Name + ":" + it.ID, Status: it.Status, Role: RoleVerifier})
+		p.Verdicts = append(p.Verdicts, Verdict{Name: it.Lane + ":" + it.ID, Status: it.Status, Role: RoleVerifier})
+		if _, ok := failed[it.Lane]; !ok {
+			lanes = append(lanes, it.Lane)
+			failed[it.Lane] = nil
+		}
 		if it.Status == "FAILED" {
-			failed = append(failed, it.ID)
+			failed[it.Lane] = append(failed[it.Lane], it.ID)
 		}
 	}
-	if len(failed) > 0 || d.Verdict == "FAILED" {
-		note := "verdict FAILED"
-		if len(failed) > 0 {
-			note = strings.Join(failed, ",")
+	if d.Name != "" && len(lanes) == 0 {
+		lanes = []string{d.Name}
+	}
+	for _, l := range lanes {
+		switch {
+		case len(failed[l]) > 0:
+			p.LoopBacks = append(p.LoopBacks, LoopBack{From: RoleVerifier, To: l, Note: strings.Join(failed[l], ",")})
+		case d.Verdict == "FAILED" && d.Name != "":
+			p.LoopBacks = append(p.LoopBacks, LoopBack{From: RoleVerifier, To: l, Note: "verdict FAILED"})
 		}
-		p.LoopBacks = append(p.LoopBacks, LoopBack{From: RoleVerifier, To: d.Name, Note: note})
 	}
 	return p
 }
@@ -197,11 +320,20 @@ func (d Doc) findingsPlan(role, pass string) Plan {
 	var p Plan
 	var lanes []string
 	ids := map[string][]string{}
+	blocking := 0
 	for _, it := range d.Items {
+		if it.Status == "VERIFIED" {
+			p.Verdicts = append(p.Verdicts, Verdict{Name: pass + ":" + it.ID, Status: "VERIFIED", Role: role})
+			continue
+		}
 		if !it.Blocking {
 			continue
 		}
+		blocking++
 		p.Verdicts = append(p.Verdicts, Verdict{Name: pass + ":" + it.ID, Status: "FAILED", Role: role})
+		if it.Lane == "" {
+			continue // no owning lane named: the verdict stands, the lead routes it
+		}
 		if _, seen := ids[it.Lane]; !seen {
 			lanes = append(lanes, it.Lane)
 		}
@@ -210,7 +342,7 @@ func (d Doc) findingsPlan(role, pass string) Plan {
 	for _, l := range lanes {
 		p.LoopBacks = append(p.LoopBacks, LoopBack{From: role, To: l, Note: strings.Join(ids[l], ",")})
 	}
-	if len(p.Verdicts) == 0 && d.Verdict != "" {
+	if blocking == 0 && d.Verdict != "" {
 		p.Verdicts = append(p.Verdicts, Verdict{Name: pass, Status: d.Verdict, Role: role})
 	}
 	return p

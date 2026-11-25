@@ -287,7 +287,7 @@ func (h *handler) sessionStart(ctx context.Context, d dialect, p payload, out io
 		text = text[:600]
 	}
 	if brief != "" {
-		text += "\n" + brief + "Continue this run from that state: do not restart finished phases. `loops run brief` prints it again."
+		text += "\n" + brief + "Continue this run from that state: load the `loops:work` skill first if it is not in your context (after /clear or a compaction), and do not restart finished phases. `loops run brief` prints it again."
 	}
 	if root != "" {
 		h.writePluginRoot(root, h.repo(p))
