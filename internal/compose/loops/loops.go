@@ -50,6 +50,17 @@ type systemClock struct{}
 
 func (systemClock) Now() time.Time { return time.Now() }
 
+func (systemClock) Sleep(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // detector memoises language-pack detection for one process: the gate,
 // arch, hooks and workspace all ask, and the walk should happen once.
 type detector struct {
@@ -137,6 +148,7 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 		Version:   version,
 		Release:   releases,
 		Evals:     evaluator{root: root, pluginRoot: os.Getenv("LOOPS_PLUGIN_ROOT")},
+		Backlog:   backlogEnv(root),
 		Tracker:   trk,
 		Workspace: runspace.New(root).WithPacks(detected.all),
 		Gate:      gates,

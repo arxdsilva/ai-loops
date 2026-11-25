@@ -70,6 +70,14 @@ Cursor: import `arxdsilva/ai-loops` from the marketplace. Every platform, its ca
 
 One **master agent** (your main session) runs all six. It keeps the scope in a charter, re-reads the run's recorded state at every phase, and decides instead of asking. Each decision is recorded and listed in the PR. You are asked only where you opt in, for example `--ask plan,pr`.
 
+## Backlog mode: clear a whole issue list
+
+```sh
+/loops:backlog --human <your-github-login> --lanes 3
+```
+
+One session supervises, and every eligible open issue gets its own lane. A lane is a full `/loops:work` run by a headless agent in its own git worktree, and several lanes run side by side on one machine. Issues go in priority order (`P0` labels first). A lane that fails is retried once and then handed to you with a comment saying why. Anything a lane finds outside its ticket becomes a new issue assigned to you, deduplicated, and never worked until you triage it. Lanes open PRs and never merge, and at most 5 lane PRs are open at once (`--max-prs`). At the cap, lanes stop. Merging or closing PRs does not restart them on its own: `--watch` keeps the supervisor checking, and `loops backlog run --wait 30m` waits for room and carries on, watching until you stop it. Only issues from authors you allow are worked, because issue text is input to an agent that runs commands. For long unattended stretches, `loops backlog run` is the same loop without an agent. [Spec](specs/BACKLOG.md)
+
 ## What you get
 
 **A PR you can review in minutes.** Each acceptance criteria links to its proof, each engineer's claims show who verified them and in which round, and every decision the agents took is listed.
@@ -159,7 +167,7 @@ Everything goes through one file, `bin/loops`. It runs the `loops` binary that m
   - *What it reads from Claude Code:* only that `/loops-pane` was typed (`command.run`). It reads no conversation text and no tool calls.
   - *What it sends, and where:* nothing leaves your machine. The command's output is drawn in the pane and kept nowhere else.
 - **Status line** (`settings.json`): `bin/loops status --subagent`.
-- **Programs**: `git`; `gh` or `glab` for tickets and PRs (`gh` also files the reflector's harness suggestions as issues, only on the loops plugin repo itself, searching open issues first; if `gh` fails the text stays in `reflection.md`); your language's formatter, linter and test runner during `loops gate` and post-edit; the language pack's security scanners (Go: govulncheck, gosec) when installed, in the QA security pass (`loops gate --security`); and, at the start of `/loops:work`, the `claude` or `copilot` plugin update commands (`claude plugin update`, `copilot plugin update`) through `loops update --apply`.
+- **Programs**: `git`; `gh` or `glab` for tickets and PRs (`gh` also files the reflector's harness suggestions as issues, only on the loops plugin repo itself, searching open issues first; if `gh` fails the text stays in `reflection.md`); your language's formatter, linter and test runner during `loops gate` and post-edit; the language pack's security scanners (Go: govulncheck, gosec) when installed, in the QA security pass (`loops gate --security`); and, at the start of `/loops:work`, the `claude` or `copilot` plugin update commands (`claude plugin update`, `copilot plugin update`) through `loops update --apply`; in backlog mode only, `git worktree add/remove` beside your checkout, one headless agent per lane (`claude -p … --permission-mode auto` unless you pass `--agent`), and `gh` to list issues and open PRs, label issues, comment, assign and file findings, all in the repository you point it at.
 - **Network**: the one-time binary download from github.com; an update check against proxy.golang.org at most once a day, plus a fresh check and the plugin update at the start of `/loops:work` (turn both off with `"update_check": false` in `.loops/config.json` or `LOOPS_NO_UPDATE_CHECK=1`); and whatever your agents do in a run (ticket and PR APIs, web research). Run records stay in `.loops/runs/` in your repository, which git ignores (except `.loops/config.json`, the project settings `loops init` writes, and `.loops/memory/` once you run `loops memory init`; loops writes `.loops/.gitignore`).
 
 ## FAQ

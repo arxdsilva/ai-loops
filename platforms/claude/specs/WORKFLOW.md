@@ -446,6 +446,9 @@ Gates:
 Evals (opt-in; never run by CI, `docs/GUIDE.md` "Behavioural evals"):
 - `loops eval list | <scenario|all> [--run <run dir>] [--evals dir] [--agent "<cmd {prompt} …>"] [--budget usd] [--keep] [--json]`: runs each scenario in `evals/scenarios/` live (a copy of `evals/fixture/` in a temp dir, the agent command, then the newest run it recorded) or, with `--run`, evaluates a run recorded earlier, and checks its `events.jsonl` against the scenario's assertions. Prints `PASS`/`FAIL` per scenario and per assertion. Exit 0 when every scenario passes, 1 when one fails or cannot run, 2 on bad usage. Writes nothing in the project.
 
+Backlog mode (`specs/BACKLOG.md` §8 has the flags and exit codes):
+- `loops backlog init --human <login> […]`, `sync [--json]`, `status [--json]`, `work [<n>] [--json]` (exit 3: nothing queued, 4: at the open-PR cap), `run [--max N] [--wait dur]` (`--wait`: keep watching at the cap and on an empty queue), `finish <n> --status queued|human|done|skipped [--note] [--force]`, `file --title T [--body-file f|-] [--from n]`, `clean [--all] [--dry-run]`: the queue, the lanes (each a headless `/loops:work` run in its own worktree), hand-offs and findings. The state is `.loops/backlog/state.json` in the main checkout, not a run's `events.jsonl`; a lane's own run records events as usual, and its findings are `note` events named `finding`.
+
 Updates:
 - `loops version [--check [--platform p]]`: the version; `--check` asks the module proxy now.
 - `loops update [--platform p] [--apply]`: prints the update command; `--apply` updates the installed plugin (PLATFORMS §9).

@@ -149,6 +149,8 @@ Every path the package needs comes from its root variable, so no package hard-co
 
 Every tier records the same phases, verdicts and loop-backs. Only the parallelism and context isolation differ. On every tier the lead stays the master agent (WORKFLOW §2.7): it re-anchors with the brief that `loops run phase` prints, and with `loops run brief` after a compaction or a resumed session. Where the platform delivers SessionStart after a compaction (Claude Code's `compact` source), the `session-start` hook adds the brief to the lead's context itself. Each platform's mechanics (tool names, how to spawn, wait, ask the user, stop agents) live in `skills/work/platforms/<platform>.md`. The work skill tells the lead to read the one for its platform.
 
+**Backlog mode** (`specs/BACKLOG.md` §9) runs each lane as a separate agent process, so it needs a CLI with a non-interactive mode (`claude -p` by default; `--agent` takes any other). The `backlog` skill supervises from a session that has background commands with exit notifications (Claude Code). Elsewhere the supervisor is `loops backlog run`. Lanes themselves run `skills/work` at the platform's own tier. Only GitHub (`gh`) is supported as the forge so far.
+
 ## 5. Hook dialects
 
 Every hook command passes `--platform <p>` (for Antigravity, `--platform` also accepts aliases `agy` and `antigravity-cli`; no runtime env var is verified *(unverified)*). Without the flag, the binary autodetects the platform from the environment:

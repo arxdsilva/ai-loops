@@ -1,0 +1,469 @@
+package backlog
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/arxdsilva/ai-loops/internal/domain/backlog"
+)
+
+// tidyTimeout bounds the bookkeeping after a lane ends (state, labels,
+// hand-off, findings), which runs even when the lane was stopped.
+const tidyTimeout = 2 * time.Minute
+
+// maxBody caps a finding's detail file in an issue body.
+const maxBody = 20000
+
+// LaneResult is how `loops backlog work` ended.
+type LaneResult struct {
+	Item     backlog.Item   // the issue after the lane
+	Status   backlog.Status // done, queued (retry) or human
+	Reason   string         // why it did not open a PR
+	Findings []Filed
+	Empty    bool         // nothing was queued: no lane ran
+	Gated    bool         // the open-PR cap was reached: no lane ran
+	Gate     backlog.Gate // the cap at the claim
+	// Claimed is true once a lane took the issue, even when an error follows
+	// (an error without it means no lane started).
+	Claimed bool
+}
+
+var (
+	// errGated stops a claim at the open-PR cap.
+	errGated = errors.New("open-PR cap reached")
+	// errNotPending means another process already filed a pending finding.
+	errNotPending = errors.New("no longer pending")
+	// errRelist restarts a claim whose settings turned the open-PR cap on
+	// after the open PRs were (not) listed.
+	errRelist = errors.New("the open-PR cap changed")
+)
+
+// claimTries bounds the claims restarted by errRelist.
+const claimTries = 3
+
+// Filed is one finding filed (or matched to an earlier one).
+type Filed struct {
+	Title     string
+	URL       string
+	Duplicate bool
+}
+
+// Work runs one lane end to end (BACKLOG §3): claim issue n (0 = the next
+// one), add its worktree, run the agent, record the outcome, hand off or
+// re-queue a failure, and file the lane's findings.
+func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
+	set, it, gate, lease, err := s.claim(ctx, n)
+	switch {
+	case errors.Is(err, backlog.ErrEmpty):
+		return LaneResult{Empty: true}, nil
+	case errors.Is(err, errGated):
+		return LaneResult{Gated: true, Gate: gate}, nil
+	case err != nil:
+		return LaneResult{}, err
+	}
+	held := true
+	defer func() {
+		if held {
+			lease.Release()
+		}
+	}()
+	s.edit(ctx, set, it.Number, Edit{AddLabels: []string{set.ClaimLabel}})
+
+	agentErr, started := "", false
+	if err := s.wt.Add(ctx, it.Worktree, set.Base); err != nil {
+		agentErr = "worktree: " + err.Error()
+	} else {
+		started = true
+		runCtx, cancel := context.WithTimeout(ctx, set.TimeoutDuration())
+		if err := s.agent.Run(runCtx, it.Worktree, Prompt(set, it.Number), s.store.LogPath(it.Number), set, lease); err != nil {
+			switch {
+			case ctx.Err() != nil:
+				agentErr = "lane stopped: " + ctx.Err().Error()
+			case runCtx.Err() != nil:
+				agentErr = "agent stopped after the " + set.Timeout + " timeout"
+			default:
+				agentErr = "agent: " + err.Error()
+			}
+		}
+		cancel()
+	}
+	// Record the outcome and tidy the forge even when the lane was stopped.
+	ctx, cancelTidy := context.WithTimeout(context.WithoutCancel(ctx), tidyTimeout)
+	defer cancelTidy()
+	// The lane's own worktree is fresh, so its newest run is this lane's.
+	// A run that cannot be read is left running, not recorded without its
+	// PR and findings: the next sync recovers it and reads it again.
+	var lane backlog.LaneRun
+	if started {
+		if lane, err = s.lanes.Latest(it.Worktree); err != nil {
+			return LaneResult{Claimed: true, Item: it}, fmt.Errorf("read the run of issue %d's lane (the next loops backlog sync records it): %w", it.Number, err)
+		}
+	}
+	out := lane.Outcome(agentErr)
+	if agentErr != "" && lane.Dir == "" {
+		out = backlog.Outcome{Reason: agentErr}
+	}
+	// The claim label goes while the issue is still running, so a lane that
+	// claims it again once it is re-queued never loses its own label.
+	s.edit(ctx, set, it.Number, Edit{RemoveLabels: []string{set.ClaimLabel}})
+	// The findings are saved with the outcome: no crash between the two can
+	// lose them (BACKLOG §5).
+	pending := s.pending(it.Number, cmp.Or(out.PR, out.Opened), lane)
+	res := LaneResult{Claimed: true}
+	err = s.store.Update(ctx, func(st *backlog.State) error {
+		status, err := st.Finish(it.Number, out, s.clock.Now())
+		if err != nil {
+			return err
+		}
+		st.AddPending(pending...)
+		if cur, ok := st.Item(it.Number); ok {
+			res.Item = *cur
+		}
+		res.Status, res.Reason = status, out.Reason
+		return nil
+	})
+	// The outcome is recorded: free the lane now, so a refill can claim the
+	// issue again while the forge calls below run. A hand-off keeps it
+	// until done, so a sync meanwhile does not hand it off a second time.
+	if err != nil || res.Status != backlog.Human {
+		held = false
+		lease.Release()
+	}
+	if err != nil {
+		return res, err
+	}
+	if res.Status == backlog.Human {
+		s.handoff(ctx, set, res.Item)
+		held = false
+		lease.Release()
+	}
+	res.Findings = s.flush(ctx, set, it.Number)
+	return res, nil
+}
+
+// claim takes issue n (0 = the next queued) for a lane: under the state
+// lock it checks the open-PR cap (BACKLOG §7), marks the issue running and
+// takes its lane lock. It returns the settings the claim was made under.
+func (s *Service) claim(ctx context.Context, n int) (set backlog.Settings, it backlog.Item, gate backlog.Gate, lease Lease, err error) {
+	for range claimTries {
+		var st backlog.State
+		if st, err = s.load(ctx); err != nil {
+			return
+		}
+		// The cap fails closed: without the forge's list of open PRs no
+		// lane starts.
+		since := s.clock.Now()
+		var prs []string
+		listed, repo := st.Settings.PRCap() > 0, st.Settings.Repo
+		if listed {
+			if prs, err = s.prs.OpenPRs(ctx, st.Settings.Repo); err != nil {
+				err = fmt.Errorf("list the open PRs for the --max-prs cap: %w", err)
+				return
+			}
+		}
+		err = s.store.Update(ctx, func(st *backlog.State) error {
+			// An init turned the cap on, or changed the repo, after the
+			// load: list the PRs again.
+			if st.Settings.PRCap() > 0 && (!listed || st.Settings.Repo != repo) {
+				return errRelist
+			}
+			set = st.Settings
+			pick := n
+			if pick == 0 {
+				q := st.Queue()
+				if len(q) == 0 {
+					return backlog.ErrEmpty
+				}
+				pick = q[0].Number
+			}
+			// Running lanes count, so parallel claims never pass the cap.
+			if gate = st.Gate(prs, since); gate.Closed() {
+				return errGated
+			}
+			var err error
+			if it, err = st.Claim(pick, func(n, lane int) string { return worktree(set, n, lane) }, s.clock.Now()); err != nil {
+				return err
+			}
+			lease, err = s.store.HoldLane(pick)
+			return err
+		})
+		if err != nil && lease != nil {
+			// The claim was not saved: give back the lane lock taken before
+			// the save failed.
+			lease.Release()
+			lease = nil
+		}
+		if !errors.Is(err, errRelist) {
+			return
+		}
+	}
+	err = errors.New("the backlog settings kept changing during the claim; run it again")
+	return
+}
+
+// edit applies a best-effort label or assignee change.
+func (s *Service) edit(ctx context.Context, set backlog.Settings, n int, e Edit) {
+	if err := s.forge.Edit(ctx, set.Repo, n, e); err != nil {
+		s.warn("issue %d: %v", n, err)
+	}
+}
+
+// pending turns a lane's findings into pending findings (BACKLOG §5), to be
+// saved with the lane's outcome so a forge failure or a crash before they
+// are filed never loses one. pr is the lane's PR ("" = none).
+func (s *Service) pending(n int, pr string, lane backlog.LaneRun) []backlog.Pending {
+	found := lane.Findings()
+	if len(found) == 0 {
+		return nil
+	}
+	if pr == "" {
+		pr = "no PR"
+	}
+	ps := make([]backlog.Pending, 0, len(found))
+	for _, f := range found {
+		body := fmt.Sprintf("Found by a loops backlog lane while working #%d (%s).\n", n, pr)
+		if f.Ref != "" {
+			if text, ok := s.lanes.ReadRef(lane.Dir, f.Ref); ok {
+				body += "\n" + truncate(text, maxBody) + "\n"
+			}
+		}
+		ps = append(ps, backlog.Pending{Title: f.Title, Body: body, From: n})
+	}
+	return ps
+}
+
+// flush files the pending findings of issue from (0 = every issue). A
+// finding that fails stays pending for the next sync.
+func (s *Service) flush(ctx context.Context, set backlog.Settings, from int) []Filed {
+	st, err := s.store.Load(ctx)
+	if err != nil {
+		s.warn("pending findings: %v", err)
+		return nil
+	}
+	var out []Filed
+	for _, p := range st.Pending {
+		if from != 0 && p.From != from {
+			continue
+		}
+		filed, err := s.file(ctx, set, p.Title, p.Body, p.From, true)
+		switch {
+		case errors.Is(err, errNotPending):
+		case err != nil:
+			s.warn("finding %q stays pending: %v", p.Title, err)
+		default:
+			out = append(out, filed)
+		}
+	}
+	return out
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "\n\n…(truncated)"
+}
+
+// File files one finding by hand (`loops backlog file`).
+func (s *Service) File(ctx context.Context, title, body string, from int) (Filed, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return Filed{}, errors.New("a finding needs a title")
+	}
+	st, err := s.load(ctx)
+	if err != nil {
+		return Filed{}, err
+	}
+	return s.file(ctx, st.Settings, title, body, from, false)
+}
+
+// file creates the finding's issue unless it duplicates one (BACKLOG §5).
+// Everything runs under the state lock, the open issues are listed there,
+// and the issue is recorded (and, when pending, leaves the pending list)
+// in the same save, so two lanes ending together never file the same
+// finding twice. A failure saves nothing: a pending finding stays pending.
+func (s *Service) file(ctx context.Context, set backlog.Settings, title, body string, from int, pending bool) (Filed, error) {
+	res := Filed{Title: title}
+	err := s.store.Update(ctx, func(st *backlog.State) error {
+		if pending && !st.IsPending(title, from) {
+			return errNotPending
+		}
+		if pending {
+			st.DropPending(title, from)
+		}
+		dup := st.Duplicate(title, nil)
+		if dup == "" {
+			open, err := s.forge.OpenIssues(ctx, set.Repo)
+			if err != nil {
+				return err
+			}
+			dup = st.Duplicate(title, open)
+		}
+		if dup != "" {
+			res.URL, res.Duplicate = dup, true
+			return nil
+		}
+		body += fmt.Sprintf("\n---\nFiled by `loops backlog` and assigned to @%s to triage. A lane takes it only after the `%s` label is removed and it is unassigned.\n",
+			set.Human, set.FindingLabel)
+		url, err := s.forge.Create(ctx, set.Repo, NewIssue{Title: title, Body: body,
+			Labels: []string{set.FindingLabel}, Assignees: []string{set.Human}})
+		if err != nil {
+			return err
+		}
+		res.URL = url
+		st.Findings = append(st.Findings, backlog.Finding{Key: backlog.FindingKey(title), Title: title, URL: url, From: from})
+		return nil
+	})
+	if err == nil && res.Duplicate && from > 0 {
+		if cerr := s.forge.Comment(ctx, set.Repo, from, fmt.Sprintf("A loops backlog lane found: %s. Already tracked in %s.", title, res.URL)); cerr != nil {
+			s.warn("issue %d: %v", from, cerr)
+		}
+	}
+	return res, err
+}
+
+// Finish records the supervisor's ruling on issue n (`loops backlog
+// finish`): human hands it off (BACKLOG §6); queued also takes back an
+// earlier hand-off's label and assignee so sync keeps it.
+func (s *Service) Finish(ctx context.Context, n int, status backlog.Status, note string, force bool) (backlog.Item, error) {
+	st, err := s.load(ctx)
+	if err != nil {
+		return backlog.Item{}, err
+	}
+	if status == backlog.Running {
+		return backlog.Item{}, errors.New("only a lane sets running (loops backlog work)")
+	}
+	var it backlog.Item
+	// A ruling and its forge edits have one owner, the issue's lane lock: a
+	// live lane, a hand-off or another ruling holding it refuses this one.
+	var lease Lease
+	err = s.store.Update(ctx, func(st *backlog.State) error {
+		cur, ok := st.Item(n)
+		if !ok {
+			return fmt.Errorf("issue %d is not in the backlog", n)
+		}
+		var err error
+		if lease, err = s.store.HoldLane(n); err != nil {
+			if cur.Status == backlog.Running {
+				return fmt.Errorf("issue %d has a live lane (or a process its agent started); wait for it to end: %w", n, err)
+			}
+			return fmt.Errorf("issue %d is being handed off by another loops process; try again: %w", n, err)
+		}
+		it, err = st.Set(n, status, note, force, s.clock.Now())
+		return err
+	})
+	if lease != nil {
+		defer lease.Release()
+	}
+	if err != nil {
+		return it, err
+	}
+	switch status {
+	case backlog.Human:
+		s.handoff(ctx, st.Settings, it)
+	case backlog.Queued:
+		s.edit(ctx, st.Settings, n, Edit{RemoveLabels: []string{st.Settings.HumanLabel}, RemoveAssignees: []string{st.Settings.Human}})
+	}
+	return it, nil
+}
+
+// handoff comments on the issue, labels it and assigns the human (BACKLOG
+// §6). It is confirmed (HandedOff) only once the comment is posted and the
+// forge took the label and assignee; otherwise the next sync retries it,
+// never posting the comment twice. It reports whether it was confirmed.
+func (s *Service) handoff(ctx context.Context, set backlog.Settings, it backlog.Item) bool {
+	commented := it.Commented
+	if !commented {
+		pr := it.PR
+		if pr == "" && len(it.LanePRs) > 0 {
+			pr = it.LanePRs[len(it.LanePRs)-1].URL
+		}
+		if pr == "" {
+			pr = "none"
+		}
+		body := fmt.Sprintf("loops backlog handed this issue to @%s.\n\n- Reason: %s\n- Attempts: %d of %d\n- PR: %s\n- Lane log (supervisor's machine): %s\n- Last run: %s\n\nTo give it back to the lanes, unassign it and remove the `%s` label.\n",
+			set.Human, orNone(it.Note), it.Attempts, set.Attempts, pr, s.store.LogPath(it.Number), orNone(it.RunDir), set.HumanLabel)
+		if err := s.forge.Comment(ctx, set.Repo, it.Number, body); err != nil {
+			s.warn("issue %d: hand-off comment: %v (the next sync retries)", it.Number, err)
+		} else {
+			commented = true
+		}
+	}
+	edited := true
+	if err := s.forge.Edit(ctx, set.Repo, it.Number, Edit{AddLabels: []string{set.HumanLabel}, AddAssignees: []string{set.Human}}); err != nil {
+		s.warn("issue %d: hand-off: %v (the next sync retries)", it.Number, err)
+		edited = false
+	}
+	confirmed := commented && edited
+	err := s.store.Update(ctx, func(st *backlog.State) error {
+		if cur, ok := st.Item(it.Number); ok && cur.Status == backlog.Human {
+			cur.Commented = cur.Commented || commented
+			cur.HandedOff = confirmed
+		}
+		return nil
+	})
+	if err != nil {
+		s.warn("issue %d: %v", it.Number, err)
+		return false
+	}
+	return confirmed
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "none"
+	}
+	return s
+}
+
+// Clean removes the worktrees of finished lanes: every earlier lane of an
+// issue, and the last one of done and skipped issues (plus failed and human
+// with all). It returns the worktrees removed (or, with
+// dryRun, that would be).
+func (s *Service) Clean(ctx context.Context, all, dryRun bool) ([]string, error) {
+	st, err := s.load(ctx)
+	if err != nil {
+		return nil, err
+	}
+	finished := []backlog.Status{backlog.Done, backlog.Skipped}
+	if all {
+		finished = append(finished, backlog.Failed, backlog.Human)
+	}
+	var removed []string
+	for _, it := range st.Items {
+		dirs := slices.Clone(it.Past)
+		if it.Status != backlog.Running && it.Status != backlog.Queued && slices.Contains(finished, it.Status) {
+			dirs = append(dirs, it.Worktree)
+		}
+		for _, d := range dirs {
+			if d == "" || !s.wt.Exists(d) {
+				continue
+			}
+			if !dryRun {
+				if err := s.wt.Remove(ctx, d); err != nil {
+					s.warn("keep %s: %v", d, err)
+					continue
+				}
+			}
+			removed = append(removed, d)
+		}
+	}
+	if dryRun || len(removed) == 0 {
+		return removed, nil
+	}
+	return removed, s.store.Update(ctx, func(st *backlog.State) error {
+		for i := range st.Items {
+			it := &st.Items[i]
+			if slices.Contains(removed, it.Worktree) {
+				it.Worktree = ""
+			}
+			it.Past = slices.DeleteFunc(it.Past, func(d string) bool { return slices.Contains(removed, d) })
+		}
+		return nil
+	})
+}
