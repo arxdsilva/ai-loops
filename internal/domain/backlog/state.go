@@ -1,6 +1,7 @@
 package backlog
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"slices"
@@ -27,8 +28,12 @@ type Item struct {
 	Lanes  int      `json:"lanes,omitempty"`
 	Past   []string `json:"past_worktrees,omitempty"`
 	RunDir string   `json:"run_dir,omitempty"` // the lane's last loops run
-	PR     string   `json:"pr,omitempty"`
-	Note   string   `json:"note,omitempty"` // why it failed, was handed off or skipped
+	PR     string   `json:"pr,omitempty"`      // the PR of the lane that ended done
+	// LanePRs are every PR the issue's lanes opened, even by a lane that
+	// then failed or stopped, with when it was recorded: the open-PR cap
+	// counts each one still open (BACKLOG §7).
+	LanePRs []LanePR `json:"lane_prs,omitempty"`
+	Note    string   `json:"note,omitempty"` // why it failed, was handed off or skipped
 	// HandedOff is true once the forge took the hand-off label and assignee
 	// (BACKLOG §6). Held is true once a sync after that saw the issue held
 	// (not eligible). Only an issue seen held and then eligible again is
@@ -41,6 +46,26 @@ type Item struct {
 	Commented bool      `json:"handoff_commented,omitempty"`
 	Started   time.Time `json:"started,omitzero"`
 	Updated   time.Time `json:"updated,omitzero"`
+}
+
+// LanePR is a PR a lane opened, and when the state recorded it.
+type LanePR struct {
+	URL string    `json:"url"`
+	At  time.Time `json:"at,omitzero"`
+}
+
+// lanePRs are the PRs the item's lanes opened: LanePRs, plus PR when an
+// older state recorded it alone (dated by Updated while the item is done).
+func (it Item) lanePRs() []LanePR {
+	out := it.LanePRs
+	if it.PR != "" && !slices.ContainsFunc(out, func(p LanePR) bool { return prKey(p.URL) == prKey(it.PR) }) {
+		at := time.Time{}
+		if it.Status == Done {
+			at = it.Updated
+		}
+		out = append(slices.Clone(out), LanePR{URL: it.PR, At: at})
+	}
+	return out
 }
 
 // Finding is an issue filed from a lane's finding (BACKLOG §5).
@@ -132,11 +157,11 @@ type Gate struct {
 func (g Gate) Closed() bool { return g.Cap > 0 && g.Open >= g.Cap }
 
 // Gate counts what the open-PR cap holds: every running lane (each may open
-// a PR), and every item whose PR is among open (the forge's open PR URLs,
-// listed at since) or was recorded after since, so a PR opened while the
-// list was in flight still counts. The two are separate reservations: a
-// re-queued issue whose earlier PR is still open counts twice while a new
-// lane runs on it.
+// a PR), and every PR a lane opened that is among open (the forge's open PR
+// URLs, listed at since) or was recorded after since, so a PR opened while
+// the list was in flight still counts. They are separate reservations: an
+// issue re-queued with an earlier PR still open counts that PR and its new
+// lane, and every PR its lanes opened.
 func (s *State) Gate(open []string, since time.Time) Gate {
 	urls := map[string]bool{}
 	for _, u := range open {
@@ -147,8 +172,10 @@ func (s *State) Gate(open []string, since time.Time) Gate {
 		if it.Status == Running {
 			g.Open++
 		}
-		if it.PR != "" && (urls[prKey(it.PR)] || (it.Status == Done && it.Updated.After(since))) {
-			g.Open++
+		for _, p := range it.lanePRs() {
+			if urls[prKey(p.URL)] || p.At.After(since) {
+				g.Open++
+			}
 		}
 	}
 	return g
@@ -266,7 +293,10 @@ func (s *State) Claim(n int, dir func(n, lane int) string, now time.Time) (Item,
 
 // Outcome is how a lane ended.
 type Outcome struct {
-	PR     string // the PR the run opened ("" = none)
+	PR string // the PR of a run that ended done ("" = none)
+	// Opened is a PR the run recorded whatever its end (it may not have
+	// ended): it still counts against the open-PR cap (BACKLOG §7).
+	Opened string
 	RunDir string
 	Reason string // why it failed ("" when a PR was opened)
 	// NeedsHuman is set when the lane recorded a needs-human decision
@@ -283,6 +313,9 @@ func (s *State) Finish(n int, o Outcome, now time.Time) (Status, error) {
 		return "", fmt.Errorf("issue %d is not in the backlog", n)
 	}
 	it.RunDir, it.Updated = o.RunDir, now
+	if pr := cmp.Or(o.PR, o.Opened); pr != "" && !slices.ContainsFunc(it.LanePRs, func(p LanePR) bool { return prKey(p.URL) == prKey(pr) }) {
+		it.LanePRs = append(it.LanePRs, LanePR{URL: pr, At: now})
+	}
 	switch {
 	case o.PR != "":
 		it.Status, it.PR, it.Note = Done, o.PR, ""

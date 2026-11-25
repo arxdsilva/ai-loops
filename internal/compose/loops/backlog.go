@@ -2,6 +2,7 @@ package loops
 
 import (
 	"context"
+	"os"
 
 	"github.com/arxdsilva/ai-loops/internal/adapters/inbound/cli"
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/agentcmd"
@@ -11,6 +12,11 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/adapters/outbound/lanefs"
 	appbacklog "github.com/arxdsilva/ai-loops/internal/application/backlog"
 )
+
+// The lane agent hands the lane lock to its processes through the store
+// lease's File (agentcmd.Lane.Run), so a killed `loops backlog work` still
+// leaves a live lane until its agent ends (BACKLOG §3).
+var _ interface{ File() *os.File } = (*backlogstore.Lease)(nil)
 
 // backlogEnv wires `loops backlog` on the main checkout of the repository
 // holding root, so a call from inside a lane's worktree reaches the same

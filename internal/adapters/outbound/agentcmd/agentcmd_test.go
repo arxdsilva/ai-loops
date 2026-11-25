@@ -53,7 +53,7 @@ func TestLaneRun(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "logs", "issue-1.log")
 	t.Setenv("CLAUDE_PROJECT_DIR", "/caller")
 	s := backlog.Settings{Agent: "sh -c {prompt}"}
-	err := Lane{}.Run(context.Background(), dir, `pwd; echo "proj=[$CLAUDE_PROJECT_DIR]"`, log, s)
+	err := Lane{}.Run(context.Background(), dir, `pwd; echo "proj=[$CLAUDE_PROJECT_DIR]"`, log, s, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,13 +66,13 @@ func TestLaneRun(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	if err := (Lane{}).Run(ctx, dir, "sleep 30", log, s); err == nil {
+	if err := (Lane{}).Run(ctx, dir, "sleep 30", log, s, nil); err == nil {
 		t.Fatal("a stopped lane reported success")
 	}
 	if time.Since(start) > 10*time.Second {
 		t.Fatal("lane not stopped promptly")
 	}
-	if err := (Lane{}).Run(context.Background(), dir, "x", log, backlog.Settings{Agent: "no-prompt"}); err == nil {
+	if err := (Lane{}).Run(context.Background(), dir, "x", log, backlog.Settings{Agent: "no-prompt"}, nil); err == nil {
 		t.Fatal("bad template accepted")
 	}
 }

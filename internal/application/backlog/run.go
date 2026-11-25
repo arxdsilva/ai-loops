@@ -66,14 +66,14 @@ func (s *Service) Run(ctx context.Context, in RunInput) (RunSummary, error) {
 			continue
 		}
 		sum.Gated = false
-		ran, err := s.drain(ctx, in.Max, out, &sum)
+		d, err := s.drain(ctx, in.Max, out, &sum)
 		if err != nil {
 			return sum, err
 		}
 		switch {
 		case ctx.Err() != nil:
 			return sum, ctx.Err()
-		case sum.Gated && ran == 0:
+		case sum.Gated && d.ran == 0:
 			if in.Wait <= 0 {
 				fmt.Fprintf(out, "paused: %d of %d lane PRs open (--max-prs); merge or close some, then run again\n", sum.Gate.Open, sum.Gate.Cap)
 				return sum, nil
@@ -82,22 +82,36 @@ func (s *Service) Run(ctx context.Context, in RunInput) (RunSummary, error) {
 			if err := s.clock.Sleep(ctx, in.Wait); err != nil {
 				return sum, err
 			}
-		case ran == 0:
+		case d.ran == 0 && d.failed > 0:
 			return sum, errors.New("issues are queued but no lane could start (see the errors above)")
+		case d.ran == 0:
+			// Another process claimed what the sync saw queued.
+			if in.Wait <= 0 {
+				return sum, nil
+			}
+			fmt.Fprintf(out, "idle: nothing left to claim; checking again in %s\n", in.Wait)
+			if err := s.clock.Sleep(ctx, in.Wait); err != nil {
+				return sum, err
+			}
 		}
 	}
 }
 
-// drain runs lanes until no issue is left to claim or Max is reached. It
-// returns how many lanes ran to an outcome.
-func (s *Service) drain(ctx context.Context, maxLanes int, out io.Writer, sum *RunSummary) (int, error) {
+// drained is how one drain went: lanes that took an issue (a lane whose
+// outcome could not be saved counts: it ran), and lanes that failed before
+// claiming one. Neither with nothing gated means the queue ran out.
+type drained struct{ ran, failed int }
+
+// drain runs lanes until no issue is left to claim or Max is reached.
+func (s *Service) drain(ctx context.Context, maxLanes int, out io.Writer, sum *RunSummary) (drained, error) {
 	st, err := s.load(ctx)
 	if err != nil {
-		return 0, err
+		return drained{}, err
 	}
 	lanes := max(1, st.Settings.Lanes)
 	done := make(chan laneDone)
-	active, ran, empty := 0, 0, false
+	var res drained
+	active, empty := 0, false
 	for {
 		for !empty && active < lanes && (maxLanes == 0 || sum.Started < maxLanes) && ctx.Err() == nil {
 			active++
@@ -108,15 +122,18 @@ func (s *Service) drain(ctx context.Context, maxLanes int, out io.Writer, sum *R
 			}()
 		}
 		if active == 0 {
-			return ran, nil
+			return res, nil
 		}
 		d := <-done
 		active--
 		switch {
 		case d.err != nil:
-			// Only a lane that took its issue counts against Max.
-			if !d.res.Claimed {
+			// Only a lane that took its issue counts against Max, and as run.
+			if d.res.Claimed {
+				res.ran++
+			} else {
 				sum.Started--
+				res.failed++
 			}
 			sum.Errors++
 			empty = true // do not spin on a lane that cannot start
@@ -129,7 +146,7 @@ func (s *Service) drain(ctx context.Context, maxLanes int, out io.Writer, sum *R
 			sum.Gated, sum.Gate = true, d.res.Gate
 			empty = true
 		default:
-			ran++
+			res.ran++
 			report(out, d.res, sum)
 		}
 	}

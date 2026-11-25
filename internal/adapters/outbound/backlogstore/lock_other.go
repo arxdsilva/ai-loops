@@ -17,6 +17,6 @@ func lock(*os.File) error { return errNoLocks }
 
 func unlock(*os.File) {}
 
-func acquire(string) (func(), error) { return nil, errNoLocks }
+func acquire(string) (*os.File, error) { return nil, errNoLocks }
 
 func held(string) bool { return false }

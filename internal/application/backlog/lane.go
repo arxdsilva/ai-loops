@@ -1,6 +1,7 @@
 package backlog
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -56,7 +57,7 @@ type Filed struct {
 // one), add its worktree, run the agent, record the outcome, hand off or
 // re-queue a failure, and file the lane's findings.
 func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
-	set, it, gate, release, err := s.claim(ctx, n)
+	set, it, gate, lease, err := s.claim(ctx, n)
 	switch {
 	case errors.Is(err, backlog.ErrEmpty):
 		return LaneResult{Empty: true}, nil
@@ -68,7 +69,7 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 	held := true
 	defer func() {
 		if held {
-			release()
+			lease.Release()
 		}
 	}()
 	s.edit(ctx, set, it.Number, Edit{AddLabels: []string{set.ClaimLabel}})
@@ -79,7 +80,7 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 	} else {
 		started = true
 		runCtx, cancel := context.WithTimeout(ctx, set.TimeoutDuration())
-		if err := s.agent.Run(runCtx, it.Worktree, Prompt(set, it.Number), s.store.LogPath(it.Number), set); err != nil {
+		if err := s.agent.Run(runCtx, it.Worktree, Prompt(set, it.Number), s.store.LogPath(it.Number), set, lease); err != nil {
 			switch {
 			case ctx.Err() != nil:
 				agentErr = "lane stopped: " + ctx.Err().Error()
@@ -95,10 +96,12 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 	ctx, cancelTidy := context.WithTimeout(context.WithoutCancel(ctx), tidyTimeout)
 	defer cancelTidy()
 	// The lane's own worktree is fresh, so its newest run is this lane's.
+	// A run that cannot be read is left running, not recorded without its
+	// PR and findings: the next sync recovers it and reads it again.
 	var lane backlog.LaneRun
 	if started {
 		if lane, err = s.lanes.Latest(it.Worktree); err != nil {
-			s.warn("read lane %d: %v", it.Number, err)
+			return LaneResult{Claimed: true, Item: it}, fmt.Errorf("read the run of issue %d's lane (the next loops backlog sync records it): %w", it.Number, err)
 		}
 	}
 	out := lane.Outcome(agentErr)
@@ -110,7 +113,7 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 	s.edit(ctx, set, it.Number, Edit{RemoveLabels: []string{set.ClaimLabel}})
 	// The findings are saved with the outcome: no crash between the two can
 	// lose them (BACKLOG §5).
-	pending := s.pending(it.Number, out.PR, lane)
+	pending := s.pending(it.Number, cmp.Or(out.PR, out.Opened), lane)
 	res := LaneResult{Claimed: true}
 	err = s.store.Update(ctx, func(st *backlog.State) error {
 		status, err := st.Finish(it.Number, out, s.clock.Now())
@@ -129,7 +132,7 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 	// until done, so a sync meanwhile does not hand it off a second time.
 	if err != nil || res.Status != backlog.Human {
 		held = false
-		release()
+		lease.Release()
 	}
 	if err != nil {
 		return res, err
@@ -137,7 +140,7 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 	if res.Status == backlog.Human {
 		s.handoff(ctx, set, res.Item)
 		held = false
-		release()
+		lease.Release()
 	}
 	res.Findings = s.flush(ctx, set, it.Number)
 	return res, nil
@@ -146,7 +149,7 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 // claim takes issue n (0 = the next queued) for a lane: under the state
 // lock it checks the open-PR cap (BACKLOG §7), marks the issue running and
 // takes its lane lock. It returns the settings the claim was made under.
-func (s *Service) claim(ctx context.Context, n int) (set backlog.Settings, it backlog.Item, gate backlog.Gate, release func(), err error) {
+func (s *Service) claim(ctx context.Context, n int) (set backlog.Settings, it backlog.Item, gate backlog.Gate, lease Lease, err error) {
 	for range claimTries {
 		var st backlog.State
 		if st, err = s.load(ctx); err != nil {
@@ -156,7 +159,7 @@ func (s *Service) claim(ctx context.Context, n int) (set backlog.Settings, it ba
 		// lane starts.
 		since := s.clock.Now()
 		var prs []string
-		listed := st.Settings.PRCap() > 0
+		listed, repo := st.Settings.PRCap() > 0, st.Settings.Repo
 		if listed {
 			if prs, err = s.prs.OpenPRs(ctx, st.Settings.Repo); err != nil {
 				err = fmt.Errorf("list the open PRs for the --max-prs cap: %w", err)
@@ -164,8 +167,9 @@ func (s *Service) claim(ctx context.Context, n int) (set backlog.Settings, it ba
 			}
 		}
 		err = s.store.Update(ctx, func(st *backlog.State) error {
-			// An init turned the cap on after the load: list the PRs again.
-			if st.Settings.PRCap() > 0 && !listed {
+			// An init turned the cap on, or changed the repo, after the
+			// load: list the PRs again.
+			if st.Settings.PRCap() > 0 && (!listed || st.Settings.Repo != repo) {
 				return errRelist
 			}
 			set = st.Settings
@@ -185,14 +189,14 @@ func (s *Service) claim(ctx context.Context, n int) (set backlog.Settings, it ba
 			if it, err = st.Claim(pick, func(n, lane int) string { return worktree(set, n, lane) }, s.clock.Now()); err != nil {
 				return err
 			}
-			release, err = s.store.HoldLane(pick)
+			lease, err = s.store.HoldLane(pick)
 			return err
 		})
-		if err != nil && release != nil {
+		if err != nil && lease != nil {
 			// The claim was not saved: give back the lane lock taken before
 			// the save failed.
-			release()
-			release = nil
+			lease.Release()
+			lease = nil
 		}
 		if !errors.Is(err, errRelist) {
 			return
@@ -335,23 +339,26 @@ func (s *Service) Finish(ctx context.Context, n int, status backlog.Status, note
 		return backlog.Item{}, errors.New("only a lane sets running (loops backlog work)")
 	}
 	var it backlog.Item
-	var release func()
+	// A ruling and its forge edits have one owner, the issue's lane lock: a
+	// live lane, a hand-off or another ruling holding it refuses this one.
+	var lease Lease
 	err = s.store.Update(ctx, func(st *backlog.State) error {
-		if cur, ok := st.Item(n); ok && cur.Status == backlog.Running && s.store.LaneHeld(n) {
-			return fmt.Errorf("issue %d has a live lane; wait for it to end", n)
+		cur, ok := st.Item(n)
+		if !ok {
+			return fmt.Errorf("issue %d is not in the backlog", n)
 		}
 		var err error
-		if it, err = st.Set(n, status, note, force, s.clock.Now()); err != nil || status != backlog.Human {
-			return err
-		}
-		// The hand-off has one owner: a sync meanwhile leaves it to us.
-		if release, err = s.store.HoldLane(n); err != nil {
+		if lease, err = s.store.HoldLane(n); err != nil {
+			if cur.Status == backlog.Running {
+				return fmt.Errorf("issue %d has a live lane (or a process its agent started); wait for it to end: %w", n, err)
+			}
 			return fmt.Errorf("issue %d is being handed off by another loops process; try again: %w", n, err)
 		}
-		return nil
+		it, err = st.Set(n, status, note, force, s.clock.Now())
+		return err
 	})
-	if release != nil {
-		defer release()
+	if lease != nil {
+		defer lease.Release()
 	}
 	if err != nil {
 		return it, err
@@ -373,6 +380,9 @@ func (s *Service) handoff(ctx context.Context, set backlog.Settings, it backlog.
 	commented := it.Commented
 	if !commented {
 		pr := it.PR
+		if pr == "" && len(it.LanePRs) > 0 {
+			pr = it.LanePRs[len(it.LanePRs)-1].URL
+		}
 		if pr == "" {
 			pr = "none"
 		}

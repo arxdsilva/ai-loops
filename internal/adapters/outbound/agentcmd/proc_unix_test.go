@@ -46,40 +46,87 @@ func gone(pid int) bool {
 	return false
 }
 
-// zombie says whether pid has ended but was not reaped (ps state Z).
+// zombie says whether pid has ended but was not reaped: state Z in
+// /proc/<pid>/stat where there is one (Linux, any ps), else in ps.
 func zombie(pid int) bool {
+	if b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat"); err == nil {
+		// The state follows the command name, which may hold spaces or ")".
+		if i := strings.LastIndexByte(string(b), ')'); i >= 0 {
+			return strings.HasPrefix(strings.TrimSpace(string(b)[i+1:]), "Z")
+		}
+	}
 	out, err := exec.Command("ps", "-o", "stat=", "-p", strconv.Itoa(pid)).Output()
 	return err == nil && strings.HasPrefix(strings.TrimSpace(string(out)), "Z")
 }
 
-func TestLaneRunStopsDescendants(t *testing.T) {
-	dir := t.TempDir()
-	log := filepath.Join(t.TempDir(), "lane.log")
-	s := backlog.Settings{Agent: "sh -c {prompt}"}
-	pidFile := filepath.Join(dir, "child.pid")
+// fileLease is a lane lock held on f, as backlogstore's lease is.
+type fileLease struct{ f *os.File }
 
-	// A stopped lane stops the agent's children, not only the agent.
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- (Lane{}).Run(ctx, dir, "sleep 300 & echo $! > child.pid; wait", log, s) }()
-	pid := childPID(t, pidFile)
-	cancel()
-	if err := <-done; err == nil {
-		t.Fatal("a stopped lane reported success")
-	}
-	if !gone(pid) {
-		syscall.Kill(pid, syscall.SIGKILL)
-		t.Fatalf("child %d outlived its stopped lane", pid)
-	}
+func (l fileLease) Release()       { syscall.Flock(int(l.f.Fd()), syscall.LOCK_UN); l.f.Close() }
+func (l fileLease) File() *os.File { return l.f }
 
-	// An agent that exits leaving a background child behind: the child goes too.
-	os.Remove(pidFile)
-	if err := (Lane{}).Run(context.Background(), dir, "sleep 300 & echo $! > child.pid", log, s); err != nil {
+// locked says whether another open of p cannot take its lock.
+func locked(t *testing.T, p string) bool {
+	t.Helper()
+	f, err := os.Open(p)
+	if err != nil {
 		t.Fatal(err)
 	}
-	pid = childPID(t, pidFile)
-	if !gone(pid) {
-		syscall.Kill(pid, syscall.SIGKILL)
-		t.Fatalf("child %d outlived its lane", pid)
+	defer f.Close()
+	if syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) != nil {
+		return true
 	}
+	syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	return false
+}
+
+// TestLeaseHolder is the `loops backlog work` side of
+// TestLaneRunAgentHoldsTheLease, run in a child process: it takes the lane
+// lock and runs a lane whose agent waits for a go file.
+func TestLeaseHolder(t *testing.T) {
+	p, dir := os.Getenv("LOOPS_TEST_LEASE"), os.Getenv("LOOPS_TEST_LANE_DIR")
+	if p == "" {
+		t.Skip("helper process for TestLaneRunAgentHoldsTheLease")
+	}
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		t.Fatal(err)
+	}
+	s := backlog.Settings{Agent: "sh -c {prompt}"}
+	(Lane{}).Run(context.Background(), dir, "echo $$ > ready.pid; while [ ! -f go ]; do sleep 0.05; done", filepath.Join(dir, "lane.log"), s, fileLease{f})
+}
+
+// The agent inherits the lane lock: when `loops backlog work` is killed
+// outright, the lane still looks alive until the agent ends, so a sync
+// never recovers a lane whose agent is still writing its run.
+func TestLaneRunAgentHoldsTheLease(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(t.TempDir(), "issue-1.lock")
+	gate := filepath.Join(dir, "go")
+	holder := exec.Command(os.Args[0], "-test.run=^TestLeaseHolder$")
+	holder.Env = append(os.Environ(), "LOOPS_TEST_LEASE="+p, "LOOPS_TEST_LANE_DIR="+dir)
+	if err := holder.Start(); err != nil {
+		t.Fatal(err)
+	}
+	agent := childPID(t, filepath.Join(dir, "ready.pid"))
+	t.Cleanup(func() { os.WriteFile(gate, nil, 0o644); syscall.Kill(agent, syscall.SIGKILL) })
+	holder.Process.Kill()
+	holder.Wait()
+	if !locked(t, p) {
+		t.Fatal("the lane lock died with a killed loops backlog work while its agent runs")
+	}
+	os.WriteFile(gate, nil, 0o644)
+	if !gone(agent) {
+		t.Fatalf("agent %d did not end", agent)
+	}
+	for range 200 {
+		if !locked(t, p) {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatal("the lane lock outlived the agent")
 }

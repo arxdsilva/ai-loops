@@ -26,6 +26,7 @@ func (l LaneRun) Outcome(agentErr string) Outcome {
 		return o
 	}
 	st := run.Fold(l.Events)
+	o.Opened = st.PR
 	switch {
 	case !st.Ended:
 		o.Reason = join("the agent stopped before ending its run (phase "+string(st.Phase)+")", agentErr)
@@ -83,12 +84,25 @@ func (l LaneRun) Findings() []LaneFinding {
 
 // FollowUps returns the bullet items under a "## Open follow-ups" heading,
 // skipping "none". Continuation lines are dropped: the title is the item's
-// first line.
+// first line. The section ends at the next heading or at an HTML block (the
+// PR template's `<details>` proofs follow it), and fenced code is skipped,
+// so bullets in proof output are never taken for follow-ups.
 func FollowUps(md string) []string {
 	var out []string
-	in := false
+	in, fenced := false, false
 	for line := range strings.SplitSeq(md, "\n") {
 		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
+			fenced = !fenced
+			continue
+		}
+		if fenced {
+			continue
+		}
+		if strings.HasPrefix(t, "<") {
+			in = false
+			continue
+		}
 		if strings.HasPrefix(t, "#") {
 			in = strings.EqualFold(strings.TrimSpace(strings.TrimLeft(t, "#")), "Open follow-ups")
 			continue

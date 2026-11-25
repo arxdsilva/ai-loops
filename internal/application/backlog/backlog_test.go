@@ -28,6 +28,7 @@ type fakeStore struct {
 	// onSave sees each state saved, and onHold runs when a lane lock is
 	// taken (outside the state lock only).
 	onUpdate func(*backlog.State)
+	failNext error // fails the next save only
 	onSave   func(backlog.State)
 	onHold   func(n int)
 }
@@ -56,6 +57,10 @@ func (f *fakeStore) Update(ctx context.Context, fn func(*backlog.State) error) e
 	if f.failSave != nil {
 		return f.failSave
 	}
+	if err := f.failNext; err != nil {
+		f.failNext = nil
+		return err
+	}
 	f.st, f.exists = st, true
 	if f.onSave != nil {
 		f.onSave(clone(st))
@@ -63,7 +68,16 @@ func (f *fakeStore) Update(ctx context.Context, fn func(*backlog.State) error) e
 	return nil
 }
 func (f *fakeStore) LogPath(n int) string { return fmt.Sprintf("/logs/issue-%d.log", n) }
-func (f *fakeStore) HoldLane(n int) (func(), error) {
+
+// fakeLease releases a fake lane lock once.
+type fakeLease struct {
+	once sync.Once
+	fn   func()
+}
+
+func (l *fakeLease) Release() { l.once.Do(l.fn) }
+
+func (f *fakeStore) HoldLane(n int) (Lease, error) {
 	if f.onHold != nil {
 		f.onHold(n)
 	}
@@ -76,7 +90,7 @@ func (f *fakeStore) HoldLane(n int) (func(), error) {
 		return nil, fmt.Errorf("issue %d lane is held", n)
 	}
 	f.held[n] = true
-	return func() { f.hm.Lock(); delete(f.held, n); f.hm.Unlock() }, nil
+	return &fakeLease{fn: func() { f.hm.Lock(); delete(f.held, n); f.hm.Unlock() }}, nil
 }
 func (f *fakeStore) LaneHeld(n int) bool { f.hm.Lock(); defer f.hm.Unlock(); return f.held[n] }
 
@@ -100,6 +114,8 @@ type fakeForge struct {
 	prs                     []string // open PR URLs
 	failPRs                 error
 	failPRsAt, prCalls      int // failPRsAt fails that listing only (1 = the first)
+	prRepos                 []string
+	onPRs                   func(call int)
 	failCreate, failComment error
 	onComment               func(n int)
 	// editFail fails an edit before it changes anything; editErr after.
@@ -116,10 +132,14 @@ func (f *fakeForge) OpenIssues(context.Context, string) ([]backlog.Issue, error)
 	defer f.mu.Unlock()
 	return slices.Clone(f.open), f.failList
 }
-func (f *fakeForge) OpenPRs(context.Context, string) ([]string, error) {
+func (f *fakeForge) OpenPRs(_ context.Context, repo string) ([]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.prCalls++; f.prCalls == f.failPRsAt {
+	f.prRepos = append(f.prRepos, repo)
+	if f.prCalls++; f.onPRs != nil {
+		f.onPRs(f.prCalls)
+	}
+	if f.prCalls == f.failPRsAt {
 		return nil, errors.New("gh down")
 	}
 	return slices.Clone(f.prs), f.failPRs
@@ -205,15 +225,16 @@ func (w *fakeWT) Exists(dir string) bool { return w.present[dir] }
 
 // fakeLanes returns the run each worktree "recorded"; fakeAgent decides it.
 type fakeLanes struct {
-	mu   sync.Mutex
-	runs map[string]backlog.LaneRun
-	refs map[string]string
+	mu         sync.Mutex
+	runs       map[string]backlog.LaneRun
+	refs       map[string]string
+	failLatest error
 }
 
 func (l *fakeLanes) Latest(wt string) (backlog.LaneRun, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.runs[wt], nil
+	return l.runs[wt], l.failLatest
 }
 func (l *fakeLanes) Phase(wt string) string { return "implement" }
 func (l *fakeLanes) ReadRef(_, rel string) (string, bool) {
@@ -228,7 +249,7 @@ type fakeAgent struct {
 	mu      sync.Mutex
 }
 
-func (a *fakeAgent) Run(_ context.Context, dir, prompt, _ string, _ backlog.Settings) error {
+func (a *fakeAgent) Run(_ context.Context, dir, prompt, _ string, _ backlog.Settings, _ Lease) error {
 	a.mu.Lock()
 	a.prompts = append(a.prompts, prompt)
 	a.mu.Unlock()
@@ -515,7 +536,9 @@ func TestWorkClaimSaveFailureReleasesTheLane(t *testing.T) {
 
 type agentFunc func(ctx context.Context) error
 
-func (f agentFunc) Run(ctx context.Context, _, _, _ string, _ backlog.Settings) error { return f(ctx) }
+func (f agentFunc) Run(ctx context.Context, _, _, _ string, _ backlog.Settings, _ Lease) error {
+	return f(ctx)
+}
 
 func TestFindingsFiledOnceAndDeduped(t *testing.T) {
 	r := newRig(t, is(1), is(2), backlog.Issue{Number: 50, Title: "Known bug in parser", URL: "https://i/50", Assignees: []string{"x"}})
@@ -1166,9 +1189,139 @@ func TestHandoffRetryHasOneOwner(t *testing.T) {
 	if res, err := r.svc.Sync(ctx); err != nil || res.Handed != 0 || len(r.forge.comments[3]) != 0 {
 		t.Fatalf("sync repeated a confirmed hand-off: %+v, %v, comments %v", res, err, r.forge.comments[3])
 	}
-	release, _ := r.store.HoldLane(3)
-	defer release()
+	lease, _ := r.store.HoldLane(3)
+	defer lease.Release()
 	if _, err := r.svc.Finish(ctx, 3, backlog.Human, "again", false); err == nil || !strings.Contains(err.Error(), "being handed off") {
 		t.Fatalf("finish during another hand-off: %v", err)
+	}
+}
+
+// A lane run that cannot be read is not recorded without its PR and
+// findings: the lane and a recovering sync both leave it running, and the
+// sync after the read works again records it.
+func TestUnreadableRunStaysRunning(t *testing.T) {
+	r := newRig(t, is(1))
+	r.init(t, backlog.Settings{})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.lanes.failLatest = errors.New("permission denied")
+	res, err := r.svc.Work(ctx, 1)
+	st, _ := r.store.Load(ctx)
+	if it, _ := st.Item(1); err == nil || !res.Claimed || it.Status != backlog.Running || r.store.LaneHeld(1) {
+		t.Fatalf("work with an unreadable run = %+v, %v, item %+v", res, err, it)
+	}
+	r.svc.Sync(ctx)
+	if st, _ = r.store.Load(ctx); st.Items[0].Status != backlog.Running {
+		t.Fatalf("sync recorded an unreadable run: %+v", st.Items[0])
+	}
+	r.lanes.failLatest = nil
+	r.svc.Sync(ctx)
+	if st, _ = r.store.Load(ctx); st.Items[0].Status != backlog.Done || st.Items[0].PR != "https://pr/1" {
+		t.Fatalf("sync after the read works = %+v", st.Items[0])
+	}
+}
+
+// A sync recovers only the dead lane it saw: if another sync recovered it
+// and a new lane started on the issue meanwhile, that lane is left alone.
+func TestRecoveryChecksTheLane(t *testing.T) {
+	r := newRig(t, is(5))
+	r.init(t, backlog.Settings{})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.store.Update(ctx, func(st *backlog.State) error {
+		_, err := st.Claim(5, func(n, lane int) string { return fmt.Sprintf("/wt/issue-%d-%d", n, lane) }, time.Time{})
+		return err
+	})
+	r.store.onHold = func(n int) {
+		r.store.onHold = nil
+		r.store.mu.Lock()
+		defer r.store.mu.Unlock()
+		it, _ := r.store.st.Item(n)
+		it.Lanes, it.Worktree, it.Past = 2, "/wt/issue-5-2", []string{"/wt/issue-5-1"}
+	}
+	r.svc.Sync(ctx)
+	st, _ := r.store.Load(ctx)
+	if it, _ := st.Item(5); it.Status != backlog.Running || it.Lanes != 2 || len(r.forge.edits[5]) != 0 {
+		t.Fatalf("sync finished a lane it did not see: %+v, edits %+v", it, r.forge.edits[5])
+	}
+}
+
+// Every ruling has one owner: finish refuses while a hand-off (or a lane)
+// holds the issue.
+func TestFinishWaitsForTheHandoff(t *testing.T) {
+	r := newRig(t, is(3))
+	r.init(t, backlog.Settings{})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.svc.Finish(ctx, 3, backlog.Human, "why", false)
+	lease, _ := r.store.HoldLane(3)
+	if _, err := r.svc.Finish(ctx, 3, backlog.Queued, "", true); err == nil || !strings.Contains(err.Error(), "being handed off") {
+		t.Fatalf("queued during a hand-off: %v", err)
+	}
+	if edits := r.forge.edits[3]; len(edits) != 1 {
+		t.Fatalf("the refused ruling edited the issue: %+v", edits)
+	}
+	lease.Release()
+	if _, err := r.svc.Finish(ctx, 3, backlog.Queued, "", true); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A repo changed by an init between the load and the claim is listed again.
+func TestClaimRelistsAChangedRepo(t *testing.T) {
+	r := newRig(t, is(1))
+	r.init(t, backlog.Settings{})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.forge.prRepos = nil
+	r.store.onUpdate = func(st *backlog.State) { st.Settings.Repo = "o/other"; r.store.onUpdate = nil }
+	if _, err := r.svc.Work(ctx, 0); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(r.forge.prRepos, []string{"o/r", "o/other"}) {
+		t.Fatalf("PRs listed for %v", r.forge.prRepos)
+	}
+}
+
+// Run tells a queue another process emptied from lanes that cannot start,
+// and a lane whose outcome could not be saved from one that never ran.
+func TestRunDrainOutcomes(t *testing.T) {
+	ctx := context.Background()
+	takeQueue := func(r *rig) func(int) {
+		return func(call int) {
+			if call == 2 { // the first lane's listing, after the run's sync
+				r.store.mu.Lock()
+				r.store.st.Items[0].Status = backlog.Running
+				r.store.mu.Unlock()
+				r.store.hm.Lock()
+				r.store.held = map[int]bool{1: true}
+				r.store.hm.Unlock()
+			}
+		}
+	}
+	r := newRig(t, is(1))
+	r.init(t, backlog.Settings{Lanes: 1})
+	r.forge.onPRs = takeQueue(r)
+	if sum, err := r.svc.Run(ctx, RunInput{}); err != nil || sum.Started != 0 {
+		t.Fatalf("queue taken by another process = %+v, %v", sum, err)
+	}
+	r = newRig(t, is(1))
+	r.init(t, backlog.Settings{Lanes: 1})
+	r.forge.onPRs = takeQueue(r)
+	wctx, stop := context.WithCancel(ctx)
+	defer stop()
+	var out bytes.Buffer
+	r.svc.clock = fixedClock{sleep: func(time.Duration) { stop() }}
+	if _, err := r.svc.Run(wctx, RunInput{Out: &out, Wait: time.Minute}); !errors.Is(err, context.Canceled) || !strings.Contains(out.String(), "idle: nothing left to claim") {
+		t.Fatalf("--wait with the queue taken = %v\n%s", err, out.String())
+	}
+	r = newRig(t, is(1))
+	r.init(t, backlog.Settings{Lanes: 1})
+	r.agent.outcome = func(string) (backlog.LaneRun, error) {
+		r.store.failNext = errors.New("disk full")
+		return backlog.LaneRun{Dir: "/run", Events: events("done", "https://pr/1")}, nil
+	}
+	if sum, err := r.svc.Run(ctx, RunInput{Max: 1}); err != nil || sum.Started != 1 || sum.Errors != 1 {
+		t.Fatalf("a lane whose outcome was not saved = %+v, %v", sum, err)
 	}
 }

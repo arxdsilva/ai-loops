@@ -446,3 +446,54 @@ func TestPendingAndHandoffs(t *testing.T) {
 		t.Fatal("a ruling kept the old hand-off")
 	}
 }
+
+// Every PR a lane opened stays in the open-PR count: one recorded by a lane
+// that never ended its run, and an earlier lane's PR after a later lane
+// opened another. A PR recorded after the listing counts whatever the
+// item's status.
+func TestLanePRsCount(t *testing.T) {
+	s := State{Settings: Settings{MaxPRs: 9, Attempts: 3}, Items: []Item{{Number: 1, Status: Running, Attempts: 1}}}
+	stopped := LaneRun{Dir: "/r", Events: []run.Event{{Kind: run.KindRun, Run: "r"}, {Kind: run.KindPR, Ref: "https://github.com/o/r/pull/17"}}}
+	o := stopped.Outcome("lane stopped")
+	if o.PR != "" || o.Opened != "https://github.com/o/r/pull/17" {
+		t.Fatalf("outcome of a stopped lane with a PR = %+v", o)
+	}
+	if st, _ := s.Finish(1, o, t0); st != Queued {
+		t.Fatalf("a stopped lane with a PR = %s, want queued (a retry)", st)
+	}
+	open := []string{"https://github.com/o/r/pull/17", "https://github.com/o/r/pull/18"}
+	if g := s.Gate(open, t0); g.Open != 1 {
+		t.Fatalf("the stopped lane's PR is not counted: %+v", g)
+	}
+	s.Claim(1, func(int, int) string { return "/wt" }, t0)
+	s.Finish(1, Outcome{PR: "https://github.com/o/r/pull/18"}, t0)
+	if it, _ := s.Item(1); it.PR != "https://github.com/o/r/pull/18" || len(it.LanePRs) != 2 {
+		t.Fatalf("item = %+v", it)
+	}
+	if g := s.Gate(open, t0); g.Open != 2 {
+		t.Fatalf("the earlier lane PR left the count after a rerun: %+v", g)
+	}
+	// Recorded after the listing, then re-queued: still counted.
+	s.Items = append(s.Items, Item{Number: 2, Status: Queued, LanePRs: []LanePR{{URL: "https://github.com/o/r/pull/30", At: t0.Add(time.Second)}}})
+	if g := s.Gate(open, t0); g.Open != 3 {
+		t.Fatalf("a PR recorded during the listing is not counted: %+v", g)
+	}
+	// An older state with only pr: still counted when listed open.
+	old := State{Settings: Settings{MaxPRs: 9}, Items: []Item{{Number: 3, Status: Human, PR: "https://github.com/o/r/pull/17"}}}
+	if g := old.Gate(open, t0); g.Open != 1 {
+		t.Fatalf("a pr-only item is not counted: %+v", g)
+	}
+}
+
+// The PR template puts <details> proofs right after Open follow-ups:
+// bullets in proof output, or in fenced code, are not follow-ups.
+func TestFollowUpsStopAtProofs(t *testing.T) {
+	md := "## Open follow-ups\n- none\n\n<details><summary>Proof AC-1 x</summary>\n\n- PASS TestA\n```\n- not a finding\n```\n</details>\n"
+	if got := FollowUps(md); got != nil {
+		t.Fatalf("proof output taken for follow-ups: %q", got)
+	}
+	md = "## Open follow-ups\n- Retry budget\n```\n- fenced\n```\n- Cache key\n<details>\n- proof\n</details>\n"
+	if got := FollowUps(md); !slices.Equal(got, []string{"Retry budget", "Cache key"}) {
+		t.Fatalf("follow-ups = %q", got)
+	}
+}

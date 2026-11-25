@@ -21,11 +21,17 @@ type Store interface {
 	// LogPath is the lane log of issue n.
 	LogPath(n int) string
 	// HoldLane takes issue n's lane lock for as long as the lane runs (the
-	// lock dies with the process); LaneHeld reports whether a live process
-	// holds it.
-	HoldLane(n int) (release func(), err error)
+	// lock dies with the last process holding it); LaneHeld reports whether
+	// a live process holds it.
+	HoldLane(n int) (Lease, error)
 	LaneHeld(n int) bool
 }
+
+// Lease is a held lane lock. Release frees it, even when a process it was
+// handed to still runs. Work hands the lane's lease to its agent (Agent.Run),
+// so a lane whose `loops backlog work` was killed outright still looks alive
+// until the agent and everything it started have ended (BACKLOG §3).
+type Lease interface{ Release() }
 
 // NewIssue is an issue to create.
 type NewIssue struct {
@@ -70,9 +76,10 @@ type Worktrees interface {
 }
 
 // Agent runs a lane's agent command in dir until it exits or ctx ends,
-// writing its output to logPath.
+// writing its output to logPath. The agent's processes inherit lease when
+// the adapter can pass it on (nil = nothing to inherit).
 type Agent interface {
-	Run(ctx context.Context, dir, prompt, logPath string, s backlog.Settings) error
+	Run(ctx context.Context, dir, prompt, logPath string, s backlog.Settings, lease Lease) error
 }
 
 // Lanes reads what a lane left in its worktree.

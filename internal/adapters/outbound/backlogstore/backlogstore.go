@@ -12,7 +12,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 
+	appbacklog "github.com/arxdsilva/ai-loops/internal/application/backlog"
 	"github.com/arxdsilva/ai-loops/internal/domain/backlog"
 	"github.com/arxdsilva/ai-loops/internal/platform/atomicfile"
 	"github.com/arxdsilva/ai-loops/internal/platform/loopsdir"
@@ -102,17 +104,34 @@ func (s *Store) lanePath(n int) string {
 }
 
 // HoldLane takes issue n's lane lock until release (or the process ends).
-func (s *Store) HoldLane(n int) (func(), error) {
+func (s *Store) HoldLane(n int) (appbacklog.Lease, error) {
 	p := s.lanePath(n)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return nil, err
 	}
-	release, err := acquire(p)
+	f, err := acquire(p)
 	if errors.Is(err, errHeld) {
 		return nil, fmt.Errorf("issue %d %w", n, err)
 	}
-	return release, err
+	if err != nil {
+		return nil, err
+	}
+	return &Lease{f: f}, nil
 }
+
+// Lease is a held lane lock. Its File can be handed to a child process,
+// which then holds the lock too until it exits.
+type Lease struct {
+	once sync.Once
+	f    *os.File
+}
+
+// Release unlocks the lane, even if a process the file was handed to still
+// runs, and closes the file. It is safe to call more than once.
+func (l *Lease) Release() { l.once.Do(func() { unlock(l.f); l.f.Close() }) }
+
+// File is the locked file, for a child process to inherit.
+func (l *Lease) File() *os.File { return l.f }
 
 // LaneHeld reports whether a live process holds issue n's lane lock.
 func (s *Store) LaneHeld(n int) bool { return held(s.lanePath(n)) }

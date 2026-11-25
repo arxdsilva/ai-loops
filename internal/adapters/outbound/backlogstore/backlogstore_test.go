@@ -99,7 +99,8 @@ func TestLaneLocks(t *testing.T) {
 	if _, err := s.HoldLane(4); err == nil {
 		t.Fatal("second lane on the same issue")
 	}
-	release()
+	release.Release()
+	release.Release() // safe twice
 	if s.LaneHeld(4) {
 		t.Fatal("held after release")
 	}

@@ -1,6 +1,7 @@
 package backlog
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -229,39 +230,18 @@ func (s *Service) Sync(ctx context.Context) (backlog.SyncResult, error) {
 // keeping their findings, then retries every hand-off the forge has not
 // confirmed. It returns the hand-offs confirmed.
 func (s *Service) recover(ctx context.Context, set backlog.Settings) (int, error) {
-	alive := func(it backlog.Item) bool { return s.store.LaneHeld(it.Number) }
 	st, err := s.store.Load(ctx)
 	if err != nil {
 		return 0, err
 	}
-	// The claim label goes first, while the issue is still running, so a
-	// lane that claims it once it is re-queued never loses its own label.
-	stale := st.Stale(alive)
-	for _, n := range stale {
-		s.edit(ctx, set, n, Edit{RemoveLabels: []string{set.ClaimLabel}})
+	for _, n := range st.Stale(func(it backlog.Item) bool { return s.store.LaneHeld(it.Number) }) {
+		it, _ := st.Item(n)
+		if err := s.recoverLane(ctx, set, *it); err != nil {
+			return 0, err
+		}
 	}
-	if len(stale) > 0 {
-		// The outcome and the lane's findings are saved together (BACKLOG §5).
-		err = s.store.Update(ctx, func(st *backlog.State) error {
-			for _, n := range st.Stale(alive) {
-				if !slices.Contains(stale, n) {
-					continue // its label is still on: the next sync takes it
-				}
-				it, _ := st.Item(n)
-				lane, _ := s.lanes.Latest(it.Worktree)
-				out := lane.Outcome("the lane process is gone")
-				if _, err := st.Finish(n, out, s.clock.Now()); err == nil {
-					st.AddPending(s.pending(n, out.PR, lane)...)
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return 0, err
-		}
-		if st, err = s.store.Load(ctx); err != nil {
-			return 0, err
-		}
+	if st, err = s.store.Load(ctx); err != nil {
+		return 0, err
 	}
 	handed := 0
 	for _, it := range st.Unconfirmed() {
@@ -272,17 +252,61 @@ func (s *Service) recover(ctx context.Context, set backlog.Settings) (int, error
 	return handed, nil
 }
 
+// recoverLane records the outcome of seen, a running lane whose process is
+// gone. It takes the issue's lane lock first, so one sync owns it, and
+// acts only while the item is still that lane (same lane count): another
+// sync may have finished it and a new lane started meanwhile. The claim
+// label goes while the issue is still running, so a lane that claims it
+// once it is re-queued never loses its own label; the outcome and the
+// lane's findings are saved together (BACKLOG §5). A run that cannot be
+// read leaves the lane running, for the next sync to read again.
+func (s *Service) recoverLane(ctx context.Context, set backlog.Settings, seen backlog.Item) error {
+	lease, err := s.store.HoldLane(seen.Number)
+	if err != nil {
+		return nil // alive again, or another sync is recovering it
+	}
+	defer lease.Release()
+	same := func(st *backlog.State) (*backlog.Item, bool) {
+		it, ok := st.Item(seen.Number)
+		return it, ok && it.Status == backlog.Running && it.Lanes == seen.Lanes && it.Worktree == seen.Worktree
+	}
+	st, err := s.store.Load(ctx)
+	if err != nil {
+		return err
+	}
+	if _, ok := same(&st); !ok {
+		return nil
+	}
+	lane, err := s.lanes.Latest(seen.Worktree)
+	if err != nil {
+		s.warn("issue %d: lane run not readable, left running for the next sync: %v", seen.Number, err)
+		return nil
+	}
+	s.edit(ctx, set, seen.Number, Edit{RemoveLabels: []string{set.ClaimLabel}})
+	out := lane.Outcome("the lane process is gone")
+	pending := s.pending(seen.Number, cmp.Or(out.PR, out.Opened), lane)
+	return s.store.Update(ctx, func(st *backlog.State) error {
+		if _, ok := same(st); !ok {
+			return nil
+		}
+		if _, err := st.Finish(seen.Number, out, s.clock.Now()); err == nil {
+			st.AddPending(pending...)
+		}
+		return nil
+	})
+}
+
 // retryHandoff retries issue n's unconfirmed hand-off under its lane lock,
 // so it has one owner: a live lane, a `loops backlog finish` or another
 // sync handing it off holds the lock, and this sync leaves it to them. The
 // item is read again under the lock, so a hand-off confirmed meanwhile is
 // not repeated. It reports whether the hand-off was confirmed.
 func (s *Service) retryHandoff(ctx context.Context, set backlog.Settings, n int) bool {
-	release, err := s.store.HoldLane(n)
+	lease, err := s.store.HoldLane(n)
 	if err != nil {
 		return false
 	}
-	defer release()
+	defer lease.Release()
 	st, err := s.store.Load(ctx)
 	if err != nil {
 		return false

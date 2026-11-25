@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	appbacklog "github.com/arxdsilva/ai-loops/internal/application/backlog"
 	"github.com/arxdsilva/ai-loops/internal/domain/backlog"
 )
 
@@ -84,7 +85,7 @@ func LaneArgv(s backlog.Settings, dir, prompt string) ([]string, error) {
 // its output to logPath. Ending ctx asks the agent and its children to stop
 // (SIGTERM), then kills the agent after stopGrace; on Unix whatever it
 // started is killed when it exits.
-func (Lane) Run(ctx context.Context, dir, prompt, logPath string, s backlog.Settings) error {
+func (Lane) Run(ctx context.Context, dir, prompt, logPath string, s backlog.Settings, lease appbacklog.Lease) error {
 	argv, err := LaneArgv(s, dir, prompt)
 	if err != nil {
 		return err
@@ -102,6 +103,12 @@ func (Lane) Run(ctx context.Context, dir, prompt, logPath string, s backlog.Sett
 	cmd.Dir = dir
 	cmd.Env = Env(os.Environ())
 	cmd.Stdout, cmd.Stderr = log, log
+	// The agent's processes inherit the lane lock: if this process is killed
+	// outright, the lane still looks alive until they end, so a sync never
+	// recovers a lane whose agent is still writing its run (BACKLOG §3).
+	if l, ok := lease.(interface{ File() *os.File }); ok && l.File() != nil {
+		cmd.ExtraFiles = []*os.File{l.File()}
+	}
 	reap := graceful(cmd)
 	cmd.WaitDelay = stopGrace
 	err = cmd.Run()
