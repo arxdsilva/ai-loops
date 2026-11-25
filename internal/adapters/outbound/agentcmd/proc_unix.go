@@ -3,14 +3,28 @@
 package agentcmd
 
 import (
+	"errors"
 	"os/exec"
 	"syscall"
 )
 
-// graceful makes cancelling send SIGTERM, so the agent can stop its own
-// children; Run's WaitDelay kills it if it is still there after stopGrace.
-// The agent stays in the caller's process group, so whatever stops the
-// caller's group (a harness stopping a background task) stops it too.
-func graceful(cmd *exec.Cmd) {
-	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+// graceful runs the agent in its own process group. Cancelling sends SIGTERM
+// to the whole group, so the agent and everything it started can stop;
+// Run's WaitDelay kills the agent if it is still there after stopGrace. The
+// returned reap kills whatever of the group is left once the agent has
+// exited (WaitDelay's kill reaches only the agent itself), so no process
+// the agent started outlives its lane.
+func graceful(cmd *exec.Cmd) (reap func()) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return err
+		}
+		return nil
+	}
+	return func() {
+		if cmd.Process != nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+	}
 }

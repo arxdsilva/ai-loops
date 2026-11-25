@@ -48,12 +48,19 @@ func (Lanes) Phase(worktree string) string {
 }
 
 // ReadRef returns a file inside runDir. rel comes from the lane's event
-// log, so it must stay inside the run directory.
+// log and the file goes into a public issue, so the read is confined to
+// the run directory: a path or a symlink (at any level) leading out of it
+// is refused.
 func (Lanes) ReadRef(runDir, rel string) (string, bool) {
 	rel = filepath.FromSlash(rel)
 	if runDir == "" || !filepath.IsLocal(rel) {
 		return "", false
 	}
-	b, err := os.ReadFile(filepath.Join(runDir, rel))
+	root, err := os.OpenRoot(runDir)
+	if err != nil {
+		return "", false
+	}
+	defer root.Close()
+	b, err := root.ReadFile(rel)
 	return string(b), err == nil
 }

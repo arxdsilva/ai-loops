@@ -91,3 +91,21 @@ func TestMainRootOutsideGit(t *testing.T) {
 		t.Fatalf("MainRoot outside git = %s", got)
 	}
 }
+
+// A single-branch clone tracks only one branch: Add still fetches the base
+// into origin/<base>.
+func TestAddUntrackedBase(t *testing.T) {
+	clone := repo(t)
+	ctx := context.Background()
+	git(t, clone, "switch", "--quiet", "-c", "dev")
+	git(t, clone, "push", "--quiet", "origin", "dev")
+	git(t, clone, "config", "remote.origin.fetch", "+refs/heads/dev:refs/remotes/origin/dev")
+	git(t, clone, "update-ref", "-d", "refs/remotes/origin/main")
+	dir := filepath.Join(DefaultWorktrees(clone), "issue-2-1")
+	if err := New(clone).Add(ctx, dir, "main"); err != nil {
+		t.Fatalf("add on an untracked base: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "a.txt")); err != nil {
+		t.Fatal("worktree not checked out")
+	}
+}

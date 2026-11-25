@@ -68,4 +68,21 @@ func TestReadRef(t *testing.T) {
 	if _, ok := l.ReadRef("", "a.md"); ok {
 		t.Fatal("no run dir read")
 	}
+	// Symlinks out of the run dir, to a file or through a directory, are refused;
+	// one that stays inside is followed.
+	outside := t.TempDir()
+	write(t, filepath.Join(outside, "secret.txt"), "secret")
+	if err := os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(dir, "findings", "leak.md")); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	os.Symlink(outside, filepath.Join(dir, "out"))
+	os.Symlink("a.md", filepath.Join(dir, "findings", "same.md"))
+	for _, bad := range []string{"findings/leak.md", "out/secret.txt"} {
+		if s, ok := l.ReadRef(dir, bad); ok {
+			t.Fatalf("%s read through a symlink: %q", bad, s)
+		}
+	}
+	if s, ok := l.ReadRef(dir, "findings/same.md"); !ok || s != "details" {
+		t.Fatalf("inner symlink = %q %v", s, ok)
+	}
 }

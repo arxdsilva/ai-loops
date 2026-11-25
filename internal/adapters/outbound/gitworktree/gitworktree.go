@@ -33,7 +33,10 @@ func run(ctx context.Context, dir string, args ...string) (string, error) {
 // leftover worktree at dir is removed first; git refuses a dirty one, so
 // unsaved work is never lost.
 func (g *Git) Add(ctx context.Context, dir, base string) error {
-	if _, err := run(ctx, g.root, "fetch", "--quiet", "origin", base); err != nil {
+	// An explicit destination: a clone whose remote.origin.fetch does not
+	// track base (a single-branch clone) would not update origin/<base>.
+	refspec := "+refs/heads/" + base + ":refs/remotes/origin/" + base
+	if _, err := run(ctx, g.root, "fetch", "--quiet", "origin", refspec); err != nil {
 		return err
 	}
 	if g.Exists(dir) {

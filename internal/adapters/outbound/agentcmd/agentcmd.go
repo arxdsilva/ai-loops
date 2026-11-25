@@ -81,8 +81,9 @@ func LaneArgv(s backlog.Settings, dir, prompt string) ([]string, error) {
 }
 
 // Run runs the lane's agent in dir until it exits or ctx ends, appending
-// its output to logPath. Ending ctx asks the agent to stop (SIGTERM), then
-// kills it after stopGrace.
+// its output to logPath. Ending ctx asks the agent and its children to stop
+// (SIGTERM), then kills the agent after stopGrace; on Unix whatever it
+// started is killed when it exits.
 func (Lane) Run(ctx context.Context, dir, prompt, logPath string, s backlog.Settings) error {
 	argv, err := LaneArgv(s, dir, prompt)
 	if err != nil {
@@ -101,9 +102,10 @@ func (Lane) Run(ctx context.Context, dir, prompt, logPath string, s backlog.Sett
 	cmd.Dir = dir
 	cmd.Env = Env(os.Environ())
 	cmd.Stdout, cmd.Stderr = log, log
-	graceful(cmd)
+	reap := graceful(cmd)
 	cmd.WaitDelay = stopGrace
 	err = cmd.Run()
+	reap()
 	fmt.Fprintf(log, "== lane ended %s: %v\n", time.Now().UTC().Format(time.RFC3339), errOrOK(err))
 	return err
 }

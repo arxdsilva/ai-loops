@@ -4,30 +4,19 @@ package backlogstore
 
 import (
 	"errors"
-	"io/fs"
 	"os"
 )
 
-// No advisory locking on this OS: the state lock is best effort (run one
-// supervisor), and a lane counts as live while its lock file exists. A
-// lane that crashed stays running until `loops backlog finish`.
-func lock(*os.File) error { return nil }
+// errNoLocks refuses backlog mode where advisory file locks that die with
+// their process are not available (BACKLOG §7): lanes are separate
+// processes sharing one state file, and without such a lock their writes
+// would overwrite each other and a crashed lane would look alive forever.
+var errNoLocks = errors.New("backlog mode needs advisory file locks (Linux, macOS or BSD); this OS has none, so loops backlog does not run here")
+
+func lock(*os.File) error { return errNoLocks }
 
 func unlock(*os.File) {}
 
-func acquire(p string) (func(), error) {
-	f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o644)
-	if errors.Is(err, fs.ErrExist) {
-		return nil, errHeld
-	}
-	if err != nil {
-		return nil, err
-	}
-	f.Close()
-	return func() { _ = os.Remove(p) }, nil
-}
+func acquire(string) (func(), error) { return nil, errNoLocks }
 
-func held(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
-}
+func held(string) bool { return false }
