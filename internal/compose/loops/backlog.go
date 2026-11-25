@@ -28,6 +28,6 @@ func backlogEnv(root string) func(context.Context, func(string, ...any)) cli.Bac
 		svc := appbacklog.New(backlogstore.New(main), gh, gh, gitworktree.New(main),
 			agentcmd.Lane{}, lanefs.Lanes{}, systemClock{})
 		svc.Warn = warn
-		return cli.BacklogEnv{Svc: svc, Worktrees: gitworktree.DefaultWorktrees(main)}
+		return cli.BacklogEnv{Svc: svc, Board: svc, Worktrees: gitworktree.DefaultWorktrees(main)}
 	}
 }

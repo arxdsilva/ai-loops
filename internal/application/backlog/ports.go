@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/backlog"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
 // Store keeps the backlog state. Update runs fn under an exclusive lock
@@ -86,6 +87,7 @@ type Agent interface {
 type Lanes interface {
 	Latest(worktree string) (backlog.LaneRun, error) // newest run ("" Dir = none)
 	Phase(worktree string) string                    // the live run's phase ("" = none)
+	Run(worktree string) (run.State, bool)           // the live run's state (false = none)
 	ReadRef(runDir, rel string) (string, bool)       // a file inside the run dir
 }
 

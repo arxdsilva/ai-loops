@@ -358,6 +358,29 @@ func (s *Service) Status(ctx context.Context) (Report, error) {
 	return r, nil
 }
 
+// Board is the live view `loops backlog watch` draws (BACKLOG §8): the
+// state plus each running lane's liveness and run. Like Status, it takes no
+// lock, writes nothing and never calls the forge, so it is cheap to redraw.
+func (s *Service) Board(ctx context.Context) (backlog.Board, error) {
+	st, err := s.load(ctx)
+	if err != nil {
+		return backlog.Board{}, err
+	}
+	var running []backlog.LaneView
+	for _, it := range st.Items {
+		if it.Status != backlog.Running {
+			continue
+		}
+		lv := backlog.LaneView{Item: it, Alive: s.store.LaneHeld(it.Number), Log: s.store.LogPath(it.Number)}
+		if rs, ok := s.lanes.Run(it.Worktree); ok {
+			p := backlog.NewProgress(rs)
+			lv.Run = &p
+		}
+		running = append(running, lv)
+	}
+	return backlog.NewBoard(st, running), nil
+}
+
 // worktree is the directory of issue n's lane-th lane.
 func worktree(set backlog.Settings, n, lane int) string {
 	return filepath.Join(set.Worktrees, fmt.Sprintf("issue-%d-%d", n, lane))

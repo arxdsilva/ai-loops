@@ -16,7 +16,7 @@ You are the **supervisor**. You fill the lanes, react when one ends, and talk to
 
 - **Lanes are processes, never subagents** (BACKLOG §1). Start each lane with Bash `run_in_background: true` running `loops backlog work`. Never use the Agent tool for a lane, and never `cd` into a worktree.
 - **The state file is the truth.** After a compaction or in a resumed session, run `loops backlog status` first and continue from it. A `running` issue whose lane is gone (`loops backlog work` and every process its agent started) is recovered by the next `loops backlog sync`. Never start a second lane for an issue that is running.
-- **Wait, don't poll.** The harness tells you when a background lane exits. Between exits do nothing: no `sleep`, no status loops.
+- **Wait, don't poll.** The harness tells you when a background lane exits. Between exits do nothing: no `sleep`, no status loops. `loops backlog watch` is the user's view; never run it yourself.
 - **You change no code.** Never edit files in the main checkout or a worktree, never merge, rebase or close a PR, and never close an issue.
 - **Short messages.** One line per lane event (`#42 PR opened: <url>`, `#17 handed to @alice: <reason>`). Questions only in step 1.
 
@@ -30,7 +30,7 @@ loops backlog init --human <login> [--lanes N] [--max-prs N|none] [--label …] 
 loops backlog sync
 loops backlog status
 ```
-4. Tell the user, in at most 5 lines: the repo, the lanes × agents, the queue size and the first issues, and the safety settings from BACKLOG §7. That means the authors filter, the lane permission mode (`auto` unless `--agent` says otherwise), the budget per lane ("none" when unset) and the open-PR cap with how many lane PRs are open now (from `sync`). Also say that lanes open PRs and never merge. Then start. Do not wait for a reply.
+4. Tell the user, in at most 5 lines: the repo, the lanes × agents, the queue size and the first issues, and the safety settings from BACKLOG §7. That means the authors filter, the lane permission mode (`auto` unless `--agent` says otherwise), the budget per lane ("none" when unset) and the open-PR cap with how many lane PRs are open now (from `sync`). Also say that lanes open PRs and never merge, and where to follow the lanes: the `/loops-backlog` pane on Claude Code (it opens by itself when a lane starts) or `loops backlog watch` in a side terminal. Then start. Do not wait for a reply.
 
 ## 2. Fill the lanes
 

@@ -153,7 +153,7 @@ When a newer release exists, the session context carries one line: `loops vX is 
 ## What you see while it runs
 
 - **Status line.** For example: `▶ #42 add-orders · Implement W1 · 4/5 lanes · QA 2✓ 1↺ · plan r2 · gates build✓ vet✓ · 87 steps · 12m`.
-- **Live pane.** Shown beside the chat in VS Code and in the terminal; it opens by itself when a run starts, and `/loops-pane` opens it any time. It lists the phase strip with loop counters, one lane per role agent with its QA state, the latest steps, and the gates.
+- **Live pane.** Shown beside the chat in VS Code and in the terminal; it opens by itself when a run starts, and `/loops-pane` opens it any time. It lists the phase strip with loop counters, one lane per role agent with its QA state, the latest steps, and the gates. A backlog has a second pane, which opens by itself when a lane starts (`/loops-backlog` opens it any time). It shows one row per running lane (its issue, attempt, phase strip, agents, steps, gates and ACs, and its last step or how long it has been quiet), the next queued issues and the latest PRs and hand-offs. `loops backlog watch` draws the same board in a terminal.
 - **HTML report.** `loops report` writes `.loops/runs/<id>/report.html`, which works offline. It holds:
   - the phase timeline;
   - the role and QA lanes, with arrows for each loop-back;

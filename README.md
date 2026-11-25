@@ -95,7 +95,7 @@ One session supervises, and every eligible open issue gets its own lane. A lane 
   <img src="docs/media/loops-report-proof.png" alt="loops run report: verdict table where a claim FAILED in round 1 and was VERIFIED in round 2, acceptance criteria AC-1 to AC-4 each linked to a proof file, and the gate table with build, format, vet, lint, arch, test and coverage all passing with 84.2% new-code coverage" width="85%">
 </p>
 
-**A run you can follow.** A status line, a live pane and `loops watch` show the phase, the agents running and their QA state. `loops report` writes one offline HTML file with the whole timeline.
+**A run you can follow.** A status line, a live pane and `loops watch` show the phase, the agents running and their QA state. `loops report` writes one offline HTML file with the whole timeline. A backlog has its own board: the `/loops-backlog` pane and `loops backlog watch` show every lane's issue, phase, agents and gates, the queue, and the latest PRs and hand-offs.
 
 <p align="center">
   <img src="docs/media/loops-report-lanes.png" alt="loops run report: phase durations from intake to reflect, and one swim lane per agent (researchers, planner, plan reviewer, architect, domain and persistence engineers) with model, tokens and QA status" width="85%">
@@ -171,9 +171,9 @@ Everything goes through one file, `bin/loops`. It runs the `loops` binary that m
   | trace-agent | SubagentStart, SubagentStop | Records each agent's start and stop | Appends one line to the same log |
   | stop-gate | Stop | Keeps Claude working while sources changed since the last green gate | Nothing; it can only block the stop |
 
-- **Live pane (mod, `mod/`)**. It adds the `/loops-pane` command and shows the active run beside the chat.
-  - *What it reads:* one file, `.loops/status.json` in your project (the active run's state, which the plugin's hooks keep up to date), every 2 seconds and when you type `/loops-pane`. It starts no program.
-  - *What it reads from Claude Code:* only that `/loops-pane` was typed (`command.run`). It reads no conversation text and no tool calls.
+- **Live panes (mod, `mod/`)**. It adds the `/loops-pane` command, which shows the active run beside the chat, and `/loops-backlog`, which shows a backlog's lanes, queue and outcomes.
+  - *What it reads:* `.loops/status.json` in your project (the active run's state, which the plugin's hooks keep up to date). When the project runs a backlog, it also reads `.loops/backlog/state.json` and each running lane's `.loops/status.json` in that lane's worktree, which sits beside your checkout. It reads them every 2 seconds and when you type either command. It starts no program.
+  - *What it reads from Claude Code:* only that `/loops-pane` or `/loops-backlog` was typed (`command.run`). It reads no conversation text and no tool calls.
   - *What it sends, and where:* nothing leaves your machine. The command's output is drawn in the pane and kept nowhere else.
 - **Status line** (`settings.json`): `bin/loops status --subagent`.
 - **Programs**: `git`; `gh` or `glab` for tickets and PRs (`gh` also files the reflector's harness suggestions as issues, only on the loops plugin repo itself, searching open issues first; if `gh` fails the text stays in `reflection.md`); your language's formatter, linter and test runner during `loops gate` and post-edit; the language pack's security scanners (Go: govulncheck, gosec) when installed, in the QA security pass (`loops gate --security`); and, at the start of `/loops:work`, the `claude` or `copilot` plugin update commands (`claude plugin update`, `copilot plugin update`) through `loops update --apply`; in backlog mode only, `git worktree add/remove` beside your checkout, one headless agent per lane (`claude -p … --permission-mode auto` unless you pass `--agent`), and `gh` to list issues and open PRs, label issues, comment, assign and file findings, all in the repository you point it at.

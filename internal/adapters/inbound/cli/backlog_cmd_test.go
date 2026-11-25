@@ -29,6 +29,7 @@ type fakeBacklog struct {
 	removed  []string
 	filedDup bool
 	sync     backlog.SyncResult
+	board    backlog.Board
 }
 
 var testSettings = backlog.Settings{Repo: "o/r", Base: "main", Human: "hum", Lanes: 2, MaxAgents: 4, Attempts: 2, Timeout: "4h0m0s",
@@ -50,6 +51,9 @@ func (f *fakeBacklog) Status(context.Context) (appbacklog.Report, error) {
 		Running: []appbacklog.RunningLane{{Item: backlog.Item{Number: 7, Title: "Fix it", Attempts: 1}, Phase: "qa", Log: "/l/7.log"}},
 		Next:    []backlog.Item{{Number: 3, Title: "Next one", Priority: 1}, {Number: 4, Title: "Unranked", Priority: backlog.NoPriority}},
 	}, f.err
+}
+func (f *fakeBacklog) Board(context.Context) (backlog.Board, error) {
+	return f.board, f.err
 }
 func (f *fakeBacklog) Work(_ context.Context, n int) (appbacklog.LaneResult, error) {
 	f.workN = n
@@ -77,7 +81,7 @@ func backlogApp(f *fakeBacklog) (*App, *bytes.Buffer, *bytes.Buffer) {
 	a := &App{Out: &out, Err: &errw, In: strings.NewReader("stdin body")}
 	a.Backlog = func(_ context.Context, warn func(string, ...any)) BacklogEnv {
 		warn("probe %d", 1)
-		return BacklogEnv{Svc: f, Worktrees: "/default-wt"}
+		return BacklogEnv{Svc: f, Board: f, Worktrees: "/default-wt"}
 	}
 	return a, &out, &errw
 }
@@ -89,7 +93,7 @@ func TestBacklogUsage(t *testing.T) {
 		{"backlog", "work", "a"}, {"backlog", "work", "1", "2"}, {"backlog", "run", "--max", "-1"},
 		{"backlog", "finish"}, {"backlog", "finish", "x", "--status", "done"}, {"backlog", "finish", "3", "--status", "merged"},
 		{"backlog", "file"}, {"backlog", "clean", "x"}, {"backlog", "init", "extra"},
-		{"backlog", "init", "--max-prs", "0"}, {"backlog", "init", "--max-prs", "lots"}, {"backlog", "run", "--wait", "-1m"},
+		{"backlog", "init", "--max-prs", "0"}, {"backlog", "watch", "x"}, {"backlog", "watch", "--interval", "0s"}, {"backlog", "init", "--max-prs", "lots"}, {"backlog", "run", "--wait", "-1m"},
 	} {
 		if code := a.Run(context.Background(), args); code != 2 {
 			t.Errorf("%v exit %d, want 2", args, code)

@@ -228,6 +228,7 @@ type fakeLanes struct {
 	mu         sync.Mutex
 	runs       map[string]backlog.LaneRun
 	refs       map[string]string
+	live       map[string]run.State // the worktree's status.json
 	failLatest error
 }
 
@@ -237,6 +238,10 @@ func (l *fakeLanes) Latest(wt string) (backlog.LaneRun, error) {
 	return l.runs[wt], l.failLatest
 }
 func (l *fakeLanes) Phase(wt string) string { return "implement" }
+func (l *fakeLanes) Run(wt string) (run.State, bool) {
+	s, ok := l.live[wt]
+	return s, ok
+}
 func (l *fakeLanes) ReadRef(_, rel string) (string, bool) {
 	s, ok := l.refs[rel]
 	return s, ok
@@ -665,6 +670,46 @@ func TestStatus(t *testing.T) {
 	}
 	if rep.Next[0].Number != 3 {
 		t.Fatalf("next = %+v", rep.Next)
+	}
+}
+
+func TestBoard(t *testing.T) {
+	ctx := context.Background()
+	if _, err := (newRig(t)).svc.Board(ctx); !errors.Is(err, ErrNoState) {
+		t.Fatal("board without state")
+	}
+	r := newRig(t, is(1), is(2), is(3, "P0"), is(4))
+	r.init(t, backlog.Settings{})
+	r.svc.Sync(ctx)
+	r.store.Update(ctx, func(st *backlog.State) error {
+		if _, err := st.Claim(2, at("/wt/issue-2"), time.Time{}); err != nil {
+			return err
+		}
+		_, err := st.Claim(4, at("/wt/issue-4"), time.Time{})
+		return err
+	})
+	r.lanes.live = map[string]run.State{"/wt/issue-2": {Phase: run.PhaseQA, Steps: 9,
+		Lanes: []run.Lane{{Agent: "a", Running: true}, {Agent: "b"}}}}
+	r.store.held = map[int]bool{2: true}
+	before := r.store.st
+	b, err := r.svc.Board(ctx)
+	if err != nil || b.Counts[backlog.Queued] != 2 || b.Counts[backlog.Running] != 2 || b.Settings.Repo == "" {
+		t.Fatalf("board = %+v, %v", b, err)
+	}
+	if len(b.Running) != 2 || !b.Running[0].Alive || b.Running[1].Alive || b.Running[0].Log != "/logs/issue-2.log" {
+		t.Fatalf("running = %+v", b.Running)
+	}
+	if p := b.Running[0].Run; p == nil || p.Phase != run.PhaseQA || p.Steps != 9 || p.Agents != 2 || p.Busy != 1 {
+		t.Fatalf("lane 2 progress = %+v", p)
+	}
+	if b.Running[1].Run != nil {
+		t.Fatalf("lane 4 has no run yet: %+v", b.Running[1].Run)
+	}
+	if len(b.Next) != 2 || b.Next[0].Number != 3 {
+		t.Fatalf("next = %+v", b.Next)
+	}
+	if len(r.forge.edits) != 0 || len(r.forge.comments) != 0 || !slices.EqualFunc(before.Items, r.store.st.Items, func(a, c backlog.Item) bool { return a.Status == c.Status }) {
+		t.Fatal("board wrote something")
 	}
 }
 

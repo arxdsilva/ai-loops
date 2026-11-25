@@ -1,6 +1,6 @@
 // Package lanefs reads what a backlog lane left in its worktree
 // (specs/BACKLOG.md §3 step 4): its newest loops run, the live phase from
-// .loops/status.json, and files inside the run directory.
+// state from .loops/status.json, and files inside the run directory.
 package lanefs
 
 import (
@@ -35,16 +35,29 @@ func (Lanes) Latest(worktree string) (backlog.LaneRun, error) {
 }
 
 // Phase is the phase of the worktree's active run ("" = none).
-func (Lanes) Phase(worktree string) string {
+func (l Lanes) Phase(worktree string) string {
+	s, ok := l.Run(worktree)
+	if !ok {
+		return ""
+	}
+	return string(s.Phase)
+}
+
+// Run is the state of the worktree's active run, as its hooks last wrote it
+// to .loops/status.json (false = no run, or the file is unreadable).
+func (Lanes) Run(worktree string) (run.State, bool) {
+	if worktree == "" {
+		return run.State{}, false
+	}
 	b, err := os.ReadFile(filepath.Join(worktree, loopsdir.Name, "status.json"))
 	if err != nil {
-		return ""
+		return run.State{}, false
 	}
 	var doc run.StatusDoc
 	if json.Unmarshal(b, &doc) != nil || !doc.Active || doc.State == nil {
-		return ""
+		return run.State{}, false
 	}
-	return string(doc.State.Phase)
+	return *doc.State, true
 }
 
 // ReadRef returns a file inside runDir. rel comes from the lane's event

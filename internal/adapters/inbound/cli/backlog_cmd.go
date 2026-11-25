@@ -28,14 +28,20 @@ type Backlogger interface {
 	Clean(ctx context.Context, all, dryRun bool) ([]string, error)
 }
 
+// BacklogBoard is the live board `loops backlog watch` draws (BACKLOG §8).
+type BacklogBoard interface {
+	Board(ctx context.Context) (backlog.Board, error)
+}
+
 // BacklogEnv is the backlog service of the main checkout, built on demand
 // (finding the main checkout runs git, which other commands never need).
 type BacklogEnv struct {
 	Svc       Backlogger
-	Worktrees string // the default worktrees directory
+	Board     BacklogBoard // nil: watch is usage
+	Worktrees string       // the default worktrees directory
 }
 
-const backlogUsage = "usage: loops backlog init|sync|status|work|run|finish|file|clean … (specs/BACKLOG.md §8)"
+const backlogUsage = "usage: loops backlog init|sync|status|watch|work|run|finish|file|clean … (specs/BACKLOG.md §8)"
 
 // cmdBacklog implements `loops backlog <sub>`.
 func (a *App) cmdBacklog(ctx context.Context, args []string) int {
@@ -66,6 +72,11 @@ func (a *App) cmdBacklog(ctx context.Context, args []string) int {
 		return a.backlogSync(ctx, env.Svc, rest)
 	case "status":
 		return a.backlogStatus(ctx, env.Svc, rest)
+	case "watch":
+		if env.Board == nil {
+			return a.usageErr(backlogUsage)
+		}
+		return a.backlogWatch(ctx, env.Board, rest)
 	case "work":
 		return a.backlogWork(ctx, env.Svc, rest)
 	case "run":

@@ -53,6 +53,28 @@ func TestPhase(t *testing.T) {
 	}
 }
 
+func TestRun(t *testing.T) {
+	wt := t.TempDir()
+	var l Lanes
+	if _, ok := l.Run(wt); ok {
+		t.Fatal("run without status")
+	}
+	if _, ok := l.Run(""); ok {
+		t.Fatal("run without worktree")
+	}
+	p := filepath.Join(wt, ".loops", "status.json")
+	write(t, p, `{"active":true,"state":{"phase":"implement","steps":12,"lanes":[{"agent":"a","running":true}]}}`)
+	if s, ok := l.Run(wt); !ok || s.Phase != "implement" || s.Steps != 12 || len(s.Lanes) != 1 {
+		t.Fatalf("run = %+v, %v", s, ok)
+	}
+	for _, body := range []string{`{"active":false}`, `{"active":true}`, `not json`} {
+		write(t, p, body)
+		if _, ok := l.Run(wt); ok {
+			t.Fatalf("%s reads as a live run", body)
+		}
+	}
+}
+
 func TestReadRef(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "findings", "a.md"), "details")

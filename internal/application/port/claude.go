@@ -19,6 +19,7 @@ var claudeVerbatim = []string{
 	"settings.json",
 	"mod/register.js",
 	"mod/view.js",
+	"mod/backlog.js",
 }
 
 // claudeDisclosure is the part of the repository README's "What it runs on

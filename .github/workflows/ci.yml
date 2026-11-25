@@ -49,7 +49,7 @@ jobs:
         with:
           node-version: 22
       - name: mod pane tests
-        run: node --test mod/test/render.test.mjs
+        run: node --test mod/test/render.test.mjs mod/test/backlog.test.mjs mod/test/register.test.mjs
       - name: npm launcher tests
         run: node --test npm/test/lib.test.mjs
   release:
