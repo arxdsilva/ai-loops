@@ -76,6 +76,14 @@ func (h *handler) toolchainEnv(ctx context.Context, d dialect, p payload, out, e
 		if !ok {
 			return 0
 		}
+		// goEnv leaves a call alone when it cannot create the run's dirs;
+		// test-guard has already let this one through, so deny it here
+		// rather than let it run without -race.
+		for _, dd := range []string{plan.cache, plan.tmp} {
+			if os.MkdirAll(dd, 0o755) != nil {
+				return h.deny(ctx, p, "race-guard", h.checkTests(p, cmd), out, errw)
+			}
+		}
 		goCmd = plan.command
 	}
 	if code, handled := h.goEnv(ctx, d, p, in, goCmd, dir, out, errw); handled {
