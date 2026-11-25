@@ -70,6 +70,11 @@ Cursor: import `arxdsilva/ai-loops` from the marketplace. Every platform, its ca
 
 One **master agent** (your main session) runs all six. It keeps the scope in a charter, re-reads the run's recorded state at every phase, and decides instead of asking. Each decision is recorded and listed in the PR. You are asked only where you opt in, for example `--ask plan,pr`.
 
+<p align="center">
+  <a href="docs/media/loops-run-graph.svg"><img src="docs/media/loops-run-graph.svg" alt="loops run graph, left to right: a ticket from GitHub, GitLab, Jira, Linear or plain text, or a backlog lane, goes through the run.Phase states intake, research, plan, implement, qa, product and reflect. Each phase shows its roles, loops commands, artifacts and third parties, with loop-backs and their limits, the loops gate checks, the hooks writing events.jsonl, the source_dirty gate state, and the backlog issue states queued, running, done, failed, human and skipped" width="100%"></a>
+</p>
+<p align="center"><sub>The run graph. Click it for full size.</sub></p>
+
 ## Backlog mode: clear a whole issue list
 
 ```sh
