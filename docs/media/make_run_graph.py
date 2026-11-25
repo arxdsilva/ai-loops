@@ -87,7 +87,7 @@ def node(nid, kind, lines, x, y, w=COLW, h=None):
     if isinstance(lines, str):
         lines = [lines]
     if h is None:
-        h = {"art": 22}.get(kind, 26) + (len(lines) - 1) * 13
+        h = {"art": 22}.get(kind, 26) + (len(lines) - 1) * (17 if kind in ROLES else 13)
     n = Node(nid, kind, lines, x, y, w, h)
     N[nid] = n
     ORDER.append(n)
@@ -129,7 +129,7 @@ def seq(*ids, f=0.9):
 
 # ---------------------------------------------------------------- layout
 TOP = 152          # body starts
-PILL_Y = 104
+PILL_Y = 98
 SIDE = COLW - 40   # width of a side node, leaving the right lane free for the flow line
 
 
@@ -161,8 +161,9 @@ s.art("memmd", "research/memory.md", of="memr")
 s.add("ask", "cmd", "loops run ask")
 s.add("clarify", "lead", "loops:clarify")
 s.art("clar", "clarifications.md", of="clarify")
-s.add("charter", "lead", "charter.md")
-seq("upd", "init", "start", "fetch", "triage", "memr", "ask", "clarify", "charter")
+s.add("charter", "art", "charter.md")
+seq("upd", "init", "start", "fetch", "triage", "memr", "ask", "clarify")
+edge("clarify", "charter", "writes", ("b", 0.9), ("t", 0.9))
 edge("work", "upd", "flow")
 for t in ("gh_t", "gl_t", "jira_t", "lin_t", "txt_t"):
     edge(t, "fetch", "third")
@@ -273,7 +274,7 @@ edge("prv", "curl", "third", ("b", 0.4), ("t", 0.4))
 edge("prv", "prmd2", "writes", ("l", 0.7), ("l", 0.5), bend=-6)
 seq("prv", "report", "askpr", "git", "ghpr", f=0.93)
 edge("gate", "prv", "flow", ("r", 0.5), ("l", 0.5), via=[("x", G(6))], label="all ok",
-     lpos=("at", G(6), N["report"].y + 12))
+     lpos=("at", G(6) - 2, N["gate"].y + 24, "start"))
 
 # column 7: reflect
 s = Stack(7, TOP)
@@ -306,17 +307,17 @@ edge("ghpr", "pr", "third", ("r", 0.5), ("l", 0.5))
 
 # phase pills: the run.Phase state machine
 for i, ph in enumerate(["intake", "research", "plan", "implement", "qa", "product", "reflect"], start=1):
-    w = 112
-    node("p_" + ph, "pill", [ph], col(i) + (COLW - w) / 2, PILL_Y, w, 26)
+    w = 150
+    node("p_" + ph, "pill", [ph], col(i) + (COLW - w) / 2, PILL_Y, w, 34)
 phs = ["intake", "research", "plan", "implement", "qa", "product", "reflect"]
 for a, b in zip(phs, phs[1:]):
     edge("p_" + a, "p_" + b, "flow")
-edge("p_product", "p_implement", "loop", ("t", 0.35), ("t", 0.65), via="arc:-46")
-TEXTS.append(("lbl", (col(4) + col(6)) / 2 + COLW / 2, 72, "AC FAILED · MaxProductRounds 2", "#dc2626", "middle"))
-edge("p_qa", "p_reflect", "flow", ("t", 0.8), ("t", 0.2), via="arc:-24")
-TEXTS.append(("lbl", col(7) - 4, 87, "memory.store = files", "#334155", "middle"))
+edge("p_product", "p_implement", "loop", ("t", 0.35), ("t", 0.65), via="arc:-50")
+TEXTS.append(("lbl", (col(4) + col(6)) / 2 + COLW / 2, 60, "AC FAILED · MaxProductRounds 2", "#dc2626", "middle"))
+edge("p_qa", "p_reflect", "flow", ("t", 0.8), ("t", 0.2), via="arc:-26")
+TEXTS.append(("lbl", col(7) - 4, 80, "memory.store = files", "#334155", "middle"))
 edge("p_reflect", "p_product", "flow", ("b", 0.2), ("b", 0.8), via="arc:16")
-TEXTS.append(("raw", f'<text x="{col(0) + COLW - 4}" y="{PILL_Y + 17}" font-family="{MONO}" font-size="12" '
+TEXTS.append(("raw", f'<text x="{col(0) + COLW - 4}" y="{PILL_Y + 23}" font-family="{MONO}" font-size="17" '
                      f'fill="{MUTED}" text-anchor="end" font-weight="600">run.Phase</text>'))
 edge("aimem", "p_intake", "third", ("t", 0.5), ("t", 0.5), via="next-run", label="next run")
 
@@ -427,13 +428,13 @@ edge("s_human", "handoff", "flow", ("r", 0.5), ("l", 0.5))
 edge("finding", "ghic", "third", ("r", 0.5), ("l", 0.5))
 edge("handoff", "you_h", "flow", ("b", 0.5), ("b", 0.5), via=[("y", BY + 162)], label="assignee",
      lpos=("at", col(2) + 40, BY + 162))
-edge("ghic", "handoff", "flow", ("b", 0.5), ("t", 0.5))
+edge("ghic", "you_h", "flow", ("r", 0.5), ("b", 0.5), via=[("x", col(8) + COLW + 10), ("y", BY + 162)])
 
 backlog_bottom = BY + 172
 backlog_band = (12, BY - 30, W - 24, backlog_bottom - BY + 34, "backlog mode")
 hooks_band = (12, HY - 30, W - 24, hooks_bottom - HY + 34, "hooks · events")
-LY = backlog_bottom + 40
-H = LY + 50
+LY = backlog_bottom + 48
+H = LY + 2 * 34 + 26
 
 
 # ---------------------------------------------------------------- rendering
@@ -444,7 +445,7 @@ def text_lines(n, color, weight="500", size=11.0, anchor="middle"):
         sz = size if j == 0 else size - 1.2
         fit = (n.w - 14) / (0.61 * max(len(line), 1))
         sz = min(sz, fit)
-        cy = n.y + n.h / 2 + (j - (len(lines) - 1) / 2) * 13 + sz * 0.36
+        cy = n.y + n.h / 2 + (j - (len(lines) - 1) / 2) * (15 if n.kind in ROLES else 13) + sz * 0.36
         fill = color if j == 0 else MUTED
         wt = weight if j == 0 else "400"
         out.append(f'<text x="{n.x + n.w / 2:.1f}" y="{cy:.1f}" font-family="{MONO}" font-size="{sz:.1f}" '
@@ -459,7 +460,7 @@ def draw_node(n):
         c = ROLES[k][0]
         return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="6" fill="{tint(c, 0.1)}" stroke="{c}" stroke-width="1.3"/>'
                 f'<path d="M{x + 6} {y} h-1 a5 5 0 0 0 -5 5 v{h - 10} a5 5 0 0 0 5 5 h1 z" fill="{c}"/>'
-                f'<rect x="{x}" y="{y + 3}" width="4" height="{h - 6}" fill="{c}"/>' + text_lines(n, INK, "600"))
+                f'<rect x="{x}" y="{y + 3}" width="4" height="{h - 6}" fill="{c}"/>' + text_lines(n, INK, "700", 12.6))
     if k == "human":
         r = h / 2
         px, py = x + 13, y + h / 2
@@ -487,7 +488,7 @@ def draw_node(n):
     if k == "pill":
         c = ROLES[PHASE_KIND[n.lines[0]]][0]
         return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{h / 2}" fill="{c}"/>'
-                f'<text x="{x + w / 2}" y="{y + h / 2 + 4.6}" font-family="{MONO}" font-size="13" font-weight="700" '
+                f'<text x="{x + w / 2}" y="{y + h / 2 + 6.6}" font-family="{MONO}" font-size="19" font-weight="700" '
                 f'fill="#ffffff" text-anchor="middle">{escape(n.lines[0])}</text>')
     if k == "bar":
         return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1.5" fill="#0f172a"/>'
@@ -652,7 +653,7 @@ def markers():
 
 def band(x, y, w, h, title):
     return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>'
-            f'<text x="{x + 14}" y="{y + 17}" font-family="{SANS}" font-size="12" font-weight="700" fill="{MUTED}" '
+            f'<text x="{x + 14}" y="{y + 20}" font-family="{SANS}" font-size="16" font-weight="700" fill="{MUTED}" '
             f'letter-spacing="0.6">{escape(title)}</text>')
 
 
@@ -665,46 +666,59 @@ def group(x, y, w, h, title):
 
 
 def legend(y):
-    out = [f'<line x1="24" y1="{y - 14}" x2="{W - 24}" y2="{y - 14}" stroke="#e2e8f0"/>']
-    x = 24
-    out.append(f'<text x="{x}" y="{y + 4}" font-family="{SANS}" font-size="11.5" font-weight="700" fill="{MUTED}">roles</text>')
-    x += 46
+    fs, step = 16, 34
+    sw_w, sw_h = 24, 18
+    out = [f'<line x1="24" y1="{y - 22}" x2="{W - 24}" y2="{y - 22}" stroke="#e2e8f0"/>']
+
+    def label(x, yy, txt, bold=False):
+        wt = ' font-weight="700"' if bold else ""
+        fill = MUTED if bold else INK
+        return f'<text x="{x}" y="{yy + 5.5}" font-family="{SANS}" font-size="{fs}"{wt} fill="{fill}">{escape(txt)}</text>'
+
+    def adv(name):
+        return sw_w + 18 + len(name) * fs * 0.56
+
+    x0 = 24 + 80
+    out.append(label(24, y, "roles", True))
+    x = x0
     for k, (c, name) in ROLES.items():
-        out.append(f'<rect x="{x}" y="{y - 7}" width="16" height="14" rx="3" fill="{tint(c, 0.12)}" stroke="{c}" stroke-width="1.3"/>'
-                   f'<rect x="{x}" y="{y - 6}" width="4" height="12" fill="{c}"/>'
-                   f'<text x="{x + 22}" y="{y + 4}" font-family="{SANS}" font-size="11.5" fill="{INK}">{escape(name)}</text>')
-        x += 30 + len(name) * 6.3
-    out.append(f'<rect x="{x}" y="{y - 7}" width="18" height="14" rx="7" fill="#fff" stroke="#111827" stroke-width="1.3"/>'
-               f'<text x="{x + 24}" y="{y + 4}" font-family="{SANS}" font-size="11.5" fill="{INK}">human</text>')
-    x += 80
+        out.append(f'<rect x="{x}" y="{y - sw_h / 2}" width="{sw_w}" height="{sw_h}" rx="4" fill="{tint(c, 0.12)}" '
+                   f'stroke="{c}" stroke-width="1.5"/><rect x="{x}" y="{y - sw_h / 2 + 1}" width="5" height="{sw_h - 2}" fill="{c}"/>'
+                   + label(x + sw_w + 8, y, name))
+        x += adv(name)
+    out.append(f'<rect x="{x}" y="{y - sw_h / 2}" width="{sw_w}" height="{sw_h}" rx="9" fill="#fff" stroke="#111827" '
+               f'stroke-width="1.5"/>' + label(x + sw_w + 8, y, "human"))
+    y += step
+    out.append(label(24, y, "nodes", True))
+    x = x0
     kinds = [("cmd", "loops command"), ("hook", "hook"), ("art", "artifact"), ("third", "third party"),
              ("state", "FSM state"), ("bar", "parallel fork / join")]
+    t, b = y - sw_h / 2, y + sw_h / 2
     for k, name in kinds:
         if k == "cmd":
-            sw = f'<rect x="{x}" y="{y - 7}" width="18" height="14" rx="2" fill="#f8fafc" stroke="#0f172a" stroke-width="1.2"/>'
+            sw = f'<rect x="{x}" y="{t}" width="{sw_w}" height="{sw_h}" rx="2" fill="#f8fafc" stroke="#0f172a" stroke-width="1.4"/>'
         elif k == "hook":
-            sw = (f'<rect x="{x}" y="{y - 7}" width="18" height="14" rx="2" fill="#fffbeb" stroke="#b45309" stroke-width="1.2"/>'
-                  f'<rect x="{x}" y="{y - 7}" width="18" height="3" fill="#b45309"/>')
+            sw = (f'<rect x="{x}" y="{t}" width="{sw_w}" height="{sw_h}" rx="2" fill="#fffbeb" stroke="#b45309" stroke-width="1.4"/>'
+                  f'<rect x="{x}" y="{t}" width="{sw_w}" height="4" fill="#b45309"/>')
         elif k == "art":
-            sw = (f'<path d="M{x} {y - 7} H{x + 13} L{x + 18} {y - 2} V{y + 7} H{x} Z" fill="#f1f5f9" stroke="#94a3b8"/>')
+            sw = f'<path d="M{x} {t} H{x + sw_w - 6} L{x + sw_w} {t + 6} V{b} H{x} Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.3"/>'
         elif k == "third":
-            sw = f'<rect x="{x}" y="{y - 7}" width="18" height="14" rx="7" fill="#fff" stroke="#0d9488" stroke-dasharray="4 2" stroke-width="1.2"/>'
+            sw = (f'<rect x="{x}" y="{t}" width="{sw_w}" height="{sw_h}" rx="9" fill="#fff" stroke="#0d9488" '
+                  f'stroke-dasharray="4 2" stroke-width="1.4"/>')
         elif k == "state":
-            sw = f'<rect x="{x}" y="{y - 7}" width="18" height="14" rx="7" fill="#fff" stroke="#334155" stroke-width="1.8"/>'
+            sw = f'<rect x="{x}" y="{t}" width="{sw_w}" height="{sw_h}" rx="9" fill="#fff" stroke="#334155" stroke-width="2"/>'
         else:
-            sw = f'<rect x="{x + 7}" y="{y - 8}" width="4" height="16" fill="#0f172a"/>'
-        out.append(sw + f'<text x="{x + 24}" y="{y + 4}" font-family="{SANS}" font-size="11.5" fill="{INK}">{escape(name)}</text>')
-        x += 34 + len(name) * 6.3
-    y2 = y + 30
-    x = 24
-    out.append(f'<text x="{x}" y="{y2 + 4}" font-family="{SANS}" font-size="11.5" font-weight="700" fill="{MUTED}">edges</text>')
-    x += 46
+            sw = f'<rect x="{x + 9}" y="{t - 1}" width="5" height="{sw_h + 2}" fill="#0f172a"/>'
+        out.append(sw + label(x + sw_w + 8, y, name))
+        x += adv(name)
+    y += step
+    out.append(label(24, y, "edges", True))
+    x = x0
     for k, (color, width, dash, marker, name) in EDGE.items():
         da = f' stroke-dasharray="{dash}"' if dash else ""
-        out.append(f'<path d="M{x} {y2} H{x + 40}" stroke="{color}" stroke-width="{width}"{da} '
-                   f'marker-end="url(#{marker}-{k})"/>'
-                   f'<text x="{x + 50}" y="{y2 + 4}" font-family="{SANS}" font-size="11.5" fill="{INK}">{escape(name)}</text>')
-        x += 70 + len(name) * 6.3
+        out.append(f'<path d="M{x} {y} H{x + 44}" stroke="{color}" stroke-width="{width + 0.6}"{da} '
+                   f'marker-end="url(#{marker}-{k})"/>' + label(x + 54, y, name))
+        x += 54 + 18 + len(name) * fs * 0.56
     return "".join(out)
 
 
@@ -716,7 +730,7 @@ def render():
              '<title>loops run graph</title>',
              f'<defs>{markers()}</defs>',
              f'<rect width="{W}" height="{H}" fill="{BG}"/>',
-             f'<text x="24" y="34" font-family="{SANS}" font-size="20" font-weight="800" fill="{INK}">loops run graph</text>',
+             f'<text x="24" y="38" font-family="{SANS}" font-size="28" font-weight="800" fill="{INK}">loops run graph</text>',
              ]
     parts.append(band(*hooks_band))
     parts.append(band(*backlog_band))
