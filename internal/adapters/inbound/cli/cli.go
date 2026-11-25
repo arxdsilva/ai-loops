@@ -4,6 +4,8 @@
 // Command ownership (one file per command group):
 //
 //	run_cmd.go     run start|phase|event|label|loopback|verdict|end|dir|env|clean (tracker)
+//	ingest_cmd.go  run ingest <qa file>                            (record a QA file's verdicts and loop-backs)
+//	stats_cmd.go   stats [--json] [--root dir] [<run dir>...]      (measure runs)
 //	lead_cmd.go    run ask|checkpoint|decide|brief                 (the lead's checkpoints and re-anchor)
 //	triage_cmd.go  run triage|step                                 (the skipper, WORKFLOW §2.8)
 //	go_cmd.go      go, run env|clean, start/end workspace hooks    (run-scoped caches, cleanup)
@@ -87,6 +89,8 @@ type App struct {
 	Release Releaser // loops release (nil = unavailable)
 	// Evals runs behavioural evals (nil = unavailable).
 	Evals Evaluator
+	// Runs reads recorded runs for `loops stats` (nil = unavailable).
+	Runs RunLogs
 	// Backlog builds backlog mode's service for the main checkout (nil =
 	// unavailable); warn receives best-effort failures.
 	Backlog     func(ctx context.Context, warn func(format string, args ...any)) BacklogEnv
@@ -123,7 +127,8 @@ type command struct {
 }
 
 var commands = map[string]command{
-	"run":     {(*App).cmdRun, "run start|phase|event|label|loopback|verdict|override|ask [list]|checkpoint <phase>|decide --topic --note [--by lead|user]|brief [--json]|triage --kind K --files N [--touches …] [--recheck] [--full]|step <step>|end [--no-clean]|dir|env [--shell s]|clean [--dry-run] [--json] …  record the workflow; ask/checkpoint/decide/brief: the lead's checkpoints, decisions and re-anchor; triage/step: the skipper (WORKFLOW §2.8); env/clean: run-scoped caches and artifact cleanup"},
+	"run":     {(*App).cmdRun, "run start|phase|event|label|loopback|verdict|ingest <qa file> [--json]|override|ask [list]|checkpoint <phase>|decide --topic --note [--by lead|user]|brief [--json]|triage --kind K --files N [--touches …] [--recheck] [--full]|step <step>|end [--no-clean]|dir|env [--shell s]|clean [--dry-run] [--json] …  record the workflow; ask/checkpoint/decide/brief: the lead's checkpoints, decisions and re-anchor; triage/step: the skipper (WORKFLOW §2.8); env/clean: run-scoped caches and artifact cleanup"},
+	"stats":   {(*App).cmdStats, "stats [--json] [--root dir] [<run dir>...]   measure runs from events.jsonl: wall and per-phase minutes (and with no agent running), agents, tokens per role, loop-backs, test gate time, guard denies"},
 	"go":      {cmdGo, "go <args…>   go with the active run's GOCACHE/GOTMPDIR (plain go without a run)"},
 	"exec":    {cmdExec, "exec [--pack id] -- <cmd…>   a command with the active run's cache env and cache_argv for its language pack (plain without a run)"},
 	"gate":    {(*App).cmdGate, "gate [--pkgs p,…] [--only c,…] [--skip c,…] [--enable c,…] [--base ref] [--vuln] [--security] [--fail-fast]   every detected language pack's checks (loops lang show <id>): build, format, lint, arch, tests under the race policy, coverage of new code (≥70%), vuln when enabled; --security runs only the packs' security checks"},

@@ -147,6 +147,7 @@ func Main(ctx context.Context, args []string, in io.Reader, out, errw io.Writer)
 	app := &cli.App{
 		Version:   version,
 		Release:   releases,
+		Runs:      runstore.Logs{},
 		Evals:     evaluator{root: root, pluginRoot: os.Getenv("LOOPS_PLUGIN_ROOT")},
 		Backlog:   backlogEnv(root),
 		Tracker:   trk,

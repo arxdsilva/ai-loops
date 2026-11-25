@@ -218,6 +218,28 @@ func TestStatusFile(t *testing.T) {
 	}
 }
 
+func TestRunDirsAndLogs(t *testing.T) {
+	root := t.TempDir()
+	if d, err := RunDirs(root); err != nil || d != nil {
+		t.Fatalf("no runs = %v, %v", d, err)
+	}
+	runs := filepath.Join(root, ".loops", "runs")
+	for _, id := range []string{"20260303-c", "20260101-a", "20260202-b"} {
+		if err := os.MkdirAll(filepath.Join(runs, id), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	os.WriteFile(filepath.Join(runs, "file"), nil, 0o644)
+	dirs, err := Logs{}.Dirs(root)
+	if err != nil || len(dirs) != 3 || filepath.Base(dirs[0]) != "20260101-a" || filepath.Base(dirs[2]) != "20260303-c" {
+		t.Fatalf("dirs = %v, %v", dirs, err)
+	}
+	os.WriteFile(filepath.Join(dirs[0], "events.jsonl"), []byte(`{"kind":"run"}`+"\n"), 0o644)
+	if ev, err := (Logs{}).Events(dirs[0]); err != nil || len(ev) != 1 {
+		t.Fatalf("events = %v, %v", ev, err)
+	}
+}
+
 func TestLatestRunAndEventsIn(t *testing.T) {
 	root := t.TempDir()
 	if d, err := LatestRun(root); err != nil || d != "" {

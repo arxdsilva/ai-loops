@@ -55,14 +55,20 @@ func (l leadCmd) checkpoint(ctx context.Context, args []string) int {
 	if err != nil || len(ps) != 1 {
 		return l.a.usageErr(fmt.Sprintf("run checkpoint: %q is not one phase (want one of %v, approve or pr)", pos[0], run.Phases))
 	}
+	return l.printCheckpoint(ctx, "run checkpoint", ps[0], "")
+}
+
+// printCheckpoint prints prefix and "ask" when the lead stops for the user at
+// phase p, else "auto" (the answer of `loops run checkpoint`).
+func (l leadCmd) printCheckpoint(ctx context.Context, cmd string, p run.Phase, prefix string) int {
 	st, err := l.a.Tracker.State(ctx, "")
 	if err != nil {
-		return l.a.fail("run checkpoint", err)
+		return l.a.fail(cmd, err)
 	}
-	if run.Asks(st, ps[0]) {
-		fmt.Fprintln(l.a.Out, "ask")
+	if run.Asks(st, p) {
+		fmt.Fprintln(l.a.Out, prefix+"ask")
 	} else {
-		fmt.Fprintln(l.a.Out, "auto")
+		fmt.Fprintln(l.a.Out, prefix+"auto")
 	}
 	return 0
 }

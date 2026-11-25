@@ -44,7 +44,7 @@ func parseFlagsAnywhere(fs *flag.FlagSet, args []string) ([]string, error) {
 // exits 1 (env prints nothing and exits 0).
 func (a *App) cmdRun(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(a.Err, "usage: loops run start|phase|event|label|loopback|verdict|override|ask|checkpoint|decide|brief|triage|step|end|dir|env|clean …")
+		fmt.Fprintln(a.Err, "usage: loops run start|phase|event|label|loopback|verdict|ingest|override|ask|checkpoint|decide|brief|triage|step|end|dir|env|clean …")
 		return 2
 	}
 	sub, rest := args[0], args[1:]
@@ -61,6 +61,8 @@ func (a *App) cmdRun(ctx context.Context, args []string) int {
 		return a.runLoopback(ctx, rest)
 	case "verdict":
 		return a.runVerdict(ctx, rest)
+	case "ingest":
+		return a.runIngest(ctx, rest)
 	case "override":
 		return a.runOverride(ctx, rest)
 	case "ask":
@@ -152,7 +154,12 @@ func (a *App) runPhase(ctx context.Context, args []string) int {
 		return a.fail("run phase", err)
 	}
 	// Every phase change re-anchors the lead on the run (WORKFLOW §2.7).
-	return leadCmd{a}.brief(ctx, nil)
+	if code := (leadCmd{a}).brief(ctx, nil); code != 0 {
+		return code
+	}
+	// …and says whether the lead stops for the user at this phase, so it
+	// needs no separate `loops run checkpoint`.
+	return leadCmd{a}.printCheckpoint(ctx, "run phase", p, "Checkpoint: ")
 }
 
 func (a *App) runEvent(ctx context.Context, args []string) int {
