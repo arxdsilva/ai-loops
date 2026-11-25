@@ -75,8 +75,23 @@ const (
 // GoDir is the run's Go scratch directory (<run dir>/go).
 func GoDir(runDir string) string { return filepath.Join(runDir, "go") }
 
-// GoCache is the run's GOCACHE (<run dir>/go/cache).
-func GoCache(runDir string) string { return filepath.Join(runDir, "go", "cache") }
+// GoCache is the run's GOCACHE. A scratch dir under the per-user base
+// ($TMPDIR/loops-<uid>/<run>-<suffix>) shares one build cache across runs,
+// <base>/shared/go-cache: go's cache is content-addressed, safe under
+// concurrent use and trims entries unused for days itself, so a run starts
+// warm instead of recompiling the whole tree with -race (WORKFLOW §1). The
+// user's own GOCACHE is never touched. A run that keeps its scratch in the
+// run dir keeps a private cache (<run dir>/go/cache), removed at run end.
+func GoCache(runDir string) string {
+	if base := filepath.Dir(filepath.Clean(runDir)); strings.HasPrefix(filepath.Base(base), "loops-") {
+		return SharedGoCache(base)
+	}
+	return filepath.Join(runDir, "go", "cache")
+}
+
+// SharedGoCache is the build cache every run under the per-user scratch base
+// shares (<base>/shared/go-cache).
+func SharedGoCache(base string) string { return filepath.Join(base, "shared", "go-cache") }
 
 // GoTmp is the run's GOTMPDIR (<run dir>/go/tmp).
 func GoTmp(runDir string) string { return filepath.Join(runDir, "go", "tmp") }

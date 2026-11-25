@@ -13,6 +13,10 @@ func TestLayout(t *testing.T) {
 	if GoDir(run) != filepath.Join(run, "go") || GoCache(run) != filepath.Join(run, "go", "cache") || GoTmp(run) != filepath.Join(run, "go", "tmp") {
 		t.Fatal(GoDir(run), GoCache(run), GoTmp(run))
 	}
+	sd := filepath.FromSlash("/tmp/loops-501/r1-abc")
+	if GoCache(sd) != filepath.FromSlash("/tmp/loops-501/shared/go-cache") || GoTmp(sd) != filepath.Join(sd, "go", "tmp") {
+		t.Fatal("scratch-dir runs share the build cache:", GoCache(sd), GoTmp(sd))
+	}
 	if Baseline(run) != filepath.Join(run, "baseline-untracked.txt") || BaselineDirs(run) != filepath.Join(run, "baseline-dirs.txt") {
 		t.Fatal(Baseline(run), BaselineDirs(run))
 	}

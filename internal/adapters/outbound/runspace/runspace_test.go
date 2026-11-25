@@ -3,7 +3,6 @@ package runspace
 import (
 	"bytes"
 	"context"
-	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/arxdsilva/ai-loops/internal/platform/scratch"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/workspace"
 )
@@ -162,12 +163,18 @@ func TestCleanGitRepo(t *testing.T) {
 	if err := os.Symlink(filepath.Join(outside, "dir"), filepath.Join(root, "ext")); err != nil {
 		t.Fatal(err)
 	}
-	// go cache with read-only entries
-	write(t, workspace.GoCache(sd), "ab/abcdef-d", "cachedata", 0o444)
-	if err := os.Chmod(filepath.Join(workspace.GoCache(sd), "ab"), 0o555); err != nil {
+	// run-owned go dir with read-only entries (removed), and the build cache
+	// shared across runs (kept)
+	write(t, workspace.GoTmp(sd), "ab/abcdef-d", "cachedata", 0o444)
+	if err := os.Chmod(filepath.Join(workspace.GoTmp(sd), "ab"), 0o555); err != nil {
 		t.Fatal(err)
 	}
 	write(t, workspace.GoTmp(sd), "go-build1/b001/x", "tmp", 0o644)
+	shared := workspace.GoCache(sd)
+	if shared != workspace.SharedGoCache(filepath.Dir(sd)) {
+		t.Fatalf("scratch-dir runs share the build cache: %q", shared)
+	}
+	write(t, shared, "cd/cdef-d", "warm", 0o644)
 
 	dry, err := s.Clean(ctx, rd, true)
 	if err != nil {
@@ -196,6 +203,9 @@ func TestCleanGitRepo(t *testing.T) {
 	}
 	if r.CacheFiles != 2 || r.CacheBytes != int64(len("cachedata")+len("tmp")) || exists(workspace.GoDir(sd)) || exists(sd) {
 		t.Fatalf("cache %+v", r)
+	}
+	if !exists(filepath.Join(shared, "cd/cdef-d")) {
+		t.Fatal("run end removed the shared build cache")
 	}
 	for _, p := range []string{"tracked.go", "tool.exe", "old.test", "keepdir/old.out", "keepdir", "pkg", "run.test", "notes.md", "debug.log", "link.test", ".loops/runs/r1/proof.test", ".loops/runs/r1/baseline-untracked.txt"} {
 		if !exists(filepath.Join(root, p)) {
