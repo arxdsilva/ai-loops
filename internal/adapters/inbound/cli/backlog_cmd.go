@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	appbacklog "github.com/arxdsilva/ai-loops/internal/application/backlog"
 	"github.com/arxdsilva/ai-loops/internal/domain/backlog"
@@ -44,6 +46,13 @@ func (a *App) cmdBacklog(ctx context.Context, args []string) int {
 		fmt.Fprintf(a.Err, "loops backlog: warning: "+format+"\n", v...)
 	})
 	sub, rest := args[0], args[1:]
+	if sub == "work" || sub == "run" {
+		// A stopped lane (Ctrl-C, a harness stopping the task) stops its
+		// agent and records the attempt instead of orphaning the agent.
+		var stop context.CancelFunc
+		ctx, stop = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+		defer stop()
+	}
 	switch sub {
 	case "init":
 		return a.backlogInit(ctx, env, rest)

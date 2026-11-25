@@ -6,6 +6,10 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/domain/run"
 )
 
+// NeedsHumanTopic is the decision topic a lane records when the ticket
+// cannot be worked without a human (BACKLOG §4).
+const NeedsHumanTopic = "needs-human"
+
 // LaneRun is what a lane left in its worktree: its newest loops run.
 type LaneRun struct {
 	Dir    string      // the run directory ("" = no run started)
@@ -32,20 +36,12 @@ func (l LaneRun) Outcome(agentErr string) Outcome {
 	default:
 		o.Reason = "the run ended " + st.Outcome
 	}
-	if o.PR == "" {
-		if d := lastDecision(st); d != "" {
-			o.Reason += "; last decision: " + d
-		}
+	if o.PR == "" && len(st.Decisions) > 0 {
+		d := st.Decisions[len(st.Decisions)-1]
+		o.Reason += "; last decision: " + d.Topic + ": " + d.Note
+		o.NeedsHuman = d.Topic == NeedsHumanTopic
 	}
 	return o
-}
-
-func lastDecision(st run.State) string {
-	if len(st.Decisions) == 0 {
-		return ""
-	}
-	d := st.Decisions[len(st.Decisions)-1]
-	return d.Topic + ": " + d.Note
 }
 
 func join(a, b string) string {

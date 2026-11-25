@@ -21,6 +21,9 @@ import (
 // Dir is the backlog directory inside .loops.
 const Dir = "backlog"
 
+// errHeld means another live process holds the lane.
+var errHeld = errors.New("already has a live lane")
+
 // Store is the state on disk.
 type Store struct{ root, dir string }
 
@@ -104,31 +107,12 @@ func (s *Store) HoldLane(n int) (func(), error) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR, 0o644)
-	if err != nil {
-		return nil, err
+	release, err := acquire(p)
+	if errors.Is(err, errHeld) {
+		return nil, fmt.Errorf("issue %d %w", n, err)
 	}
-	if !tryLock(f) {
-		f.Close()
-		return nil, fmt.Errorf("issue %d already has a live lane", n)
-	}
-	return func() {
-		unlock(f)
-		f.Close()
-		_ = os.Remove(p)
-	}, nil
+	return release, err
 }
 
 // LaneHeld reports whether a live process holds issue n's lane lock.
-func (s *Store) LaneHeld(n int) bool {
-	f, err := os.OpenFile(s.lanePath(n), os.O_RDWR, 0)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	if tryLock(f) {
-		unlock(f)
-		return false
-	}
-	return true
-}
+func (s *Store) LaneHeld(n int) bool { return held(s.lanePath(n)) }

@@ -20,9 +20,14 @@ type Item struct {
 	Status   Status `json:"status"`
 	Attempts int    `json:"attempts,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
-	RunDir   string `json:"run_dir,omitempty"` // the lane's last loops run
-	PR       string `json:"pr,omitempty"`
-	Note     string `json:"note,omitempty"` // why it failed, was handed off or skipped
+	// Lanes counts the lanes ever started on the issue (attempts reset when
+	// the human gives it back; this never does), so each lane gets its own
+	// worktree; Past are the earlier lanes' worktrees not yet cleaned.
+	Lanes  int      `json:"lanes,omitempty"`
+	Past   []string `json:"past_worktrees,omitempty"`
+	RunDir string   `json:"run_dir,omitempty"` // the lane's last loops run
+	PR     string   `json:"pr,omitempty"`
+	Note   string   `json:"note,omitempty"` // why it failed, was handed off or skipped
 	// HandedOff is true once the forge took the hand-off label and assignee
 	// (BACKLOG §6). Held is true once a sync after that saw the issue held
 	// (not eligible). Only an issue seen held and then eligible again is
@@ -147,8 +152,9 @@ func (s *State) Queue() []Item {
 	return q
 }
 
-// Claim marks issue n (0 = the first queued) running for a lane.
-func (s *State) Claim(n int, worktree string, now time.Time) (Item, error) {
+// Claim marks issue n (0 = the first queued) running for a lane in the
+// worktree dir(n, lane) names, lane counting from 1 per issue.
+func (s *State) Claim(n int, dir func(n, lane int) string, now time.Time) (Item, error) {
 	if n == 0 {
 		q := s.Queue()
 		if len(q) == 0 {
@@ -163,7 +169,11 @@ func (s *State) Claim(n int, worktree string, now time.Time) (Item, error) {
 	if it.Status != Queued {
 		return Item{}, fmt.Errorf("issue %d is %s, not queued", n, it.Status)
 	}
-	it.Status, it.Worktree, it.Note = Running, worktree, ""
+	if it.Worktree != "" {
+		it.Past = append(it.Past, it.Worktree)
+	}
+	it.Lanes++
+	it.Status, it.Worktree, it.Note = Running, dir(n, it.Lanes), ""
 	it.Attempts++
 	it.Started, it.Updated = now, now
 	return *it, nil
@@ -174,11 +184,14 @@ type Outcome struct {
 	PR     string // the PR the run opened ("" = none)
 	RunDir string
 	Reason string // why it failed ("" when a PR was opened)
+	// NeedsHuman is set when the lane recorded a needs-human decision
+	// (BACKLOG §4): retrying cannot help, so it is handed off at once.
+	NeedsHuman bool
 }
 
 // Finish records a lane's outcome and applies the failure policy (BACKLOG
-// §3 step 6): done with a PR; failed and re-queued while attempts remain;
-// handed to the human otherwise. It returns the new status.
+// §3 step 6): done with a PR; re-queued while attempts remain, unless the
+// lane asked for a human; handed to the human otherwise. It returns the new status.
 func (s *State) Finish(n int, o Outcome, now time.Time) (Status, error) {
 	it, ok := s.Item(n)
 	if !ok {
@@ -188,7 +201,7 @@ func (s *State) Finish(n int, o Outcome, now time.Time) (Status, error) {
 	switch {
 	case o.PR != "":
 		it.Status, it.PR, it.Note = Done, o.PR, ""
-	case it.Attempts < s.Settings.Attempts:
+	case it.Attempts < s.Settings.Attempts && !o.NeedsHuman:
 		it.Status, it.Note = Queued, o.Reason
 	default:
 		it.Status, it.Note = Human, o.Reason

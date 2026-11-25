@@ -176,6 +176,9 @@ func (a *fakeAgent) Run(_ context.Context, dir, prompt, _ string, _ backlog.Sett
 	return err
 }
 
+// at names every lane's worktree dir.
+func at(dir string) func(int, int) string { return func(int, int) string { return dir } }
+
 type fixedClock struct{}
 
 func (fixedClock) Now() time.Time { return time.Date(2026, 5, 6, 7, 8, 9, 0, time.UTC) }
@@ -269,7 +272,7 @@ func TestWorkDone(t *testing.T) {
 	if err != nil || res.Status != backlog.Done || res.Item.Number != 2 || res.Item.PR != "https://pr/1" {
 		t.Fatalf("work = %+v, %v", res, err)
 	}
-	if !slices.Equal(r.wt.added, []string{"/wt/issue-2"}) {
+	if !slices.Equal(r.wt.added, []string{"/wt/issue-2-1"}) {
 		t.Fatalf("worktrees = %v", r.wt.added)
 	}
 	p := r.agent.prompts[0]
@@ -309,8 +312,8 @@ func TestWorkFailureRetriesThenHandsOff(t *testing.T) {
 	ctx := context.Background()
 	r.svc.Sync(ctx)
 	r.agent.outcome = func(string) (backlog.LaneRun, error) {
-		return backlog.LaneRun{Dir: "/run", Events: events("abandoned", "",
-			run.Event{Kind: run.KindDecision, Name: "needs-human", Note: "which unit?"})}, nil
+		return backlog.LaneRun{Dir: "/run", Events: events("failed", "",
+			run.Event{Kind: run.KindDecision, Name: "qa-limit", Note: "which unit?"})}, nil
 	}
 	res, err := r.svc.Work(ctx, 0)
 	if err != nil || res.Status != backlog.Queued || !strings.Contains(res.Reason, "which unit?") {
@@ -320,7 +323,7 @@ func TestWorkFailureRetriesThenHandsOff(t *testing.T) {
 		t.Fatal("a retry must not hand off")
 	}
 	res, _ = r.svc.Work(ctx, 0)
-	if res.Status != backlog.Human {
+	if res.Status != backlog.Human || res.Item.Worktree != "/wt/issue-7-2" || !slices.Equal(res.Item.Past, []string{"/wt/issue-7-1"}) {
 		t.Fatalf("second failure = %+v", res)
 	}
 	c := r.forge.comments[7]
@@ -330,6 +333,42 @@ func TestWorkFailureRetriesThenHandsOff(t *testing.T) {
 	last := r.forge.edits[7][len(r.forge.edits[7])-1]
 	if !slices.Equal(last.AddLabels, []string{"loops-needs-human"}) || !slices.Equal(last.AddAssignees, []string{"hum"}) {
 		t.Fatalf("hand-off edit = %+v", last)
+	}
+}
+
+func TestWorkNeedsHumanHandsOffAtOnce(t *testing.T) {
+	r := newRig(t, is(8))
+	r.init(t, backlog.Settings{Attempts: 3})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.agent.outcome = func(string) (backlog.LaneRun, error) {
+		return backlog.LaneRun{Dir: "/run", Events: events("abandoned", "",
+			run.Event{Kind: run.KindDecision, Name: backlog.NeedsHumanTopic, Note: "no spec"})}, nil
+	}
+	res, err := r.svc.Work(ctx, 0)
+	if err != nil || res.Status != backlog.Human || res.Item.Attempts != 1 || len(r.forge.comments[8]) != 1 {
+		t.Fatalf("needs-human = %+v, %v", res, err)
+	}
+	st, _ := r.store.Load(ctx)
+	if it, _ := st.Item(8); !it.HandedOff {
+		t.Fatal("confirmed hand-off not recorded")
+	}
+}
+
+func TestHandoffNotConfirmedWhenEditFails(t *testing.T) {
+	r := newRig(t, is(9))
+	r.init(t, backlog.Settings{Attempts: 1})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.forge.editErr = errors.New("label refused")
+	r.agent.outcome = func(string) (backlog.LaneRun, error) { return backlog.LaneRun{}, nil }
+	res, _ := r.svc.Work(ctx, 0)
+	st, _ := r.store.Load(ctx)
+	if it, _ := st.Item(9); res.Status != backlog.Human || it.HandedOff {
+		t.Fatalf("unconfirmed hand-off = %+v", it)
+	}
+	if len(r.warns) == 0 {
+		t.Fatal("refused edit not warned")
 	}
 }
 
@@ -361,8 +400,24 @@ func TestWorkTimeout(t *testing.T) {
 	r.svc.Sync(ctx)
 	r.svc.agent = agentFunc(func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() })
 	res, err := r.svc.Work(ctx, 1)
-	if err != nil || !strings.Contains(res.Reason, "agent stopped after 1ms") {
+	if err != nil || !strings.Contains(res.Reason, "agent stopped after the 1ms timeout") {
 		t.Fatalf("timeout = %+v, %v", res, err)
+	}
+}
+
+func TestWorkStoppedStillTidies(t *testing.T) {
+	r := newRig(t, is(1))
+	r.init(t, backlog.Settings{Attempts: 3})
+	ctx, cancel := context.WithCancel(context.Background())
+	r.svc.Sync(ctx)
+	r.svc.agent = agentFunc(func(actx context.Context) error { cancel(); <-actx.Done(); return actx.Err() })
+	res, err := r.svc.Work(ctx, 1)
+	if err != nil || res.Status != backlog.Queued || !strings.Contains(res.Reason, "lane stopped") {
+		t.Fatalf("stopped lane = %+v, %v", res, err)
+	}
+	e := r.forge.edits[1]
+	if last := e[len(e)-1]; !slices.Equal(last.RemoveLabels, []string{"loops-wip"}) {
+		t.Fatalf("claim label left on a stopped lane: %+v", e)
 	}
 }
 
@@ -458,7 +513,7 @@ func TestSyncRecoversDeadLanes(t *testing.T) {
 	ctx := context.Background()
 	r.svc.Sync(ctx)
 	r.store.Update(ctx, func(st *backlog.State) error {
-		_, err := st.Claim(5, "/wt/issue-5", time.Time{})
+		_, err := st.Claim(5, at("/wt/issue-5"), time.Time{})
 		return err
 	})
 	res, err := r.svc.Sync(ctx)
@@ -470,6 +525,9 @@ func TestSyncRecoversDeadLanes(t *testing.T) {
 	if it.Status != backlog.Human || !strings.Contains(it.Note, "lane process is gone") || len(r.forge.comments[5]) != 1 {
 		t.Fatalf("dead lane = %+v", it)
 	}
+	if e := r.forge.edits[5]; len(e) == 0 || !slices.Equal(e[0].RemoveLabels, []string{"loops-wip"}) {
+		t.Fatalf("dead lane's claim label not removed: %+v", e)
+	}
 }
 
 func TestStatus(t *testing.T) {
@@ -480,7 +538,7 @@ func TestStatus(t *testing.T) {
 		t.Fatal("status without state")
 	}
 	r.svc.Sync(ctx)
-	r.store.Update(ctx, func(st *backlog.State) error { _, err := st.Claim(2, "/wt/issue-2", time.Time{}); return err })
+	r.store.Update(ctx, func(st *backlog.State) error { _, err := st.Claim(2, at("/wt/issue-2"), time.Time{}); return err })
 	rep, err := r.svc.Status(ctx)
 	if err != nil || rep.Counts[backlog.Queued] != 2 || rep.Counts[backlog.Running] != 1 || rep.Synced == "" {
 		t.Fatalf("status = %+v, %v", rep, err)
@@ -503,16 +561,17 @@ func TestClean(t *testing.T) {
 			{Number: 2, Status: backlog.Human, Worktree: "/wt/issue-2"},
 			{Number: 3, Status: backlog.Running, Worktree: "/wt/issue-3"},
 			{Number: 4, Status: backlog.Skipped, Worktree: "/wt/gone"},
+			{Number: 5, Status: backlog.Queued, Worktree: "/wt/issue-5-2", Past: []string{"/wt/issue-5-1"}},
 		}
 		return nil
 	})
-	r.wt.present = map[string]bool{"/wt/issue-1": true, "/wt/issue-2": true, "/wt/issue-3": true}
+	r.wt.present = map[string]bool{"/wt/issue-1": true, "/wt/issue-2": true, "/wt/issue-3": true, "/wt/issue-5-1": true, "/wt/issue-5-2": true}
 	got, err := r.svc.Clean(ctx, false, true)
-	if err != nil || !slices.Equal(got, []string{"/wt/issue-1"}) || len(r.wt.removed) != 0 {
+	if err != nil || !slices.Equal(got, []string{"/wt/issue-1", "/wt/issue-5-1"}) || len(r.wt.removed) != 0 {
 		t.Fatalf("dry run = %v, %v (removed %v)", got, err, r.wt.removed)
 	}
 	got, _ = r.svc.Clean(ctx, true, false)
-	if !slices.Equal(got, []string{"/wt/issue-1", "/wt/issue-2"}) || !slices.Equal(r.wt.removed, got) {
+	if !slices.Equal(got, []string{"/wt/issue-1", "/wt/issue-2", "/wt/issue-5-1"}) || !slices.Equal(r.wt.removed, got) {
 		t.Fatalf("clean --all = %v", got)
 	}
 	st, _ := r.store.Load(ctx)
@@ -522,6 +581,9 @@ func TestClean(t *testing.T) {
 	if it, _ := st.Item(3); it.Worktree == "" {
 		t.Fatal("a running lane's worktree was touched")
 	}
+	if it, _ := st.Item(5); it.Worktree != "/wt/issue-5-2" || len(it.Past) != 0 {
+		t.Fatalf("queued issue's history = %+v", it)
+	}
 }
 
 func TestRunDrainsTheQueue(t *testing.T) {
@@ -529,10 +591,10 @@ func TestRunDrainsTheQueue(t *testing.T) {
 	r.init(t, backlog.Settings{Lanes: 2})
 	ctx := context.Background()
 	r.agent.outcome = func(dir string) (backlog.LaneRun, error) {
-		if strings.HasSuffix(dir, "issue-3") {
+		if strings.Contains(dir, "issue-3-") {
 			return backlog.LaneRun{Dir: "/run", Events: events("failed", "")}, nil
 		}
-		return backlog.LaneRun{Dir: "/run", Events: events("done", "https://pr/"+dir[len(dir)-1:])}, nil
+		return backlog.LaneRun{Dir: "/run", Events: events("done", "https://pr/"+dir)}, nil
 	}
 	var out bytes.Buffer
 	sum, err := r.svc.Run(ctx, RunInput{Out: &out})

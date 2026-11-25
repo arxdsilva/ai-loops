@@ -7,9 +7,10 @@ import (
 	"syscall"
 )
 
-// ownGroup puts the agent in its own process group and makes cancelling
-// signal the whole group, so the agent's own children stop with it.
-func ownGroup(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
+// graceful makes cancelling send SIGTERM, so the agent can stop its own
+// children; Run's WaitDelay kills it if it is still there after stopGrace.
+// The agent stays in the caller's process group, so whatever stops the
+// caller's group (a harness stopping a background task) stops it too.
+func graceful(cmd *exec.Cmd) {
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 }

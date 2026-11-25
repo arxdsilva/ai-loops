@@ -20,7 +20,7 @@ A lane is its **own process, started in its worktree**, never a subagent of the 
 
 `loops backlog sync` lists the open issues of the repository (`gh issue list`) and rebuilds the queue. An issue is **eligible** when all of these hold:
 - it has no assignee. An assigned issue belongs to that person, and findings are filed assigned to the human (§5), so they stay out until the human unassigns them;
-- it carries one of the `--label` labels (when any are set) and none of the `--exclude-label` labels. The defaults exclude `wontfix`, `duplicate`, `invalid`, `question`, the finding label, the hand-off label and the claim label;
+- it carries one of the `--label` labels (when any are set) and none of the `--exclude-label` labels. The defaults exclude `wontfix`, `duplicate`, `invalid`, `question`, the finding label and the hand-off label. The claim label only shows on the forge which issues lanes hold; the state, not the label, keeps two lanes off one issue;
 - its author is in `--authors` (§7).
 
 Order: priority first, from the first label matching `P<digit>` as a word (`priority: P0`, `P1`, `p2`; P0 first, no priority last), then the lowest issue number.
@@ -30,12 +30,12 @@ The state keeps every issue a lane has touched, with its status: `queued`, `runn
 ## 3. A lane
 
 `loops backlog work [<n>]` runs one lane to its end:
-1. **Claim**, under the state lock: issue `<n>`, or the first queued one. It is marked `running`, its attempt count goes up, and the claim label is added on the forge, best effort.
-2. **Worktree**: `git fetch origin <base>`, then `git worktree add --detach <dir> origin/<base>`. A worktree left over from an earlier attempt is removed first.
-3. **Agent**: runs the agent command in the worktree until it exits or `--timeout` passes. The command is the `--agent` template (placeholders `{prompt}`, `{budget}`, `{dir}`), default `claude -p {prompt} --permission-mode auto`, plus `--max-budget-usd <usd>` when a budget is set. The prompt is `/loops:work <repo>#<n> --max-agents <k>` followed by the lane rules (§4).
+1. **Claim**, under the state lock: issue `<n>`, or the first queued one. It is marked `running`, its attempt count goes up, its lane lock is taken (it dies with the process, so `sync` can tell a dead lane from a live one), and the claim label is added on the forge, best effort.
+2. **Worktree**: `git fetch origin <base>`, then `git worktree add --detach <dir> origin/<base>`, where `<dir>` is `issue-<n>-<k>` for the issue's k-th lane. Every lane gets a fresh worktree: an earlier, failed lane's worktree stays as it was, for review, until `clean`.
+3. **Agent**: runs the agent command in the worktree until it exits, `--timeout` passes, or the lane is stopped (SIGINT or SIGTERM to `loops backlog work`, which sends SIGTERM to the agent and kills it 30 s later). The command is the `--agent` template (placeholders `{prompt}`, `{budget}`, `{dir}`), default `claude -p {prompt} --permission-mode auto`, plus `--max-budget-usd <usd>` when a budget is set. The prompt is `/loops:work <repo>#<n> --max-agents <k>` followed by the lane rules (§4).
 4. **Outcome**: read from the worktree's newest run (`events.jsonl` folded, WORKFLOW §5). `done` needs a run that ended `done` with a `pr` event. Anything else is `failed`, with the reason: the run's outcome and its last decision, or that no run started, or that the agent exited or timed out without ending its run.
 5. **Findings** of the run are filed (§5).
-6. **Failure policy**: a failed lane is re-queued while its attempts stay under `--attempts` (default 2). After that it is handed to the human (§6). The claim label is removed either way.
+6. **Failure policy**: a failed lane is re-queued while its attempts stay under `--attempts` (default 2). After that, or at once when the lane recorded a `needs-human` decision (§4), it is handed to the human (§6). The lane lock is released as soon as the outcome is recorded. The claim label is removed either way, even for a stopped lane: steps 4 to 6 run to completion after a stop.
 
 Exit 0 when the lane opened a PR, 1 when it failed or errored, 3 when there was nothing to claim.
 
@@ -79,7 +79,7 @@ A finding is a duplicate when its normalized title (lower case, letters and digi
 - `loops backlog run [--max N]`: the supervisor without an agent. It syncs, keeps `--lanes` lanes running until the queue is empty, applies §3's failure policy, and syncs again before stopping. Use it under `nohup` or `tmux` for a long unattended stretch. The `loops:backlog` skill adds judgment on top (§6).
 - `loops backlog finish <n> --status queued|human|done|skipped [--note text]`: the supervisor's ruling on one issue. `queued` refuses an issue whose attempts are spent unless `--force`.
 - `loops backlog file --title T [--body-file f|-] [--from n]`: files one finding (§5). Prints its URL, or `duplicate <url>`.
-- `loops backlog clean [--all] [--dry-run]`: removes the worktrees of `done` and `skipped` lanes (`--all`: also `failed` and `human`), then `git worktree prune`.
+- `loops backlog clean [--all] [--dry-run]`: removes every earlier lane's worktree, and the last lane's worktree of `done` and `skipped` issues (`--all`: also `failed` and `human`), then `git worktree prune`. Git refuses a dirty worktree, which is kept and reported.
 
 Exit 2 on bad usage. `init` and every command after it exit 1 when the state is missing (`loops backlog init` first).
 

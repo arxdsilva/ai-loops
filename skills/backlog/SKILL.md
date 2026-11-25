@@ -45,7 +45,7 @@ The notification carries the command's output and exit code (BACKLOG §3):
 | Exit | Output says | You do |
 |---|---|---|
 | 0 | `#n done: <PR>` | Relay the line and any `finding filed` lines. |
-| 1 | `queued again: <reason>` | Read the reason. When retrying cannot help, hand it off now: `loops backlog finish <n> --status human --note "<reason, in plain words>"`. Retrying cannot help when the reason holds a `needs-human` decision, a contradiction or missing information in the ticket, a missing credential or service, or the same reason as the previous attempt. Otherwise leave it queued for the retry. |
+| 1 | `queued again: <reason>` | Read the reason. When retrying cannot help, hand it off now: `loops backlog finish <n> --status human --note "<reason, in plain words>"`. Retrying cannot help when the reason shows a contradiction or missing information in the ticket, a missing credential or service, or the same failure as the base branch has. A lane's own `needs-human` decision is already handed off by the binary. Otherwise leave it queued for the retry. |
 | 1 | `handed to the human` | Relay it. The comment, label and assignee are already set (BACKLOG §6). |
 | 1 | `loops backlog work: <error>` | A lane could not start (forge, git or state error). Fix what is in your power (for example `! gh auth login`, told to the user), else tell the user and stop filling lanes. |
 | 3 | `nothing queued` | That lane stays empty. |
@@ -77,4 +77,4 @@ A session that may close (a laptop lid, a long weekend) should not supervise man
 
 - A lane that runs past its timeout is stopped by `loops backlog work` itself and counts as a failed attempt.
 - `loops backlog finish <n> --status skipped --note "<why>"` sets an issue aside when the user says so. `--status queued` (with `--force` once its attempts are spent) gives it another lane.
-- If the user says stop: do not start new lanes. Running lanes finish on their own; to stop one now, stop its background task (TaskStop). Its issue is recovered as a failed attempt at the next sync.
+- If the user says stop: do not start new lanes. Running lanes finish on their own. To stop one now, stop its background task (TaskStop): `loops backlog work` stops its agent, records the attempt and removes the claim label. A lane killed outright is recovered as a failed attempt at the next sync.

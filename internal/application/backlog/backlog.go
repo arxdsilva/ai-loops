@@ -183,13 +183,17 @@ func (s *Service) Sync(ctx context.Context) (backlog.SyncResult, error) {
 // recover finishes running lanes whose process died (no lane lock held).
 func (s *Service) recover(ctx context.Context) error {
 	var handoffs []backlog.Item
+	var released []int
 	err := s.store.Update(ctx, func(st *backlog.State) error {
 		for _, n := range st.Stale(func(it backlog.Item) bool { return s.store.LaneHeld(it.Number) }) {
 			it, _ := st.Item(n)
 			lane, _ := s.lanes.Latest(it.Worktree)
 			o := lane.Outcome("the lane process is gone")
-			if status, err := st.Finish(n, o, s.clock.Now()); err == nil && status == backlog.Human {
-				handoffs = append(handoffs, *it)
+			if status, err := st.Finish(n, o, s.clock.Now()); err == nil {
+				released = append(released, n)
+				if status == backlog.Human {
+					handoffs = append(handoffs, *it)
+				}
 			}
 		}
 		return nil
@@ -200,6 +204,9 @@ func (s *Service) recover(ctx context.Context) error {
 	st, err := s.store.Load(ctx)
 	if err != nil {
 		return err
+	}
+	for _, n := range released {
+		s.edit(ctx, st.Settings, n, Edit{RemoveLabels: []string{st.Settings.ClaimLabel}})
 	}
 	for _, it := range handoffs {
 		s.handoff(ctx, st.Settings, it)
@@ -247,9 +254,9 @@ func (s *Service) Status(ctx context.Context) (Report, error) {
 	return r, nil
 }
 
-// worktree is issue n's lane directory.
-func worktree(set backlog.Settings, n int) string {
-	return filepath.Join(set.Worktrees, fmt.Sprintf("issue-%d", n))
+// worktree is the directory of issue n's lane-th lane.
+func worktree(set backlog.Settings, n, lane int) string {
+	return filepath.Join(set.Worktrees, fmt.Sprintf("issue-%d-%d", n, lane))
 }
 
 // Prompt is the lane agent's prompt (BACKLOG §4).

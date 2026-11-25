@@ -6,9 +6,14 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/backlog"
 )
+
+// tidyTimeout bounds the bookkeeping after a lane ends (state, labels,
+// hand-off, findings), which runs even when the lane was stopped.
+const tidyTimeout = 2 * time.Minute
 
 // maxBody caps a finding's detail file in an issue body.
 const maxBody = 20000
@@ -50,7 +55,7 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 			}
 			pick = q[0].Number
 		}
-		if it, err = st.Claim(pick, worktree(set, pick), s.clock.Now()); err != nil {
+		if it, err = st.Claim(pick, func(n, lane int) string { return worktree(set, n, lane) }, s.clock.Now()); err != nil {
 			return err
 		}
 		release, err = s.store.HoldLane(pick)
@@ -62,25 +67,41 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 	if err != nil {
 		return LaneResult{}, err
 	}
-	defer release()
+	held := true
+	defer func() {
+		if held {
+			release()
+		}
+	}()
 	s.edit(ctx, set, it.Number, Edit{AddLabels: []string{set.ClaimLabel}})
 
-	agentErr := ""
+	agentErr, started := "", false
 	if err := s.wt.Add(ctx, it.Worktree, set.Base); err != nil {
 		agentErr = "worktree: " + err.Error()
 	} else {
+		started = true
 		runCtx, cancel := context.WithTimeout(ctx, set.TimeoutDuration())
 		if err := s.agent.Run(runCtx, it.Worktree, Prompt(set, it.Number), s.store.LogPath(it.Number), set); err != nil {
-			agentErr = "agent: " + err.Error()
-			if runCtx.Err() != nil {
-				agentErr = fmt.Sprintf("agent stopped after %s: %v", set.Timeout, runCtx.Err())
+			switch {
+			case ctx.Err() != nil:
+				agentErr = "lane stopped: " + ctx.Err().Error()
+			case runCtx.Err() != nil:
+				agentErr = "agent stopped after the " + set.Timeout + " timeout"
+			default:
+				agentErr = "agent: " + err.Error()
 			}
 		}
 		cancel()
 	}
-	lane, err := s.lanes.Latest(it.Worktree)
-	if err != nil {
-		s.warn("read lane %d: %v", it.Number, err)
+	// Record the outcome and tidy the forge even when the lane was stopped.
+	ctx, cancelTidy := context.WithTimeout(context.WithoutCancel(ctx), tidyTimeout)
+	defer cancelTidy()
+	// The lane's own worktree is fresh, so its newest run is this lane's.
+	var lane backlog.LaneRun
+	if started {
+		if lane, err = s.lanes.Latest(it.Worktree); err != nil {
+			s.warn("read lane %d: %v", it.Number, err)
+		}
 	}
 	out := lane.Outcome(agentErr)
 	if agentErr != "" && lane.Dir == "" {
@@ -95,6 +116,10 @@ func (s *Service) Work(ctx context.Context, n int) (LaneResult, error) {
 		res.Status, res.Reason = status, out.Reason
 		return err
 	})
+	// The outcome is recorded: free the lane now, so a refill can claim the
+	// issue again while the forge calls below run.
+	held = false
+	release()
 	if err != nil {
 		return res, err
 	}
@@ -264,8 +289,9 @@ func orNone(s string) string {
 	return s
 }
 
-// Clean removes the worktrees of finished lanes: done and skipped, plus
-// failed and human with all. It returns the worktrees removed (or, with
+// Clean removes the worktrees of finished lanes: every earlier lane of an
+// issue, and the last one of done and skipped issues (plus failed and human
+// with all). It returns the worktrees removed (or, with
 // dryRun, that would be).
 func (s *Service) Clean(ctx context.Context, all, dryRun bool) ([]string, error) {
 	st, err := s.load(ctx)
@@ -278,25 +304,33 @@ func (s *Service) Clean(ctx context.Context, all, dryRun bool) ([]string, error)
 	}
 	var removed []string
 	for _, it := range st.Items {
-		if it.Worktree == "" || !slices.Contains(finished, it.Status) || !s.wt.Exists(it.Worktree) {
-			continue
+		dirs := slices.Clone(it.Past)
+		if it.Status != backlog.Running && it.Status != backlog.Queued && slices.Contains(finished, it.Status) {
+			dirs = append(dirs, it.Worktree)
 		}
-		if !dryRun {
-			if err := s.wt.Remove(ctx, it.Worktree); err != nil {
-				s.warn("keep %s: %v", it.Worktree, err)
+		for _, d := range dirs {
+			if d == "" || !s.wt.Exists(d) {
 				continue
 			}
+			if !dryRun {
+				if err := s.wt.Remove(ctx, d); err != nil {
+					s.warn("keep %s: %v", d, err)
+					continue
+				}
+			}
+			removed = append(removed, d)
 		}
-		removed = append(removed, it.Worktree)
 	}
 	if dryRun || len(removed) == 0 {
 		return removed, nil
 	}
 	return removed, s.store.Update(ctx, func(st *backlog.State) error {
 		for i := range st.Items {
-			if slices.Contains(removed, st.Items[i].Worktree) {
-				st.Items[i].Worktree = ""
+			it := &st.Items[i]
+			if slices.Contains(removed, it.Worktree) {
+				it.Worktree = ""
 			}
+			it.Past = slices.DeleteFunc(it.Past, func(d string) bool { return slices.Contains(removed, d) })
 		}
 		return nil
 	})

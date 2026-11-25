@@ -1,6 +1,7 @@
 package backlog
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -10,6 +11,9 @@ import (
 )
 
 var t0 = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+// at names every lane's worktree dir.
+func at(dir string) func(int, int) string { return func(int, int) string { return dir } }
 
 func settings() Settings {
 	s, err := Settings{Repo: "o/r", Human: "h", Base: "main", Worktrees: "/wt", Exclude: DefaultExclude}.Normalize()
@@ -108,7 +112,6 @@ func TestEligible(t *testing.T) {
 		{"excluded", Issue{Author: "alice", Labels: []string{"bug", "wontfix"}}, "wontfix"},
 		{"finding", Issue{Author: "alice", Labels: []string{"bug", DefaultFindingLabel}}, DefaultFindingLabel},
 		{"handed off", Issue{Author: "alice", Labels: []string{"bug", DefaultHumanLabel}}, DefaultHumanLabel},
-		{"claimed", Issue{Author: "alice", Labels: []string{"bug", DefaultClaimLabel}}, DefaultClaimLabel},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -123,6 +126,9 @@ func TestEligible(t *testing.T) {
 				t.Fatalf("Eligible = %v %q, want false mentioning %q", got, why, tc.want)
 			}
 		})
+	}
+	if ok, why := s.Eligible(Issue{Author: "alice", Labels: []string{"bug", DefaultClaimLabel}}); !ok {
+		t.Fatalf("a leftover claim label must not strand an issue: %s", why)
 	}
 	any := settings()
 	if ok, why := any.Eligible(Issue{Author: "anyone"}); !ok {
@@ -201,22 +207,29 @@ func TestSyncAndQueueOrder(t *testing.T) {
 
 func TestClaim(t *testing.T) {
 	st := State{Settings: settings()}
-	if _, err := st.Claim(0, "/wt/x", t0); err != ErrEmpty {
+	if _, err := st.Claim(0, at("/wt/x"), t0); err != ErrEmpty {
 		t.Fatalf("empty queue: %v", err)
 	}
 	st.Sync([]Issue{issue(2, "P3"), issue(8, "P1")}, t0)
-	it, err := st.Claim(0, "/wt/issue-8", t0)
+	it, err := st.Claim(0, at("/wt/issue-8"), t0)
 	if err != nil || it.Number != 8 || it.Status != Running || it.Attempts != 1 || it.Worktree != "/wt/issue-8" {
 		t.Fatalf("claim next = %+v, %v", it, err)
 	}
-	if _, err := st.Claim(8, "/wt", t0); err == nil || !strings.Contains(err.Error(), "running") {
+	if _, err := st.Claim(8, at("/wt"), t0); err == nil || !strings.Contains(err.Error(), "running") {
 		t.Fatalf("claiming a running issue: %v", err)
 	}
-	if _, err := st.Claim(99, "/wt", t0); err == nil || !strings.Contains(err.Error(), "sync") {
+	if _, err := st.Claim(99, at("/wt"), t0); err == nil || !strings.Contains(err.Error(), "sync") {
 		t.Fatalf("claiming an unknown issue: %v", err)
 	}
-	if it, err := st.Claim(2, "/wt/issue-2", t0); err != nil || it.Number != 2 {
+	if it, err := st.Claim(2, at("/wt/issue-2"), t0); err != nil || it.Number != 2 {
 		t.Fatalf("claim by number = %+v, %v", it, err)
+	}
+	// A retry gets a fresh worktree; the old one is kept for cleanup.
+	st.Finish(2, Outcome{Reason: "x"}, t0)
+	dir := func(n, lane int) string { return fmt.Sprintf("/wt/issue-%d-%d", n, lane) }
+	it, _ = st.Claim(2, dir, t0)
+	if it.Worktree != "/wt/issue-2-2" || it.Lanes != 2 || !slices.Equal(it.Past, []string{"/wt/issue-2"}) {
+		t.Fatalf("retry claim = %+v", it)
 	}
 }
 
@@ -226,7 +239,7 @@ func TestFinishPolicy(t *testing.T) {
 	if _, err := st.Finish(42, Outcome{}, t0); err == nil {
 		t.Fatal("finishing an unknown issue")
 	}
-	st.Claim(1, "/wt/1", t0)
+	st.Claim(1, at("/wt/1"), t0)
 	if s, _ := st.Finish(1, Outcome{PR: "https://pr/1", RunDir: "/r"}, t0); s != Done {
 		t.Fatalf("PR outcome = %s", s)
 	}
@@ -234,25 +247,30 @@ func TestFinishPolicy(t *testing.T) {
 		t.Fatalf("PR not recorded: %+v", it)
 	}
 
-	st.Claim(2, "/wt/2", t0)
+	st.Claim(2, at("/wt/2"), t0)
 	if s, _ := st.Finish(2, Outcome{Reason: "the run ended failed"}, t0); s != Queued {
 		t.Fatalf("first failure should re-queue, got %s", s)
 	}
-	st.Claim(2, "/wt/2", t0)
+	st.Claim(2, at("/wt/2"), t0)
 	if s, _ := st.Finish(2, Outcome{Reason: "again"}, t0); s != Human {
 		t.Fatalf("out of attempts should hand off, got %s", s)
 	}
 	if it, _ := st.Item(2); it.Note != "again" || it.Attempts != 2 {
 		t.Fatalf("hand-off note/attempts: %+v", it)
 	}
+	st.Sync([]Issue{issue(3)}, t0)
+	st.Claim(3, at("/wt/3"), t0)
+	if s, _ := st.Finish(3, Outcome{Reason: "spec unclear", NeedsHuman: true}, t0); s != Human {
+		t.Fatalf("needs-human with attempts left = %s, want an immediate hand-off", s)
+	}
 }
 
 func TestSet(t *testing.T) {
 	st := State{Settings: settings()}
 	st.Sync([]Issue{issue(1)}, t0)
-	st.Claim(1, "/wt", t0)
+	st.Claim(1, at("/wt"), t0)
 	st.Finish(1, Outcome{Reason: "x"}, t0)
-	st.Claim(1, "/wt", t0)
+	st.Claim(1, at("/wt"), t0)
 	st.Finish(1, Outcome{Reason: "y"}, t0)
 	if _, err := st.Set(1, Queued, "", false, t0); err == nil || !strings.Contains(err.Error(), "--force") {
 		t.Fatalf("re-queue without force: %v", err)
@@ -325,7 +343,7 @@ func TestLaneOutcome(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			o := tc.lane.Outcome(tc.agentErr)
-			if o.PR != tc.pr || o.RunDir != tc.lane.Dir {
+			if o.PR != tc.pr || o.RunDir != tc.lane.Dir || o.NeedsHuman != (tc.name == "abandoned") {
 				t.Fatalf("outcome = %+v", o)
 			}
 			for _, w := range tc.reason {

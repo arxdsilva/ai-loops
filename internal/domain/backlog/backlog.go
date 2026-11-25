@@ -26,7 +26,7 @@ const (
 )
 
 // DefaultExclude are labels that keep an issue out of the queue besides
-// the finding, hand-off and claim labels.
+// the finding and hand-off labels.
 var DefaultExclude = []string{"wontfix", "duplicate", "invalid", "question"}
 
 // Version is the state document's schema version.
@@ -150,7 +150,9 @@ func (s Settings) Eligible(is Issue) (bool, string) {
 	if len(s.Labels) > 0 && !slices.ContainsFunc(is.Labels, func(l string) bool { return containsFold(s.Labels, l) }) {
 		return false, "no wanted label"
 	}
-	excluded := append(slices.Clone(s.Exclude), s.FindingLabel, s.HumanLabel, s.ClaimLabel)
+	// The claim label is not here: the state, not the label, keeps two lanes
+	// off one issue, and a label left by a crashed lane must not strand it.
+	excluded := append(slices.Clone(s.Exclude), s.FindingLabel, s.HumanLabel)
 	for _, l := range is.Labels {
 		if containsFold(excluded, l) {
 			return false, "label " + l
