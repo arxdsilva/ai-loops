@@ -110,7 +110,9 @@ func (f *Forge) OpenIssues(ctx context.Context, repo string) ([]backlog.Issue, e
 	return issues, nil
 }
 
-// OpenPRs lists the URLs of the repository's open pull requests.
+// OpenPRs lists the URLs of the repository's open pull requests. A listing
+// that reaches IssueLimit may be missing some, so it is an error: the
+// open-PR cap fails closed rather than miss a lane's PR (BACKLOG §7).
 func (f *Forge) OpenPRs(ctx context.Context, repo string) ([]string, error) {
 	out, err := f.gh(ctx, "", "pr", "list", "-R", repo, "--state", "open", "--limit", strconv.Itoa(IssueLimit), "--json", "url")
 	if err != nil {
@@ -121,6 +123,9 @@ func (f *Forge) OpenPRs(ctx context.Context, repo string) ([]string, error) {
 	}
 	if err := json.Unmarshal(out, &raw); err != nil {
 		return nil, fmt.Errorf("gh pr list: %w", err)
+	}
+	if len(raw) >= IssueLimit {
+		return nil, fmt.Errorf("gh pr list: %d or more open PRs, the listing may be incomplete", IssueLimit)
 	}
 	urls := make([]string, 0, len(raw))
 	for _, r := range raw {

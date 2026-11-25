@@ -134,7 +134,9 @@ func (g Gate) Closed() bool { return g.Cap > 0 && g.Open >= g.Cap }
 // Gate counts what the open-PR cap holds: every running lane (each may open
 // a PR), and every item whose PR is among open (the forge's open PR URLs,
 // listed at since) or was recorded after since, so a PR opened while the
-// list was in flight still counts.
+// list was in flight still counts. The two are separate reservations: a
+// re-queued issue whose earlier PR is still open counts twice while a new
+// lane runs on it.
 func (s *State) Gate(open []string, since time.Time) Gate {
 	urls := map[string]bool{}
 	for _, u := range open {
@@ -142,10 +144,10 @@ func (s *State) Gate(open []string, since time.Time) Gate {
 	}
 	g := Gate{Cap: s.Settings.PRCap()}
 	for _, it := range s.Items {
-		switch {
-		case it.Status == Running:
+		if it.Status == Running {
 			g.Open++
-		case it.PR != "" && (urls[prKey(it.PR)] || (it.Status == Done && it.Updated.After(since))):
+		}
+		if it.PR != "" && (urls[prKey(it.PR)] || (it.Status == Done && it.Updated.After(since))) {
 			g.Open++
 		}
 	}

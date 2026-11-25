@@ -229,43 +229,69 @@ func (s *Service) Sync(ctx context.Context) (backlog.SyncResult, error) {
 // keeping their findings, then retries every hand-off the forge has not
 // confirmed. It returns the hand-offs confirmed.
 func (s *Service) recover(ctx context.Context, set backlog.Settings) (int, error) {
-	type dead struct {
-		item backlog.Item
-		lane backlog.LaneRun
-	}
-	var gone []dead
-	err := s.store.Update(ctx, func(st *backlog.State) error {
-		for _, n := range st.Stale(func(it backlog.Item) bool { return s.store.LaneHeld(it.Number) }) {
-			it, _ := st.Item(n)
-			lane, _ := s.lanes.Latest(it.Worktree)
-			if _, err := st.Finish(n, lane.Outcome("the lane process is gone"), s.clock.Now()); err == nil {
-				gone = append(gone, dead{*it, lane})
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	for _, d := range gone {
-		s.edit(ctx, set, d.item.Number, Edit{RemoveLabels: []string{set.ClaimLabel}})
-		s.queueFindings(ctx, d.item, d.lane)
-	}
+	alive := func(it backlog.Item) bool { return s.store.LaneHeld(it.Number) }
 	st, err := s.store.Load(ctx)
 	if err != nil {
 		return 0, err
 	}
+	// The claim label goes first, while the issue is still running, so a
+	// lane that claims it once it is re-queued never loses its own label.
+	stale := st.Stale(alive)
+	for _, n := range stale {
+		s.edit(ctx, set, n, Edit{RemoveLabels: []string{set.ClaimLabel}})
+	}
+	if len(stale) > 0 {
+		// The outcome and the lane's findings are saved together (BACKLOG §5).
+		err = s.store.Update(ctx, func(st *backlog.State) error {
+			for _, n := range st.Stale(alive) {
+				if !slices.Contains(stale, n) {
+					continue // its label is still on: the next sync takes it
+				}
+				it, _ := st.Item(n)
+				lane, _ := s.lanes.Latest(it.Worktree)
+				out := lane.Outcome("the lane process is gone")
+				if _, err := st.Finish(n, out, s.clock.Now()); err == nil {
+					st.AddPending(s.pending(n, out.PR, lane)...)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return 0, err
+		}
+		if st, err = s.store.Load(ctx); err != nil {
+			return 0, err
+		}
+	}
 	handed := 0
 	for _, it := range st.Unconfirmed() {
-		// A live lane is still handing it off itself.
-		if s.store.LaneHeld(it.Number) {
-			continue
-		}
-		if s.handoff(ctx, set, it) {
+		if s.retryHandoff(ctx, set, it.Number) {
 			handed++
 		}
 	}
 	return handed, nil
+}
+
+// retryHandoff retries issue n's unconfirmed hand-off under its lane lock,
+// so it has one owner: a live lane, a `loops backlog finish` or another
+// sync handing it off holds the lock, and this sync leaves it to them. The
+// item is read again under the lock, so a hand-off confirmed meanwhile is
+// not repeated. It reports whether the hand-off was confirmed.
+func (s *Service) retryHandoff(ctx context.Context, set backlog.Settings, n int) bool {
+	release, err := s.store.HoldLane(n)
+	if err != nil {
+		return false
+	}
+	defer release()
+	st, err := s.store.Load(ctx)
+	if err != nil {
+		return false
+	}
+	it, ok := st.Item(n)
+	if !ok || it.Status != backlog.Human || it.HandedOff {
+		return false
+	}
+	return s.handoff(ctx, set, *it)
 }
 
 // Report is `loops backlog status`.

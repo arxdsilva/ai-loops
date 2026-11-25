@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -33,15 +34,22 @@ func childPID(t *testing.T, path string) int {
 	return 0
 }
 
-// gone waits for pid to be reaped (a killed orphan is reaped by init).
+// gone waits for pid to end. A killed orphan is reaped by init, but in a
+// container whose init reaps nothing it stays a zombie: ended all the same.
 func gone(pid int) bool {
 	for range 200 {
-		if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {
+		if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) || zombie(pid) {
 			return true
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
 	return false
+}
+
+// zombie says whether pid has ended but was not reaped (ps state Z).
+func zombie(pid int) bool {
+	out, err := exec.Command("ps", "-o", "stat=", "-p", strconv.Itoa(pid)).Output()
+	return err == nil && strings.HasPrefix(strings.TrimSpace(string(out)), "Z")
 }
 
 func TestLaneRunStopsDescendants(t *testing.T) {

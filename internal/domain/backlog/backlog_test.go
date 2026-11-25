@@ -79,10 +79,11 @@ func TestGate(t *testing.T) {
 		{Number: 4, Status: Done, PR: "https://github.com/o/r/pull/14", Updated: t0.Add(time.Second)}, // opened after the listing
 		{Number: 5, Status: Human, PR: "https://GitHub.com/o/r/pull/15"},                              // open, handed off
 		{Number: 6, Status: Queued},
+		{Number: 7, Status: Running, PR: "https://github.com/o/r/pull/17"}, // re-queued with its PR open: the lane and the PR
 	}}
-	open := []string{"https://github.com/o/r/pull/12", "https://github.com/o/r/pull/15", "https://github.com/o/r/pull/99"}
+	open := []string{"https://github.com/o/r/pull/12", "https://github.com/o/r/pull/15", "https://github.com/o/r/pull/17", "https://github.com/o/r/pull/99"}
 	g := s.Gate(open, t0)
-	if g != (Gate{Open: 4, Cap: 3}) || !g.Closed() {
+	if g != (Gate{Open: 6, Cap: 3}) || !g.Closed() {
 		t.Fatalf("gate = %+v", g)
 	}
 	if (Gate{Open: 2, Cap: 3}).Closed() || (Gate{Open: 9}).Closed() {

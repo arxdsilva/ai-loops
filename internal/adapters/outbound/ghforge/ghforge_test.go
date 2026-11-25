@@ -58,6 +58,15 @@ func TestOpenPRs(t *testing.T) {
 	if _, err := NewWith(r).OpenPRs(context.Background(), "o/r"); err == nil {
 		t.Fatal("bad json accepted")
 	}
+	// A listing at the limit may be missing PRs: refused, not trusted.
+	_, r = recorder("["+strings.TrimSuffix(strings.Repeat(`{"url":"u"},`, IssueLimit), ",")+"]", nil)
+	if _, err := NewWith(r).OpenPRs(context.Background(), "o/r"); err == nil || !strings.Contains(err.Error(), "may be incomplete") {
+		t.Fatalf("a full listing was trusted: %v", err)
+	}
+	_, r = recorder("[]", nil)
+	if got, err := NewWith(r).OpenPRs(context.Background(), "o/r"); err != nil || len(got) != 0 {
+		t.Fatalf("no open PRs = %v, %v", got, err)
+	}
 	_, r = recorder("", errors.New("auth"))
 	if _, err := NewWith(r).OpenPRs(context.Background(), "o/r"); err == nil {
 		t.Fatal("gh error swallowed")

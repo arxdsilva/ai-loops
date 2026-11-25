@@ -10,7 +10,7 @@ You are the **supervisor**. You fill the lanes, react when one ends, and talk to
 
 **The `loops` binary.** As in `/loops:work`: `loops version`, else the absolute path the session context gives (`<plugin root>/bin/loops`). Run the plugin's update once now (`loops update --apply --platform <p>`, where `<p>` is in `skills/work/platforms/<your platform>.md` `## Update`), relay its line, and continue: lanes skip it (BACKLOG §4).
 
-**Your platform decides how lanes start.** Steps 2 and 3 need background commands that notify you when they exit (Claude Code: Bash `run_in_background`). Without them, do step 1, then supervise with `loops backlog run` as step 6 says, never with steps 2 and 3. Lanes default to `claude -p`; on another platform pass that platform's headless command as `--agent` at init (BACKLOG §9), unless the user gave one.
+**Your platform decides how lanes start.** Steps 2 and 3 need background commands that notify you when they exit (Claude Code: Bash `run_in_background`). Without them, do step 1, then supervise with `loops backlog run` as step 6 says, never with steps 2 and 3. Lanes default to `claude -p`; on another platform step 1 passes that platform's headless command as `--agent` (BACKLOG §9), unless the user gave one.
 
 ## Discipline
 
@@ -24,7 +24,7 @@ You are the **supervisor**. You fill the lanes, react when one ends, and talk to
 
 1. Parse `$ARGUMENTS`. The human (`--human`) is required and is never guessed (BACKLOG §5). When it is missing, ask the user for the GitHub login that findings and hand-offs go to. This is the only question you ask.
 2. Check the forge: `gh auth status`. On failure, tell the user to run `! gh auth login` and wait.
-3. Init. Pass only the flags the user gave:
+3. Init. Pass only the flags the user gave, plus `--agent` on a platform other than Claude Code (above):
 ```
 loops backlog init --human <login> [--lanes N] [--max-prs N|none] [--label …] [--exclude-label …] [--authors …|any] [--budget usd] [--agent "<tmpl>"]
 loops backlog sync
@@ -76,11 +76,11 @@ Write the body to a file. Never pass model-written text as an inline argument.
 When no lane is running and step 2 starts none, the session ends its stretch for one of three reasons: the queue is empty, the open-PR cap is reached (issues wait for merges), or `--max` lanes have started. Then:
 1. `loops backlog clean` removes the worktrees of finished lanes: every earlier lane of each issue, and the last lane of done and skipped issues. The last lane of a failed or handed-off issue stays for the human (`--all` removes it too, only when the user asks).
 2. Give the user a summary of at most 10 lines. Say which of the three reasons stopped it. From `loops backlog status`: PRs opened (with links), issues handed off and why (one line each), findings filed, issues still queued or skipped, and the lane logs directory. At the cap, say how many PRs must be merged or closed before lanes resume.
-3. Under `--watch`, or when the user asked to keep going ("continuously", "keep watching"), do not stop (except at `--max`). Schedule a wake-up about 30 minutes out (on Claude Code, `ScheduleWakeup` with this skill's arguments, or `/loop`). On each wake-up run `loops backlog sync`, then step 2. Otherwise end here.
+3. Under `--watch`, or when the user asked to keep going ("continuously", "keep watching"), do not stop (except at `--max`). Schedule a wake-up about 30 minutes out (on Claude Code, `ScheduleWakeup` with this skill's arguments, or `/loop`). On each wake-up run `loops backlog sync`, then step 2. On a platform with no wake-up, hand the watching to `loops backlog run --wait` as step 6 says. Otherwise end here.
 
 ## 6. Unattended stretches and other platforms
 
-A session that may close (a laptop lid, a long weekend) should not supervise many hours of lanes. Tell the user once, when the queue is over ~20 issues, that `loops backlog run` (BACKLOG §8) is the same loop without an agent. They can start it under `nohup` or `tmux` with `--wait 30m`, so it waits at the open-PR cap instead of stopping, and come back to `/loops:backlog` for judgment on the hand-offs. On a platform without background commands, run `loops backlog run --max <lanes>` in the foreground and repeat it while `sync` shows issues queued and room under the cap, relaying its output.
+A session that may close (a laptop lid, a long weekend) should not supervise many hours of lanes. Tell the user once, when the queue is over ~20 issues, that `loops backlog run` (BACKLOG §8) is the same loop without an agent. They can start it under `nohup` or `tmux` with `--wait 30m`, so it waits at the open-PR cap instead of stopping, and come back to `/loops:backlog` for judgment on the hand-offs. On a platform without background commands, run `loops backlog run --max <k>` in the foreground, where k is the `lanes` setting, or under `--max N` the smaller of that and N minus the lanes started so far (stop at 0). Repeat it while `sync` shows issues queued and room under the cap, relaying its output. Under `--watch`, a foreground command cannot keep watching for hours: tell the user to start `loops backlog run --wait 30m` under `nohup` or `tmux` themselves. It keeps watching at the cap and on an empty queue, and without `--max` runs until stopped.
 
 ## Escalations
 

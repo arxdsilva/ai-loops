@@ -14,8 +14,8 @@ import (
 type RunInput struct {
 	Max int       // lanes to start in all (0 = until the queue is empty)
 	Out io.Writer // one line per lane start and end
-	// Wait, when positive, keeps the loop going at the open-PR cap: it
-	// checks again after Wait instead of stopping.
+	// Wait, when positive, keeps the loop watching: at the open-PR cap, or
+	// with nothing queued, it syncs again after Wait instead of stopping.
 	Wait time.Duration
 }
 
@@ -36,9 +36,10 @@ type laneDone struct {
 // Run is the supervisor without an agent (BACKLOG §8): sync, keep the
 // configured lanes busy until the queue is empty (or Max lanes started),
 // then sync once more and stop when nothing new was queued. Failures follow
-// the lane's own policy (BACKLOG §3 step 6). At the open-PR cap it stops,
-// or with Wait checks again later. ctx ends it: running lanes are stopped
-// and recorded as failed attempts.
+// the lane's own policy (BACKLOG §3 step 6). At the open-PR cap it stops.
+// With Wait it keeps watching instead: at the cap or with nothing queued it
+// syncs again after Wait, until Max lanes started or ctx ends. ctx ends it:
+// running lanes are stopped and recorded as failed attempts.
 func (s *Service) Run(ctx context.Context, in RunInput) (RunSummary, error) {
 	out := in.Out
 	if out == nil {
@@ -51,8 +52,18 @@ func (s *Service) Run(ctx context.Context, in RunInput) (RunSummary, error) {
 			return sum, err
 		}
 		fmt.Fprintf(out, "sync: %d open, %d queued\n", res.Open, res.Queued)
-		if res.Queued == 0 || (in.Max > 0 && sum.Started >= in.Max) || ctx.Err() != nil {
+		if (in.Max > 0 && sum.Started >= in.Max) || ctx.Err() != nil {
 			return sum, ctx.Err()
+		}
+		if res.Queued == 0 {
+			if in.Wait <= 0 {
+				return sum, nil
+			}
+			fmt.Fprintf(out, "idle: nothing queued; checking again in %s\n", in.Wait)
+			if err := s.clock.Sleep(ctx, in.Wait); err != nil {
+				return sum, err
+			}
+			continue
 		}
 		sum.Gated = false
 		ran, err := s.drain(ctx, in.Max, out, &sum)
@@ -103,6 +114,10 @@ func (s *Service) drain(ctx context.Context, maxLanes int, out io.Writer, sum *R
 		active--
 		switch {
 		case d.err != nil:
+			// Only a lane that took its issue counts against Max.
+			if !d.res.Claimed {
+				sum.Started--
+			}
 			sum.Errors++
 			empty = true // do not spin on a lane that cannot start
 			fmt.Fprintf(out, "lane error: %v\n", d.err)

@@ -302,7 +302,7 @@ func printLane(w io.Writer, r appbacklog.LaneResult) {
 func (a *App) backlogRun(ctx context.Context, svc Backlogger, args []string) int {
 	fs := a.newFlagSet("backlog run")
 	maxLanes := fs.Int("max", 0, "lanes to start in all (0 = until the queue is empty)")
-	wait := fs.Duration("wait", 0, "at the open-PR cap, check again after this long instead of stopping")
+	wait := fs.Duration("wait", 0, "keep watching: at the open-PR cap or with nothing queued, sync again after this long instead of stopping")
 	if pos, err := parseFlagsAnywhere(fs, args); err != nil || len(pos) > 0 || *maxLanes < 0 || *wait < 0 {
 		return a.usageErr("usage: loops backlog run [--max N] [--wait dur]")
 	}
