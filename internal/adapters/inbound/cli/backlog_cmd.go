@@ -99,8 +99,19 @@ func (a *App) backlogInit(ctx context.Context, env BacklogEnv, args []string) in
 	fs.IntVar(&s.Attempts, "attempts", 0, "lane attempts per issue before the hand-off (default 2)")
 	fs.StringVar(&s.Timeout, "timeout", "", "per-lane time limit (default 4h)")
 	fs.StringVar(&s.Worktrees, "worktrees", "", "where lane worktrees go (default: beside the checkout)")
+	maxPRs := fs.String("max-prs", "", "lane PRs open at once before lanes pause, or none (default 5)")
+	const usage = "usage: loops backlog init --human <login> [--repo o/n] [--lanes N] [--base b] [--label l,…] [--exclude-label l,…] [--authors a,…|any] [--agent tmpl] [--budget usd] [--max-agents N] [--attempts N] [--timeout d] [--max-prs N|none] [--worktrees dir]"
 	if pos, err := parseFlagsAnywhere(fs, args); err != nil || len(pos) > 0 {
-		return a.usageErr("usage: loops backlog init --human <login> [--repo o/n] [--lanes N] [--base b] [--label l,…] [--exclude-label l,…] [--authors a,…|any] [--agent tmpl] [--budget usd] [--max-agents N] [--attempts N] [--timeout d] [--worktrees dir]")
+		return a.usageErr(usage)
+	}
+	switch n, err := strconv.Atoi(*maxPRs); {
+	case *maxPRs == "":
+	case *maxPRs == "none":
+		s.MaxPRs = -1
+	case err != nil || n <= 0:
+		return a.usageErr("loops backlog init: --max-prs takes a positive number or none")
+	default:
+		s.MaxPRs = n
 	}
 	if *labels != "" {
 		s.Labels = splitList(*labels)
@@ -138,7 +149,11 @@ func printSettings(w io.Writer, s backlog.Settings) {
 		agent = "default (claude -p … --permission-mode auto)"
 	}
 	fmt.Fprintf(w, "repo %s, base %s, human @%s\n", s.Repo, s.Base, s.Human)
-	fmt.Fprintf(w, "lanes %d × %d agents, %d attempts, timeout %s, budget %s\n", s.Lanes, s.MaxAgents, s.Attempts, s.Timeout, orDash(s.Budget))
+	prs := "none"
+	if c := s.PRCap(); c > 0 {
+		prs = strconv.Itoa(c)
+	}
+	fmt.Fprintf(w, "lanes %d × %d agents, %d attempts, timeout %s, budget %s, open PRs cap %s\n", s.Lanes, s.MaxAgents, s.Attempts, s.Timeout, orDash(s.Budget), prs)
 	fmt.Fprintf(w, "issues: labels %s, excluded %s, authors %s\n", orDash(strings.Join(s.Labels, ",")), strings.Join(s.Exclude, ","), authors)
 	fmt.Fprintf(w, "agent: %s\nworktrees: %s\n", agent, s.Worktrees)
 }
@@ -164,6 +179,16 @@ func (a *App) backlogSync(ctx context.Context, svc Backlogger, args []string) in
 		return a.printJSON(res)
 	}
 	fmt.Fprintf(a.Out, "sync: %d open issues, %d added, %d dropped, %d queued\n", res.Open, res.Added, res.Dropped, res.Queued)
+	if res.Filed > 0 || res.Handed > 0 {
+		fmt.Fprintf(a.Out, "retried: %d pending findings filed, %d hand-offs confirmed\n", res.Filed, res.Handed)
+	}
+	if g := res.Gate; g.Cap > 0 {
+		state := "lanes may start"
+		if g.Closed() {
+			state = "lanes paused until some are merged or closed"
+		}
+		fmt.Fprintf(a.Out, "open PRs: %d of %d (lane PRs and running lanes): %s\n", g.Open, g.Cap, state)
+	}
 	return 0
 }
 
@@ -225,13 +250,17 @@ func (a *App) backlogWork(ctx context.Context, svc Backlogger, args []string) in
 		return a.fail("backlog work", err)
 	}
 	if *asJSON {
-		a.printJSON(res)
+		if code := a.printJSON(res); code != 0 {
+			return code
+		}
 	} else {
 		printLane(a.Out, res)
 	}
 	switch {
 	case res.Empty:
 		return 3
+	case res.Gated:
+		return 4
 	case res.Status == backlog.Done:
 		return 0
 	}
@@ -241,6 +270,10 @@ func (a *App) backlogWork(ctx context.Context, svc Backlogger, args []string) in
 func printLane(w io.Writer, r appbacklog.LaneResult) {
 	if r.Empty {
 		fmt.Fprintln(w, "nothing queued (loops backlog sync)")
+		return
+	}
+	if r.Gated {
+		fmt.Fprintf(w, "paused: %d of %d lane PRs open (--max-prs); no lane started\n", r.Gate.Open, r.Gate.Cap)
 		return
 	}
 	switch r.Status {
@@ -263,10 +296,11 @@ func printLane(w io.Writer, r appbacklog.LaneResult) {
 func (a *App) backlogRun(ctx context.Context, svc Backlogger, args []string) int {
 	fs := a.newFlagSet("backlog run")
 	maxLanes := fs.Int("max", 0, "lanes to start in all (0 = until the queue is empty)")
-	if pos, err := parseFlagsAnywhere(fs, args); err != nil || len(pos) > 0 || *maxLanes < 0 {
-		return a.usageErr("usage: loops backlog run [--max N]")
+	wait := fs.Duration("wait", 0, "at the open-PR cap, check again after this long instead of stopping")
+	if pos, err := parseFlagsAnywhere(fs, args); err != nil || len(pos) > 0 || *maxLanes < 0 || *wait < 0 {
+		return a.usageErr("usage: loops backlog run [--max N] [--wait dur]")
 	}
-	sum, err := svc.Run(ctx, appbacklog.RunInput{Max: *maxLanes, Out: a.Out})
+	sum, err := svc.Run(ctx, appbacklog.RunInput{Max: *maxLanes, Out: a.Out, Wait: *wait})
 	fmt.Fprintf(a.Out, "run: %d lanes, %d PRs, %d retried, %d handed off, %d findings, %d errors\n",
 		sum.Started, sum.Done, sum.Retried, sum.Human, sum.Findings, sum.Errors)
 	if err != nil {

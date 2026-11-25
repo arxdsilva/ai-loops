@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -33,8 +34,11 @@ type Item struct {
 	// (not eligible). Only an issue seen held and then eligible again is
 	// the human giving it back: a stale listing or a label that did not
 	// stick never re-queues it.
-	HandedOff bool      `json:"handed_off,omitempty"`
-	Held      bool      `json:"held,omitempty"`
+	HandedOff bool `json:"handed_off,omitempty"`
+	Held      bool `json:"held,omitempty"`
+	// Commented is true once the hand-off comment is posted, so a hand-off
+	// retried by a later sync never posts it twice.
+	Commented bool      `json:"handoff_commented,omitempty"`
 	Started   time.Time `json:"started,omitzero"`
 	Updated   time.Time `json:"updated,omitzero"`
 }
@@ -47,13 +51,42 @@ type Finding struct {
 	From  int    `json:"from,omitempty"` // the lane's issue
 }
 
+// Pending is a lane finding not filed yet (BACKLOG §5): it stays in the
+// state until it is filed or found to be a duplicate.
+type Pending struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
+	From  int    `json:"from,omitempty"` // the lane's issue
+}
+
 // State is .loops/backlog/state.json.
 type State struct {
 	Version  int       `json:"version"`
 	Settings Settings  `json:"settings"`
 	Items    []Item    `json:"items"`
 	Findings []Finding `json:"findings,omitempty"`
+	Pending  []Pending `json:"pending_findings,omitempty"`
 	Synced   time.Time `json:"synced,omitzero"`
+}
+
+// AddPending records findings to file, skipping one already pending from
+// the same issue.
+func (s *State) AddPending(ps ...Pending) {
+	for _, p := range ps {
+		if !s.IsPending(p.Title, p.From) {
+			s.Pending = append(s.Pending, p)
+		}
+	}
+}
+
+// IsPending says whether issue from's finding title is still to be filed.
+func (s *State) IsPending(title string, from int) bool {
+	return slices.ContainsFunc(s.Pending, func(p Pending) bool { return p.From == from && FindingKey(p.Title) == FindingKey(title) })
+}
+
+// DropPending removes issue from's finding title from the pending list.
+func (s *State) DropPending(title string, from int) {
+	s.Pending = slices.DeleteFunc(s.Pending, func(p Pending) bool { return p.From == from && FindingKey(p.Title) == FindingKey(title) })
 }
 
 // Item returns the item for issue n.
@@ -80,6 +113,55 @@ func (s *State) Count(st Status) int {
 // SyncResult says what Sync changed.
 type SyncResult struct {
 	Open, Added, Dropped, Queued int
+	// Filed counts the pending findings this sync filed (or matched to an
+	// open issue), and Handed the hand-offs it completed (filled by the use
+	// case).
+	Filed, Handed int
+	// Gate is the open-PR cap after the sync (filled by the use case; a zero
+	// Cap means no cap, or the forge's PRs could not be listed).
+	Gate Gate `json:"gate"`
+}
+
+// Gate is the open-PR cap at a claim (BACKLOG §7).
+type Gate struct {
+	Open int `json:"open"` // the lanes' PRs still open, plus the running lanes
+	Cap  int `json:"cap"`  // 0 = no cap
+}
+
+// Closed says whether starting another lane would pass the cap.
+func (g Gate) Closed() bool { return g.Cap > 0 && g.Open >= g.Cap }
+
+// Gate counts what the open-PR cap holds: every running lane (each may open
+// a PR), and every item whose PR is among open (the forge's open PR URLs,
+// listed at since) or was recorded after since, so a PR opened while the
+// list was in flight still counts.
+func (s *State) Gate(open []string, since time.Time) Gate {
+	urls := map[string]bool{}
+	for _, u := range open {
+		urls[prKey(u)] = true
+	}
+	g := Gate{Cap: s.Settings.PRCap()}
+	for _, it := range s.Items {
+		switch {
+		case it.Status == Running:
+			g.Open++
+		case it.PR != "" && (urls[prKey(it.PR)] || (it.Status == Done && it.Updated.After(since))):
+			g.Open++
+		}
+	}
+	return g
+}
+
+// prKey identifies a PR by its number ("pull/12"), so a URL written with
+// another host form or a trailing slash still matches the forge's listing.
+func prKey(url string) string {
+	u := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(url), "/"))
+	if i := strings.LastIndex(u, "/pull/"); i >= 0 {
+		if n, err := strconv.Atoi(u[i+len("/pull/"):]); err == nil {
+			return "pull/" + strconv.Itoa(n)
+		}
+	}
+	return u
 }
 
 // Sync rebuilds the queue from the open issues (BACKLOG §2): new eligible
@@ -103,7 +185,8 @@ func (s *State) Sync(open []Issue, now time.Time) SyncResult {
 			case it.Held:
 				// The human unassigned it and removed the hand-off label:
 				// it is ready for a lane again, with fresh attempts.
-				it.Status, it.Attempts, it.Note, it.HandedOff, it.Held, it.Updated = Queued, 0, "", false, false, now
+				it.Status, it.Attempts, it.Note, it.Updated = Queued, 0, "", now
+				it.freshHandoff()
 				it.Title, it.URL, it.Priority = is.Title, is.URL, Priority(is.Labels)
 				res.Added++
 			}
@@ -205,8 +288,24 @@ func (s *State) Finish(n int, o Outcome, now time.Time) (Status, error) {
 		it.Status, it.Note = Queued, o.Reason
 	default:
 		it.Status, it.Note = Human, o.Reason
+		it.freshHandoff()
 	}
 	return it.Status, nil
+}
+
+// freshHandoff starts a new hand-off: nothing posted or confirmed yet.
+func (it *Item) freshHandoff() { it.HandedOff, it.Held, it.Commented = false, false, false }
+
+// Unconfirmed returns the issues handed to the human whose hand-off the
+// forge has not confirmed yet (BACKLOG §6): sync retries them.
+func (s *State) Unconfirmed() []Item {
+	var out []Item
+	for _, it := range s.Items {
+		if it.Status == Human && !it.HandedOff {
+			out = append(out, it)
+		}
+	}
+	return out
 }
 
 // Set is the supervisor's ruling on issue n (`loops backlog finish`).
@@ -223,6 +322,8 @@ func (s *State) Set(n int, st Status, note string, force bool, now time.Time) (I
 	if note != "" {
 		it.Note = note
 	}
+	// A ruling ends any earlier hand-off; one to human starts a new one.
+	it.freshHandoff()
 	return *it, nil
 }
 

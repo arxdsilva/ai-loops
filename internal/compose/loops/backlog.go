@@ -18,7 +18,8 @@ import (
 func backlogEnv(root string) func(context.Context, func(string, ...any)) cli.BacklogEnv {
 	return func(ctx context.Context, warn func(string, ...any)) cli.BacklogEnv {
 		main := gitworktree.MainRoot(ctx, root)
-		svc := appbacklog.New(backlogstore.New(main), ghforge.New(main), gitworktree.New(main),
+		gh := ghforge.New(main)
+		svc := appbacklog.New(backlogstore.New(main), gh, gh, gitworktree.New(main),
 			agentcmd.Lane{}, lanefs.Lanes{}, systemClock{})
 		svc.Warn = warn
 		return cli.BacklogEnv{Svc: svc, Worktrees: gitworktree.DefaultWorktrees(main)}

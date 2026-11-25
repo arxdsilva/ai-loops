@@ -110,6 +110,25 @@ func (f *Forge) OpenIssues(ctx context.Context, repo string) ([]backlog.Issue, e
 	return issues, nil
 }
 
+// OpenPRs lists the URLs of the repository's open pull requests.
+func (f *Forge) OpenPRs(ctx context.Context, repo string) ([]string, error) {
+	out, err := f.gh(ctx, "", "pr", "list", "-R", repo, "--state", "open", "--limit", strconv.Itoa(IssueLimit), "--json", "url")
+	if err != nil {
+		return nil, err
+	}
+	var raw []struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(out, &raw); err != nil {
+		return nil, fmt.Errorf("gh pr list: %w", err)
+	}
+	urls := make([]string, 0, len(raw))
+	for _, r := range raw {
+		urls = append(urls, r.URL)
+	}
+	return urls, nil
+}
+
 // Create opens an issue and returns its URL.
 func (f *Forge) Create(ctx context.Context, repo string, in appbacklog.NewIssue) (string, error) {
 	args := []string{"issue", "create", "-R", repo, "--title", in.Title, "--body-file", "-"}

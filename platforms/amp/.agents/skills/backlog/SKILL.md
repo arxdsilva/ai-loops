@@ -1,14 +1,16 @@
 ---
 name: backlog
 description: Work a whole issue backlog unattended - parallel lanes, each a full /loops:work run in its own git worktree, with this session supervising, re-queueing or handing stuck issues to a human, and filing lane findings as issues assigned to that human. Use when the user asks to clear, burn down or continuously work a backlog of issues, or invokes /loops:backlog.
-argument-hint: "--human <login> [--lanes N] [--label l,…] [--exclude-label l,…] [--authors a,…|any] [--budget usd] [--max N] [--watch]"
+argument-hint: "--human <login> [--lanes N] [--max-prs N|none] [--label l,…] [--exclude-label l,…] [--authors a,…|any] [--budget usd] [--max N] [--watch]"
 ---
 
 # /loops:backlog - the supervisor
 
 You are the **supervisor**. You fill the lanes, react when one ends, and talk to the user. You never work an issue yourself: every issue is worked by a lane, a separate headless agent running `/loops:work` in its own worktree. Spec: `specs/BACKLOG.md` (cite `BACKLOG §n`, do not restate). Arguments: `$ARGUMENTS`.
 
-**The `loops` binary.** As in `/loops:work`: `loops version`, else the absolute path the session context gives (`<plugin root>/bin/loops`). Run the plugin's update once now (`loops update --apply --platform claude`), relay its line, and continue: lanes skip it (BACKLOG §4).
+**The `loops` binary.** As in `/loops:work`: `loops version`, else the absolute path the session context gives (`<plugin root>/bin/loops`). Run the plugin's update once now (`loops update --apply --platform <p>`, where `<p>` is in `skills/work/platforms/<your platform>.md` `## Update`), relay its line, and continue: lanes skip it (BACKLOG §4).
+
+**Your platform decides how lanes start.** Steps 2 and 3 need background commands that notify you when they exit (Claude Code: Bash `run_in_background`). Without them, do step 1, then supervise with `loops backlog run` as step 6 says, never with steps 2 and 3. Lanes default to `claude -p`; on another platform pass that platform's headless command as `--agent` at init (BACKLOG §9), unless the user gave one.
 
 ## Discipline
 
@@ -24,19 +26,25 @@ You are the **supervisor**. You fill the lanes, react when one ends, and talk to
 2. Check the forge: `gh auth status`. On failure, tell the user to run `! gh auth login` and wait.
 3. Init. Pass only the flags the user gave:
 ```
-loops backlog init --human <login> [--lanes N] [--label …] [--exclude-label …] [--authors …|any] [--budget usd] [--agent "<tmpl>"]
+loops backlog init --human <login> [--lanes N] [--max-prs N|none] [--label …] [--exclude-label …] [--authors …|any] [--budget usd] [--agent "<tmpl>"]
 loops backlog sync
 loops backlog status
 ```
-4. Tell the user, in at most 5 lines: the repo, the lanes × agents, the queue size and the first issues, and the safety settings from BACKLOG §7. That means the authors filter, the lane permission mode (`auto` unless `--agent` says otherwise) and the budget per lane ("none" when unset). Also say that lanes open PRs and never merge. Then start. Do not wait for a reply.
+4. Tell the user, in at most 5 lines: the repo, the lanes × agents, the queue size and the first issues, and the safety settings from BACKLOG §7. That means the authors filter, the lane permission mode (`auto` unless `--agent` says otherwise), the budget per lane ("none" when unset) and the open-PR cap with how many lane PRs are open now (from `sync`). Also say that lanes open PRs and never merge. Then start. Do not wait for a reply.
 
 ## 2. Fill the lanes
 
-`free` = the `lanes` setting minus the running lanes in `loops backlog status`. Under `--max N`, also stop once N lanes have been started in this session. In one message, start `free` background Bash calls, each:
+Start `k` lanes, the smallest of:
+- the `lanes` setting minus the running lanes in `loops backlog status`;
+- the queued issues from the last `sync`;
+- the open-PR cap minus the open count from the last `sync` (BACKLOG §7; skip this term when the cap is none);
+- under `--max N`, N minus the lanes started in this session.
+
+When `k` is 0, start nothing: wait for the running lanes, or go to step 5 when none is running. Otherwise, in one message, start `k` background Bash calls, each:
 ```
 loops backlog work
 ```
-Each one claims the next queued issue under the state lock, so parallel calls never collide. Say one line: `backlog: <k> lanes running, <q> queued`.
+Each one claims the next queued issue under the state lock and checks the cap there, so parallel calls never collide or pass it. Say one line: `backlog: <running> lanes running, <q> queued, <open>/<cap> PRs open`.
 
 ## 3. When a lane exits
 
@@ -49,10 +57,11 @@ The notification carries the command's output and exit code (BACKLOG §3):
 | 1 | `handed to the human` | Relay it. The comment, label and assignee are already set (BACKLOG §6). |
 | 1 | `loops backlog work: <error>` | A lane could not start (forge, git or state error). Fix what is in your power (for example `! gh auth login`, told to the user), else tell the user and stop filling lanes. |
 | 3 | `nothing queued` | That lane stays empty. |
+| 4 | `paused: <open> of <cap> lane PRs open` | Start no more lanes until a `sync` shows room under the cap. Tell the user once that lanes wait for them to merge or close PRs. |
 
 For a closer look at a failure, read the tail of the lane log that `loops backlog status` lists (`tail -n 40 <log>`), never the whole log. Read the run's `reflection.md` or `pr.md` in the worktree only when a hand-off note needs it.
 
-Then run `loops backlog sync`. It picks up new issues and issues the human gave back. Then go to step 2.
+Then run `loops backlog sync`. It picks up new issues and issues the human gave back, and prints the open PRs against the cap. Then go to step 2, which starts only what that sync leaves room for.
 
 ## 4. Findings and the human
 
@@ -64,17 +73,17 @@ Write the body to a file. Never pass model-written text as an inline argument.
 
 ## 5. Stop or keep watching
 
-When no lane is running and `sync` shows 0 queued:
-1. `loops backlog clean` removes the worktrees of finished lanes. Worktrees of handed-off lanes stay for the human (`--all` removes them too, only when the user asks).
-2. Give the user a summary of at most 10 lines. From `loops backlog status`: PRs opened (with links), issues handed off and why (one line each), findings filed, issues still queued or skipped, and the lane logs directory.
-3. Under `--watch`, or when the user asked to keep going ("continuously", "keep watching"), do not stop. Schedule a wake-up about 30 minutes out (on Claude Code, `ScheduleWakeup` with this skill's arguments, or `/loop`). On each wake-up run `loops backlog sync`, then step 2 when anything is queued. Otherwise end here.
+When no lane is running and step 2 starts none, the session ends its stretch for one of three reasons: the queue is empty, the open-PR cap is reached (issues wait for merges), or `--max` lanes have started. Then:
+1. `loops backlog clean` removes the worktrees of finished lanes: every earlier lane of each issue, and the last lane of done and skipped issues. The last lane of a failed or handed-off issue stays for the human (`--all` removes it too, only when the user asks).
+2. Give the user a summary of at most 10 lines. Say which of the three reasons stopped it. From `loops backlog status`: PRs opened (with links), issues handed off and why (one line each), findings filed, issues still queued or skipped, and the lane logs directory. At the cap, say how many PRs must be merged or closed before lanes resume.
+3. Under `--watch`, or when the user asked to keep going ("continuously", "keep watching"), do not stop (except at `--max`). Schedule a wake-up about 30 minutes out (on Claude Code, `ScheduleWakeup` with this skill's arguments, or `/loop`). On each wake-up run `loops backlog sync`, then step 2. Otherwise end here.
 
 ## 6. Unattended stretches and other platforms
 
-A session that may close (a laptop lid, a long weekend) should not supervise many hours of lanes. Tell the user once, when the queue is over ~20 issues, that `loops backlog run` (BACKLOG §8) is the same loop without an agent. They can start it under `nohup` or `tmux`, and come back to `/loops:backlog` for judgment on the hand-offs. On a platform without background commands, run `loops backlog run --max <lanes>` in the foreground and repeat it, relaying its output.
+A session that may close (a laptop lid, a long weekend) should not supervise many hours of lanes. Tell the user once, when the queue is over ~20 issues, that `loops backlog run` (BACKLOG §8) is the same loop without an agent. They can start it under `nohup` or `tmux` with `--wait 30m`, so it waits at the open-PR cap instead of stopping, and come back to `/loops:backlog` for judgment on the hand-offs. On a platform without background commands, run `loops backlog run --max <lanes>` in the foreground and repeat it while `sync` shows issues queued and room under the cap, relaying its output.
 
 ## Escalations
 
 - A lane that runs past its timeout is stopped by `loops backlog work` itself and counts as a failed attempt.
 - `loops backlog finish <n> --status skipped --note "<why>"` sets an issue aside when the user says so. `--status queued` (with `--force` once its attempts are spent) gives it another lane.
-- If the user says stop: do not start new lanes. Running lanes finish on their own. To stop one now, stop its background task (TaskStop): `loops backlog work` stops its agent, records the attempt and removes the claim label. A lane killed outright is recovered as a failed attempt at the next sync.
+- If the user says stop: do not start new lanes. Running lanes finish on their own. To stop one now, stop its background task (TaskStop): `loops backlog work` stops its agent and everything the agent started, records the attempt and removes the claim label. A lane killed outright (SIGKILL) is recovered as a failed attempt at the next sync, but its agent may keep running: tell the user to check for it.

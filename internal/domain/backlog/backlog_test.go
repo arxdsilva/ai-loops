@@ -27,7 +27,7 @@ func TestNormalize(t *testing.T) {
 	s := settings()
 	if s.Lanes != DefaultLanes || s.Attempts != DefaultAttempts || s.MaxAgents != MinLaneAgents ||
 		s.TimeoutDuration() != DefaultTimeout || s.FindingLabel != DefaultFindingLabel ||
-		s.HumanLabel != DefaultHumanLabel || s.ClaimLabel != DefaultClaimLabel {
+		s.HumanLabel != DefaultHumanLabel || s.ClaimLabel != DefaultClaimLabel || s.MaxPRs != DefaultMaxPRs {
 		t.Fatalf("defaults not filled: %+v", s)
 	}
 	bad := []struct {
@@ -41,6 +41,7 @@ func TestNormalize(t *testing.T) {
 		{"no worktrees", Settings{Repo: "o/r", Human: "h", Base: "main"}, "worktrees"},
 		{"bad timeout", Settings{Repo: "o/r", Human: "h", Base: "main", Worktrees: "/wt", Timeout: "soon"}, "timeout"},
 		{"negative timeout", Settings{Repo: "o/r", Human: "h", Base: "main", Worktrees: "/wt", Timeout: "-1h"}, "timeout"},
+		{"budget unreachable", Settings{Repo: "o/r", Human: "h", Base: "main", Worktrees: "/wt", Budget: "5", Agent: "codex exec {prompt}"}, "{budget}"},
 	}
 	for _, tc := range bad {
 		t.Run(tc.name, func(t *testing.T) {
@@ -51,6 +52,40 @@ func TestNormalize(t *testing.T) {
 	}
 	if (Settings{Timeout: "bogus"}).TimeoutDuration() != DefaultTimeout {
 		t.Fatal("unparsable timeout should fall back to the default")
+	}
+	ok := Settings{Repo: "o/r", Human: "h", Base: "main", Worktrees: "/wt", Budget: "5", Agent: "x -p {prompt} --cap {budget}"}
+	if _, err := ok.Normalize(); err != nil {
+		t.Fatalf("budget placeholder rejected: %v", err)
+	}
+}
+
+func TestPRCap(t *testing.T) {
+	for _, tc := range []struct{ max, want int }{{0, DefaultMaxPRs}, {-1, 0}, {3, 3}} {
+		if got := (Settings{MaxPRs: tc.max}).PRCap(); got != tc.want {
+			t.Fatalf("PRCap(%d) = %d, want %d", tc.max, got, tc.want)
+		}
+	}
+}
+
+func TestGate(t *testing.T) {
+	s := State{Settings: Settings{MaxPRs: 3}, Items: []Item{
+		{Number: 1, Status: Running},
+		{Number: 2, Status: Done, PR: "https://github.com/o/r/pull/12/"},                              // open (trailing slash)
+		{Number: 3, Status: Done, PR: "https://github.com/o/r/pull/13"},                               // merged
+		{Number: 4, Status: Done, PR: "https://github.com/o/r/pull/14", Updated: t0.Add(time.Second)}, // opened after the listing
+		{Number: 5, Status: Human, PR: "https://GitHub.com/o/r/pull/15"},                              // open, handed off
+		{Number: 6, Status: Queued},
+	}}
+	open := []string{"https://github.com/o/r/pull/12", "https://github.com/o/r/pull/15", "https://github.com/o/r/pull/99"}
+	g := s.Gate(open, t0)
+	if g != (Gate{Open: 4, Cap: 3}) || !g.Closed() {
+		t.Fatalf("gate = %+v", g)
+	}
+	if (Gate{Open: 2, Cap: 3}).Closed() || (Gate{Open: 9}).Closed() {
+		t.Fatal("gate closed below the cap, or with no cap")
+	}
+	if prKey("https://x/y") != "https://x/y" || prKey("https://x/pull/abc") != "https://x/pull/abc" {
+		t.Fatal("a non-PR URL is compared as written")
 	}
 }
 
@@ -374,5 +409,35 @@ func TestLaneFindings(t *testing.T) {
 	}
 	if FollowUps("## Open follow-ups\n- none\n") != nil || FollowUps("") != nil {
 		t.Fatal("none must yield nothing")
+	}
+}
+
+func TestPendingAndHandoffs(t *testing.T) {
+	var s State
+	s.AddPending(Pending{Title: "Leak", From: 1}, Pending{Title: "leak!", From: 1}, Pending{Title: "Leak", From: 2})
+	if len(s.Pending) != 2 || !s.IsPending("LEAK", 2) || s.IsPending("Leak", 3) {
+		t.Fatalf("pending = %+v", s.Pending)
+	}
+	s.DropPending("leak", 1)
+	if len(s.Pending) != 1 || s.Pending[0].From != 2 {
+		t.Fatalf("after drop = %+v", s.Pending)
+	}
+	s = State{Settings: Settings{Attempts: 1}, Items: []Item{
+		{Number: 1, Status: Running, Attempts: 1, HandedOff: true, Held: true, Commented: true},
+		{Number: 2, Status: Human, HandedOff: true},
+		{Number: 3, Status: Human},
+	}}
+	if st, _ := s.Finish(1, Outcome{Reason: "x"}, t0); st != Human {
+		t.Fatalf("finish = %s", st)
+	}
+	if it, _ := s.Item(1); it.HandedOff || it.Held || it.Commented {
+		t.Fatalf("a new hand-off kept the old one's marks: %+v", it)
+	}
+	if u := s.Unconfirmed(); len(u) != 2 || u[0].Number != 1 || u[1].Number != 3 {
+		t.Fatalf("unconfirmed = %+v", u)
+	}
+	it, _ := s.Set(2, Queued, "", true, t0)
+	if it.HandedOff {
+		t.Fatal("a ruling kept the old hand-off")
 	}
 }

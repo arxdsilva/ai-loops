@@ -53,6 +53,12 @@ type Forge interface {
 	EnsureLabel(ctx context.Context, repo, name, description string) error
 }
 
+// PullRequests lists the forge's open pull requests, for the open-PR cap
+// (BACKLOG §7).
+type PullRequests interface {
+	OpenPRs(ctx context.Context, repo string) ([]string, error) // the open PRs' URLs
+}
+
 // Worktrees manages the lanes' git worktrees.
 type Worktrees interface {
 	// Add fetches base from origin and adds a detached worktree at dir on
@@ -77,4 +83,8 @@ type Lanes interface {
 }
 
 // Clock is the wall clock.
-type Clock interface{ Now() time.Time }
+type Clock interface {
+	Now() time.Time
+	// Sleep waits d, or until ctx ends (returning its error).
+	Sleep(ctx context.Context, d time.Duration) error
+}

@@ -20,6 +20,7 @@ var ErrNoState = errors.New("no backlog here: run `loops backlog init --human <l
 type Service struct {
 	store Store
 	forge Forge
+	prs   PullRequests
 	wt    Worktrees
 	agent Agent
 	lanes Lanes
@@ -30,8 +31,8 @@ type Service struct {
 }
 
 // New wires the service.
-func New(store Store, forge Forge, wt Worktrees, agent Agent, lanes Lanes, clock Clock) *Service {
-	return &Service{store: store, forge: forge, wt: wt, agent: agent, lanes: lanes, clock: clock}
+func New(store Store, forge Forge, prs PullRequests, wt Worktrees, agent Agent, lanes Lanes, clock Clock) *Service {
+	return &Service{store: store, forge: forge, prs: prs, wt: wt, agent: agent, lanes: lanes, clock: clock}
 }
 
 func (s *Service) warn(format string, args ...any) {
@@ -98,6 +99,9 @@ func (s *Service) Init(ctx context.Context, in InitInput) (backlog.Settings, err
 	if set, err = set.Normalize(); err != nil {
 		return set, err
 	}
+	if set, err = s.fitMachine(set, in); err != nil {
+		return set, err
+	}
 	for _, l := range [][2]string{
 		{set.FindingLabel, "Found by a loops backlog lane; for a human to triage"},
 		{set.HumanLabel, "A loops backlog lane could not finish it; a human decides"},
@@ -112,6 +116,23 @@ func (s *Service) Init(ctx context.Context, in InitInput) (backlog.Settings, err
 		return nil
 	})
 	return set, err
+}
+
+// fitMachine keeps lanes × agents per lane within the machine's cap
+// (BACKLOG §7): it lowers a lane count the user did not give, and refuses
+// one they did. One lane always fits.
+func (s *Service) fitMachine(set backlog.Settings, in InitInput) (backlog.Settings, error) {
+	if in.MachineCap <= 0 || set.Lanes <= 1 || set.Lanes*set.MaxAgents <= in.MachineCap {
+		return set, nil
+	}
+	if in.Settings.Lanes != 0 || in.Settings.MaxAgents != 0 {
+		return set, fmt.Errorf("%d lanes × %d agents = %d agents, over this machine's cap of %d (loops hw): lower --lanes or --max-agents",
+			set.Lanes, set.MaxAgents, set.Lanes*set.MaxAgents, in.MachineCap)
+	}
+	lanes := max(1, in.MachineCap/set.MaxAgents)
+	s.warn("lanes lowered from %d to %d: %d agents each fit this machine's cap of %d (loops hw)", set.Lanes, lanes, set.MaxAgents, in.MachineCap)
+	set.Lanes = lanes
+	return set, nil
 }
 
 // merge returns cur with every non-zero field of next applied.
@@ -144,6 +165,7 @@ func merge(cur, next backlog.Settings) backlog.Settings {
 	num(&cur.Lanes, next.Lanes)
 	num(&cur.MaxAgents, next.MaxAgents)
 	num(&cur.Attempts, next.Attempts)
+	num(&cur.MaxPRs, next.MaxPRs)
 	list(&cur.Labels, next.Labels)
 	list(&cur.Exclude, next.Exclude)
 	list(&cur.Authors, next.Authors)
@@ -157,61 +179,87 @@ func (s *Service) load(ctx context.Context) (backlog.State, error) {
 	return s.store.Load(ctx)
 }
 
-// Sync re-queues lanes whose process is gone, then rebuilds the queue from
-// the forge's open issues (BACKLOG §2).
+// Sync re-queues lanes whose process is gone, retries unconfirmed
+// hand-offs, rebuilds the queue from the forge's open issues (BACKLOG §2),
+// and files the findings still pending (BACKLOG §5).
 func (s *Service) Sync(ctx context.Context) (backlog.SyncResult, error) {
 	st, err := s.load(ctx)
 	if err != nil {
 		return backlog.SyncResult{}, err
 	}
+	set := st.Settings
 	// Recover first: a dead lane's hand-off changes the issue's labels.
-	if err := s.recover(ctx); err != nil {
-		return backlog.SyncResult{}, err
-	}
-	open, err := s.forge.OpenIssues(ctx, st.Settings.Repo)
+	handed, err := s.recover(ctx, set)
 	if err != nil {
 		return backlog.SyncResult{}, err
+	}
+	open, err := s.forge.OpenIssues(ctx, set.Repo)
+	if err != nil {
+		return backlog.SyncResult{}, err
+	}
+	since := s.clock.Now()
+	var prs []string
+	counted := false
+	if set.PRCap() > 0 {
+		if prs, err = s.prs.OpenPRs(ctx, set.Repo); err != nil {
+			s.warn("open PRs not counted: %v", err)
+		} else {
+			counted = true
+		}
 	}
 	var res backlog.SyncResult
 	err = s.store.Update(ctx, func(st *backlog.State) error {
 		res = st.Sync(open, s.clock.Now())
+		if counted {
+			res.Gate = st.Gate(prs, since)
+		}
 		return nil
 	})
-	return res, err
+	if err != nil {
+		return res, err
+	}
+	res.Handed = handed
+	res.Filed = len(s.flush(ctx, set, 0))
+	return res, nil
 }
 
-// recover finishes running lanes whose process died (no lane lock held).
-func (s *Service) recover(ctx context.Context) error {
-	var handoffs []backlog.Item
-	var released []int
+// recover finishes running lanes whose process died (no lane lock held),
+// keeping their findings, then retries every hand-off the forge has not
+// confirmed. It returns the hand-offs confirmed.
+func (s *Service) recover(ctx context.Context, set backlog.Settings) (int, error) {
+	type dead struct {
+		item backlog.Item
+		lane backlog.LaneRun
+	}
+	var gone []dead
 	err := s.store.Update(ctx, func(st *backlog.State) error {
 		for _, n := range st.Stale(func(it backlog.Item) bool { return s.store.LaneHeld(it.Number) }) {
 			it, _ := st.Item(n)
 			lane, _ := s.lanes.Latest(it.Worktree)
-			o := lane.Outcome("the lane process is gone")
-			if status, err := st.Finish(n, o, s.clock.Now()); err == nil {
-				released = append(released, n)
-				if status == backlog.Human {
-					handoffs = append(handoffs, *it)
-				}
+			if _, err := st.Finish(n, lane.Outcome("the lane process is gone"), s.clock.Now()); err == nil {
+				gone = append(gone, dead{*it, lane})
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		return err
+		return 0, err
+	}
+	for _, d := range gone {
+		s.edit(ctx, set, d.item.Number, Edit{RemoveLabels: []string{set.ClaimLabel}})
+		s.queueFindings(ctx, d.item, d.lane)
 	}
 	st, err := s.store.Load(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	for _, n := range released {
-		s.edit(ctx, st.Settings, n, Edit{RemoveLabels: []string{st.Settings.ClaimLabel}})
+	handed := 0
+	for _, it := range st.Unconfirmed() {
+		if s.handoff(ctx, set, it) {
+			handed++
+		}
 	}
-	for _, it := range handoffs {
-		s.handoff(ctx, st.Settings, it)
-	}
-	return nil
+	return handed, nil
 }
 
 // Report is `loops backlog status`.
@@ -267,7 +315,8 @@ This is an unattended backlog lane (specs/BACKLOG.md §4). Nobody will answer: n
 - Skip step 0 (the update): the supervisor owns it.
 - At step 6 record loops run ask none, whatever the config says. Every checkpoint is auto; decide every open point and record it.
 - If the ticket cannot be worked without a human (missing information, a product decision, a contradiction, an unauthenticated connector), record loops run decide --topic needs-human --note "<what is missing>", then end with loops run end --outcome abandoned.
-- Record every finding outside the charter the moment you find it: loops run event --kind note --name finding --note "<one-line title>" (details in a run-dir file passed as --ref), and list it under pr.md Open follow-ups. Never create issues yourself.
+- Record every finding outside the charter the moment you find it: loops run event --kind note --name finding --note "<one-line title>" (details in a run-dir file passed as --ref), and list it under pr.md Open follow-ups. Never create or comment on issues yourself.
+- Put the line "Backlog lane: yes" in every spawn prompt, the reflector's included: it records harness issues as findings instead of filing them.
 - Open the PR; never merge it.
 - Write repository files with the Edit and Write tools, not through Bash, so the run log records them; tell every agent you spawn the same.`,
 		set.Repo, n, set.MaxAgents)

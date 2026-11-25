@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/backlog"
 )
@@ -13,11 +14,18 @@ import (
 type RunInput struct {
 	Max int       // lanes to start in all (0 = until the queue is empty)
 	Out io.Writer // one line per lane start and end
+	// Wait, when positive, keeps the loop going at the open-PR cap: it
+	// checks again after Wait instead of stopping.
+	Wait time.Duration
 }
 
 // RunSummary is what the loop did.
 type RunSummary struct {
 	Started, Done, Retried, Human, Errors, Findings int
+	// Gated is true when the loop stopped at the open-PR cap with issues
+	// still queued; Gate is the cap it hit.
+	Gated bool
+	Gate  backlog.Gate
 }
 
 type laneDone struct {
@@ -28,8 +36,9 @@ type laneDone struct {
 // Run is the supervisor without an agent (BACKLOG §8): sync, keep the
 // configured lanes busy until the queue is empty (or Max lanes started),
 // then sync once more and stop when nothing new was queued. Failures follow
-// the lane's own policy (BACKLOG §3 step 6). ctx ends it: running lanes
-// are stopped and recorded as failed attempts.
+// the lane's own policy (BACKLOG §3 step 6). At the open-PR cap it stops,
+// or with Wait checks again later. ctx ends it: running lanes are stopped
+// and recorded as failed attempts.
 func (s *Service) Run(ctx context.Context, in RunInput) (RunSummary, error) {
 	out := in.Out
 	if out == nil {
@@ -45,11 +54,24 @@ func (s *Service) Run(ctx context.Context, in RunInput) (RunSummary, error) {
 		if res.Queued == 0 || (in.Max > 0 && sum.Started >= in.Max) || ctx.Err() != nil {
 			return sum, ctx.Err()
 		}
+		sum.Gated = false
 		ran, err := s.drain(ctx, in.Max, out, &sum)
 		if err != nil {
 			return sum, err
 		}
-		if ran == 0 && ctx.Err() == nil {
+		switch {
+		case ctx.Err() != nil:
+			return sum, ctx.Err()
+		case sum.Gated && ran == 0:
+			if in.Wait <= 0 {
+				fmt.Fprintf(out, "paused: %d of %d lane PRs open (--max-prs); merge or close some, then run again\n", sum.Gate.Open, sum.Gate.Cap)
+				return sum, nil
+			}
+			fmt.Fprintf(out, "paused: %d of %d lane PRs open (--max-prs); checking again in %s\n", sum.Gate.Open, sum.Gate.Cap, in.Wait)
+			if err := s.clock.Sleep(ctx, in.Wait); err != nil {
+				return sum, err
+			}
+		case ran == 0:
 			return sum, errors.New("issues are queued but no lane could start (see the errors above)")
 		}
 	}
@@ -86,6 +108,10 @@ func (s *Service) drain(ctx context.Context, maxLanes int, out io.Writer, sum *R
 			fmt.Fprintf(out, "lane error: %v\n", d.err)
 		case d.res.Empty:
 			sum.Started--
+			empty = true
+		case d.res.Gated:
+			sum.Started--
+			sum.Gated, sum.Gate = true, d.res.Gate
 			empty = true
 		default:
 			ran++

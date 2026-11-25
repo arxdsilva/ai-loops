@@ -21,6 +21,8 @@ const (
 	DefaultHumanLabel   = "loops-needs-human"
 	DefaultClaimLabel   = "loops-wip"
 	MinLaneAgents       = 2
+	// DefaultMaxPRs caps the lanes' PRs open at once (BACKLOG §7).
+	DefaultMaxPRs = 5
 	// NoPriority sorts issues without a P<digit> label after P9.
 	NoPriority = 10
 )
@@ -62,7 +64,8 @@ type Settings struct {
 	Lanes        int      `json:"lanes"`
 	MaxAgents    int      `json:"max_agents"` // per lane
 	Attempts     int      `json:"attempts"`
-	Timeout      string   `json:"timeout"` // per lane, a Go duration
+	MaxPRs       int      `json:"max_prs,omitempty"` // open lane PRs at once: 0 = DefaultMaxPRs, <0 = no cap
+	Timeout      string   `json:"timeout"`           // per lane, a Go duration
 	Labels       []string `json:"labels,omitempty"`
 	Exclude      []string `json:"exclude,omitempty"`
 	Authors      []string `json:"authors,omitempty"` // empty = any author
@@ -88,6 +91,9 @@ func (s Settings) Normalize() (Settings, error) {
 	if s.Timeout == "" {
 		s.Timeout = DefaultTimeout.String()
 	}
+	if s.MaxPRs == 0 {
+		s.MaxPRs = DefaultMaxPRs
+	}
 	if s.FindingLabel == "" {
 		s.FindingLabel = DefaultFindingLabel
 	}
@@ -110,6 +116,11 @@ func (s Settings) Normalize() (Settings, error) {
 	if d, err := time.ParseDuration(s.Timeout); err != nil || d <= 0 {
 		return s, fmt.Errorf("timeout %q is not a positive duration", s.Timeout)
 	}
+	// A custom lane command gets the budget only through its placeholder
+	// (BACKLOG §7): without it, the cap would silently not apply.
+	if s.Budget != "" && s.Agent != "" && !strings.Contains(s.Agent, "{budget}") {
+		return s, fmt.Errorf("--budget %s does not reach the --agent command: add {budget} to the template (for example --max-budget-usd {budget}), or drop the budget", s.Budget)
+	}
 	return s, nil
 }
 
@@ -119,6 +130,18 @@ func (s Settings) TimeoutDuration() time.Duration {
 		return d
 	}
 	return DefaultTimeout
+}
+
+// PRCap is how many lane PRs may be open at once (0 = no cap). A state
+// written before the cap existed gets DefaultMaxPRs.
+func (s Settings) PRCap() int {
+	switch {
+	case s.MaxPRs < 0:
+		return 0
+	case s.MaxPRs == 0:
+		return DefaultMaxPRs
+	}
+	return s.MaxPRs
 }
 
 // LaneAgents splits the machine's agent cap between the lanes (BACKLOG §4).

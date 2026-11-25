@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	appbacklog "github.com/arxdsilva/ai-loops/internal/application/backlog"
 	"github.com/arxdsilva/ai-loops/internal/domain/backlog"
@@ -27,6 +28,7 @@ type fakeBacklog struct {
 	err      error
 	removed  []string
 	filedDup bool
+	sync     backlog.SyncResult
 }
 
 var testSettings = backlog.Settings{Repo: "o/r", Base: "main", Human: "hum", Lanes: 2, MaxAgents: 4, Attempts: 2, Timeout: "4h0m0s",
@@ -37,7 +39,10 @@ func (f *fakeBacklog) Init(_ context.Context, in appbacklog.InitInput) (backlog.
 	return testSettings, f.err
 }
 func (f *fakeBacklog) Sync(context.Context) (backlog.SyncResult, error) {
-	return backlog.SyncResult{Open: 9, Added: 3, Dropped: 1, Queued: 5}, f.err
+	if f.sync.Open == 0 {
+		f.sync = backlog.SyncResult{Open: 9, Added: 3, Dropped: 1, Queued: 5}
+	}
+	return f.sync, f.err
 }
 func (f *fakeBacklog) Status(context.Context) (appbacklog.Report, error) {
 	return appbacklog.Report{Settings: testSettings, Synced: "2026-01-01 10:00 UTC", Findings: 2,
@@ -84,6 +89,7 @@ func TestBacklogUsage(t *testing.T) {
 		{"backlog", "work", "a"}, {"backlog", "work", "1", "2"}, {"backlog", "run", "--max", "-1"},
 		{"backlog", "finish"}, {"backlog", "finish", "x", "--status", "done"}, {"backlog", "finish", "3", "--status", "merged"},
 		{"backlog", "file"}, {"backlog", "clean", "x"}, {"backlog", "init", "extra"},
+		{"backlog", "init", "--max-prs", "0"}, {"backlog", "init", "--max-prs", "lots"}, {"backlog", "run", "--wait", "-1m"},
 	} {
 		if code := a.Run(context.Background(), args); code != 2 {
 			t.Errorf("%v exit %d, want 2", args, code)
@@ -99,17 +105,17 @@ func TestBacklogInit(t *testing.T) {
 	a, out, errw := backlogApp(f)
 	a.HW = fakeHW{f: hw.Facts{LogicalCPUs: 4, TotalRAMBytes: 64 << 30, AvailRAMBytes: 64 << 30}}
 	code := a.Run(context.Background(), []string{"backlog", "init", "--human", "hum", "--lanes", "3", "--label", "bug, P1",
-		"--exclude-label", "x", "--authors", "a,b", "--budget", "5"})
+		"--exclude-label", "x", "--authors", "a,b", "--budget", "5", "--max-prs", "3"})
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errw.String())
 	}
 	in := f.init
 	if in.Settings.Human != "hum" || in.Settings.Lanes != 3 || !slices.Equal(in.Settings.Labels, []string{"bug", "P1"}) ||
 		!slices.Equal(in.Settings.Exclude, []string{"x"}) || !slices.Equal(in.Settings.Authors, []string{"a", "b"}) ||
-		in.Settings.Budget != "5" || in.Worktrees != "/default-wt" || in.MachineCap != 16 || in.AnyAuthor {
+		in.Settings.Budget != "5" || in.Worktrees != "/default-wt" || in.MachineCap != 16 || in.AnyAuthor || in.Settings.MaxPRs != 3 {
 		t.Fatalf("init input = %+v", in)
 	}
-	for _, w := range []string{"repo o/r, base main, human @hum", "lanes 2 × 4 agents", "authors me", "worktrees: /wt", "loops backlog sync"} {
+	for _, w := range []string{"repo o/r, base main, human @hum", "lanes 2 × 4 agents", "open PRs cap 5", "authors me", "worktrees: /wt", "loops backlog sync"} {
 		if !strings.Contains(out.String(), w) {
 			t.Fatalf("output lacks %q:\n%s", w, out.String())
 		}
@@ -118,9 +124,14 @@ func TestBacklogInit(t *testing.T) {
 		t.Fatalf("warnings not relayed: %q", errw.String())
 	}
 	a, _, _ = backlogApp(f)
-	a.Run(context.Background(), []string{"backlog", "init", "--authors", "any"})
-	if !f.init.AnyAuthor || f.init.MachineCap != hw.DefaultMaxAgents {
-		t.Fatalf("any author = %+v", f.init)
+	a.Run(context.Background(), []string{"backlog", "init", "--authors", "any", "--max-prs", "none"})
+	if !f.init.AnyAuthor || f.init.MachineCap != hw.DefaultMaxAgents || f.init.Settings.MaxPRs != -1 {
+		t.Fatalf("any author, no PR cap = %+v", f.init)
+	}
+	var b bytes.Buffer
+	printSettings(&b, backlog.Settings{MaxPRs: -1})
+	if !strings.Contains(b.String(), "open PRs cap none") {
+		t.Fatalf("no cap shown as %q", b.String())
 	}
 	f.err = errors.New("no human")
 	if code := a.Run(context.Background(), []string{"backlog", "init"}); code != 1 {
@@ -133,6 +144,17 @@ func TestBacklogSyncStatus(t *testing.T) {
 	a, out, _ := backlogApp(f)
 	if a.Run(context.Background(), []string{"backlog", "sync"}) != 0 || !strings.Contains(out.String(), "9 open issues, 3 added, 1 dropped, 5 queued") {
 		t.Fatalf("sync output: %s", out.String())
+	}
+	out.Reset()
+	f.sync.Gate, f.sync.Filed, f.sync.Handed = backlog.Gate{Open: 5, Cap: 5}, 2, 1
+	if a.Run(context.Background(), []string{"backlog", "sync"}) != 0 || !strings.Contains(out.String(), "open PRs: 5 of 5 (lane PRs and running lanes): lanes paused") ||
+		!strings.Contains(out.String(), "retried: 2 pending findings filed, 1 hand-offs confirmed") {
+		t.Fatalf("sync gate output: %s", out.String())
+	}
+	out.Reset()
+	f.sync.Gate = backlog.Gate{Open: 1, Cap: 5}
+	if a.Run(context.Background(), []string{"backlog", "sync"}); !strings.Contains(out.String(), "open PRs: 1 of 5 (lane PRs and running lanes): lanes may start") {
+		t.Fatalf("sync gate output: %s", out.String())
 	}
 	out.Reset()
 	a.Run(context.Background(), []string{"backlog", "sync", "--json"})
@@ -166,6 +188,7 @@ func TestBacklogWorkExitCodes(t *testing.T) {
 		want string
 	}{
 		{appbacklog.LaneResult{Empty: true}, 3, "nothing queued"},
+		{appbacklog.LaneResult{Gated: true, Gate: backlog.Gate{Open: 5, Cap: 5}}, 4, "paused: 5 of 5 lane PRs open"},
 		{appbacklog.LaneResult{Status: backlog.Done, Item: backlog.Item{Number: 5, PR: "https://pr/5"},
 			Findings: []appbacklog.Filed{{Title: "Leak", URL: "https://f/9"}, {Title: "Old", URL: "https://f/2", Duplicate: true}}},
 			0, "#5 done: https://pr/5\nfinding filed: Leak https://f/9\nfinding already tracked: Old https://f/2"},
@@ -198,7 +221,7 @@ func TestBacklogRunFinishFileClean(t *testing.T) {
 	f := &fakeBacklog{}
 	a, out, _ := backlogApp(f)
 	ctx := context.Background()
-	if a.Run(ctx, []string{"backlog", "run", "--max", "4"}) != 0 || f.run.Max != 4 || !strings.Contains(out.String(), "run: 3 lanes, 2 PRs, 0 retried, 1 handed off") {
+	if a.Run(ctx, []string{"backlog", "run", "--max", "4", "--wait", "10m"}) != 0 || f.run.Max != 4 || f.run.Wait != 10*time.Minute || !strings.Contains(out.String(), "run: 3 lanes, 2 PRs, 0 retried, 1 handed off") {
 		t.Fatalf("run: %+v %s", f.run, out.String())
 	}
 	out.Reset()

@@ -21,6 +21,8 @@ type fakeStore struct {
 	exists bool
 	st     backlog.State
 	held   map[int]bool
+	// failSave fails the save after fn ran (the state is not written).
+	failSave error
 }
 
 func (f *fakeStore) Exists() bool { f.mu.Lock(); defer f.mu.Unlock(); return f.exists }
@@ -29,12 +31,20 @@ func (f *fakeStore) Load(context.Context) (backlog.State, error) {
 	defer f.mu.Unlock()
 	return clone(f.st), nil
 }
-func (f *fakeStore) Update(_ context.Context, fn func(*backlog.State) error) error {
+
+// Update fails on a cancelled ctx, as a real lock wait would.
+func (f *fakeStore) Update(ctx context.Context, fn func(*backlog.State) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	st := clone(f.st)
 	if err := fn(&st); err != nil {
 		return err
+	}
+	if f.failSave != nil {
+		return f.failSave
 	}
 	f.st, f.exists = st, true
 	return nil
@@ -53,19 +63,23 @@ func (f *fakeStore) LaneHeld(n int) bool { return f.held[n] }
 func clone(st backlog.State) backlog.State {
 	st.Items = slices.Clone(st.Items)
 	st.Findings = slices.Clone(st.Findings)
+	st.Pending = slices.Clone(st.Pending)
 	return st
 }
 
 // fakeForge records every call.
 type fakeForge struct {
-	mu       sync.Mutex
-	open     []backlog.Issue
-	created  []NewIssue
-	comments map[int][]string
-	edits    map[int][]Edit
-	labels   []string
-	failList error
-	editErr  error
+	mu                      sync.Mutex
+	open                    []backlog.Issue
+	created                 []NewIssue
+	comments                map[int][]string
+	edits                   map[int][]Edit
+	labels                  []string
+	failList                error
+	editErr                 error
+	prs                     []string // open PR URLs
+	failPRs                 error
+	failCreate, failComment error
 }
 
 func (f *fakeForge) Repo(context.Context) (string, error) { return "o/r", nil }
@@ -78,15 +92,30 @@ func (f *fakeForge) OpenIssues(context.Context, string) ([]backlog.Issue, error)
 	defer f.mu.Unlock()
 	return slices.Clone(f.open), f.failList
 }
+func (f *fakeForge) OpenPRs(context.Context, string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.prs), f.failPRs
+}
+
+// Create records the issue and lists it as open, as the forge would.
 func (f *fakeForge) Create(_ context.Context, _ string, in NewIssue) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.failCreate != nil {
+		return "", f.failCreate
+	}
 	f.created = append(f.created, in)
-	return fmt.Sprintf("https://f/%d", 100+len(f.created)), nil
+	url := fmt.Sprintf("https://f/%d", 100+len(f.created))
+	f.open = append(f.open, backlog.Issue{Number: 100 + len(f.created), Title: in.Title, URL: url, Labels: in.Labels, Assignees: in.Assignees})
+	return url, nil
 }
 func (f *fakeForge) Comment(_ context.Context, _ string, n int, body string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.failComment != nil {
+		return f.failComment
+	}
 	if f.comments == nil {
 		f.comments = map[int][]string{}
 	}
@@ -94,8 +123,12 @@ func (f *fakeForge) Comment(_ context.Context, _ string, n int, body string) err
 	return nil
 }
 
-// Edit records the change and applies it to the open issues, as the forge would.
-func (f *fakeForge) Edit(_ context.Context, _ string, n int, e Edit) error {
+// Edit records the change and applies it to the open issues, as the forge
+// would; a cancelled ctx fails it, as it would fail gh.
+func (f *fakeForge) Edit(ctx context.Context, _ string, n int, e Edit) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.edits == nil {
@@ -179,9 +212,16 @@ func (a *fakeAgent) Run(_ context.Context, dir, prompt, _ string, _ backlog.Sett
 // at names every lane's worktree dir.
 func at(dir string) func(int, int) string { return func(int, int) string { return dir } }
 
-type fixedClock struct{}
+// fixedClock never moves; Sleep runs sleep (when set) instead of waiting.
+type fixedClock struct{ sleep func(time.Duration) }
 
 func (fixedClock) Now() time.Time { return time.Date(2026, 5, 6, 7, 8, 9, 0, time.UTC) }
+func (c fixedClock) Sleep(ctx context.Context, d time.Duration) error {
+	if c.sleep != nil {
+		c.sleep(d)
+	}
+	return ctx.Err()
+}
 
 func events(outcome, pr string, extra ...run.Event) []run.Event {
 	ev := []run.Event{{Kind: run.KindRun, Run: "r", Name: "t"}}
@@ -208,7 +248,7 @@ func newRig(t *testing.T, open ...backlog.Issue) *rig {
 	r.agent = &fakeAgent{lanes: r.lanes, outcome: func(string) (backlog.LaneRun, error) {
 		return backlog.LaneRun{Dir: "/run", Events: events("done", "https://pr/1")}, nil
 	}}
-	r.svc = New(r.store, r.forge, r.wt, r.agent, r.lanes, fixedClock{})
+	r.svc = New(r.store, r.forge, r.forge, r.wt, r.agent, r.lanes, fixedClock{})
 	var mu sync.Mutex
 	r.svc.Warn = func(f string, a ...any) { mu.Lock(); r.warns = append(r.warns, fmt.Sprintf(f, a...)); mu.Unlock() }
 	return r
@@ -276,7 +316,7 @@ func TestWorkDone(t *testing.T) {
 		t.Fatalf("worktrees = %v", r.wt.added)
 	}
 	p := r.agent.prompts[0]
-	for _, w := range []string{"/loops:work o/r#2 --max-agents 6", "loops run ask none", "Skip step 0", "--name finding", "never merge", "--topic needs-human"} {
+	for _, w := range []string{"/loops:work o/r#2 --max-agents 6", "loops run ask none", "Skip step 0", "--name finding", "never merge", "--topic needs-human", "Backlog lane: yes"} {
 		if !strings.Contains(p, w) {
 			t.Fatalf("prompt lacks %q:\n%s", w, p)
 		}
@@ -418,6 +458,25 @@ func TestWorkStoppedStillTidies(t *testing.T) {
 	e := r.forge.edits[1]
 	if last := e[len(e)-1]; !slices.Equal(last.RemoveLabels, []string{"loops-wip"}) {
 		t.Fatalf("claim label left on a stopped lane: %+v", e)
+	}
+	// The fakes refuse a cancelled ctx, so this outcome was saved on a live one.
+	st, _ := r.store.Load(context.Background())
+	if it, _ := st.Item(1); it.Status != backlog.Queued || !strings.Contains(it.Note, "lane stopped") || r.store.LaneHeld(1) {
+		t.Fatalf("stopped lane's saved state = %+v", it)
+	}
+}
+
+func TestWorkClaimSaveFailureReleasesTheLane(t *testing.T) {
+	r := newRig(t, is(1))
+	r.init(t, backlog.Settings{})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.store.failSave = errors.New("disk full")
+	if _, err := r.svc.Work(ctx, 0); err == nil {
+		t.Fatal("save failure swallowed")
+	}
+	if r.store.LaneHeld(1) {
+		t.Fatal("lane lock kept after the claim was not saved")
 	}
 }
 
@@ -621,5 +680,265 @@ func TestRunMaxAndErrors(t *testing.T) {
 	r.forge.failList = errors.New("gh down")
 	if _, err := r.svc.Run(ctx, RunInput{}); err == nil {
 		t.Fatal("sync failure swallowed")
+	}
+}
+
+// prOutcome makes every lane open the next PR and lists it as open, as the
+// forge would.
+func prOutcome(r *rig) func(string) (backlog.LaneRun, error) {
+	n := 10
+	return func(string) (backlog.LaneRun, error) {
+		r.forge.mu.Lock()
+		defer r.forge.mu.Unlock()
+		n++
+		url := fmt.Sprintf("https://github.com/o/r/pull/%d", n)
+		r.forge.prs = append(r.forge.prs, url)
+		return backlog.LaneRun{Dir: "/run", Events: events("done", url)}, nil
+	}
+}
+
+func TestWorkGatedAtOpenPRCap(t *testing.T) {
+	r := newRig(t, is(1), is(2), is(3))
+	if set := r.init(t, backlog.Settings{MaxPRs: 2}); set.MaxPRs != 2 {
+		t.Fatalf("max prs = %d", set.MaxPRs)
+	}
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.agent.outcome = prOutcome(r)
+	for _, n := range []int{1, 2} {
+		if res, err := r.svc.Work(ctx, 0); err != nil || res.Status != backlog.Done || res.Item.Number != n {
+			t.Fatalf("lane %d = %+v, %v", n, res, err)
+		}
+	}
+	res, err := r.svc.Work(ctx, 0)
+	if err != nil || !res.Gated || res.Gate != (backlog.Gate{Open: 2, Cap: 2}) || len(r.wt.added) != 2 {
+		t.Fatalf("at the cap = %+v, %v (worktrees %v)", res, err, r.wt.added)
+	}
+	st, _ := r.store.Load(ctx)
+	if it, _ := st.Item(3); it.Status != backlog.Queued || it.Attempts != 0 {
+		t.Fatalf("gated issue claimed: %+v", it)
+	}
+	if sync, _ := r.svc.Sync(ctx); sync.Gate != (backlog.Gate{Open: 2, Cap: 2}) {
+		t.Fatalf("sync gate = %+v", sync.Gate)
+	}
+	// The forge cannot list PRs: no lane starts (the cap fails closed).
+	r.forge.failPRs = errors.New("gh down")
+	if _, err := r.svc.Work(ctx, 0); err == nil || !strings.Contains(err.Error(), "--max-prs") {
+		t.Fatalf("PR listing failure = %v", err)
+	}
+	if sync, err := r.svc.Sync(ctx); err != nil || sync.Gate.Cap != 0 {
+		t.Fatalf("sync with no PR list = %+v, %v", sync, err)
+	}
+	// A PR merged: the lane starts.
+	r.forge.failPRs = nil
+	r.forge.prs = r.forge.prs[1:]
+	if res, err := r.svc.Work(ctx, 0); err != nil || res.Status != backlog.Done || res.Item.Number != 3 {
+		t.Fatalf("after a merge = %+v, %v", res, err)
+	}
+}
+
+func TestWorkNoPRCap(t *testing.T) {
+	r := newRig(t, is(1))
+	r.init(t, backlog.Settings{MaxPRs: -1})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.forge.failPRs = errors.New("never listed")
+	if res, err := r.svc.Work(ctx, 0); err != nil || res.Status != backlog.Done {
+		t.Fatalf("no cap = %+v, %v", res, err)
+	}
+}
+
+// Parallel claims count each other's running lanes, so they never pass the cap.
+func TestWorkGateHoldsUnderParallelClaims(t *testing.T) {
+	r := newRig(t, is(1), is(2))
+	r.init(t, backlog.Settings{MaxPRs: 1})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	release := make(chan struct{})
+	r.svc.agent = agentFunc(func(context.Context) error { <-release; return nil })
+	results := make(chan LaneResult, 2)
+	for range 2 {
+		go func() {
+			res, err := r.svc.Work(ctx, 0)
+			if err != nil {
+				t.Error(err)
+			}
+			results <- res
+		}()
+	}
+	first := <-results
+	if !first.Gated || first.Gate != (backlog.Gate{Open: 1, Cap: 1}) {
+		t.Fatalf("first to end = %+v, want the gated one", first)
+	}
+	close(release)
+	if second := <-results; second.Gated || second.Item.Number != 1 {
+		t.Fatalf("lane = %+v", second)
+	}
+}
+
+func TestRunPausesAtCap(t *testing.T) {
+	r := newRig(t, is(1), is(2))
+	r.init(t, backlog.Settings{Lanes: 1, MaxPRs: 1})
+	ctx := context.Background()
+	r.agent.outcome = prOutcome(r)
+	var out bytes.Buffer
+	sum, err := r.svc.Run(ctx, RunInput{Out: &out})
+	if err != nil || !sum.Gated || sum.Done != 1 || sum.Started != 1 || !strings.Contains(out.String(), "paused: 1 of 1 lane PRs open") {
+		t.Fatalf("run at the cap = %+v, %v\n%s", sum, err, out.String())
+	}
+	// With --wait it sleeps until a PR is merged, then works the rest.
+	var waits []time.Duration
+	r.svc.clock = fixedClock{sleep: func(d time.Duration) {
+		waits = append(waits, d)
+		r.forge.mu.Lock()
+		r.forge.prs = nil
+		r.forge.mu.Unlock()
+	}}
+	out.Reset()
+	sum, err = r.svc.Run(ctx, RunInput{Out: &out, Wait: time.Minute})
+	if err != nil || sum.Gated || sum.Done != 1 || !slices.Equal(waits, []time.Duration{time.Minute}) {
+		t.Fatalf("run --wait = %+v, %v, waits %v\n%s", sum, err, waits, out.String())
+	}
+	// Stopped while paused.
+	r2 := newRig(t, is(1))
+	r2.init(t, backlog.Settings{MaxPRs: 1})
+	r2.forge.prs = []string{"https://github.com/o/r/pull/5"}
+	r2.store.Update(ctx, func(st *backlog.State) error {
+		st.Items = append(st.Items, backlog.Item{Number: 9, Status: backlog.Done, PR: "https://github.com/o/r/pull/5/"})
+		return nil
+	})
+	cctx, cancel := context.WithCancel(ctx)
+	r2.svc.clock = fixedClock{sleep: func(time.Duration) { cancel() }}
+	if _, err := r2.svc.Run(cctx, RunInput{Wait: time.Hour}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("stopped while paused: %v", err)
+	}
+}
+
+func TestInitFitsTheMachine(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t)
+	// Default lanes on a small machine: lowered to fit, with a warning.
+	set, err := r.svc.Init(ctx, InitInput{Settings: backlog.Settings{Human: "hum"}, MachineCap: 3, Worktrees: "/wt"})
+	if err != nil || set.Lanes != 1 || set.MaxAgents != 2 || len(r.warns) != 1 || !strings.Contains(r.warns[0], "lanes lowered from 2 to 1") {
+		t.Fatalf("small machine = %+v, %v, %v", set, err, r.warns)
+	}
+	// Lanes the user asked for that do not fit: refused, nothing saved.
+	if _, err := r.svc.Init(ctx, InitInput{Settings: backlog.Settings{Lanes: 3}, MachineCap: 4}); err == nil || !strings.Contains(err.Error(), "over this machine's cap of 4") {
+		t.Fatalf("explicit lanes over the cap: %v", err)
+	}
+	if _, err := r.svc.Init(ctx, InitInput{Settings: backlog.Settings{Lanes: 2, MaxAgents: 5}, MachineCap: 8}); err == nil {
+		t.Fatal("explicit agents over the cap accepted")
+	}
+	if st, _ := r.store.Load(ctx); st.Settings.Lanes != 1 {
+		t.Fatalf("refused init saved: %+v", st.Settings)
+	}
+	// One lane always fits, even over the cap.
+	if set, err := r.svc.Init(ctx, InitInput{Settings: backlog.Settings{Lanes: 1, MaxAgents: 9}, MachineCap: 4}); err != nil || set.MaxAgents != 9 {
+		t.Fatalf("one lane = %+v, %v", set, err)
+	}
+}
+
+func TestFindingsStayPendingUntilFiled(t *testing.T) {
+	r := newRig(t, is(1))
+	r.init(t, backlog.Settings{})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.agent.outcome = func(string) (backlog.LaneRun, error) {
+		return backlog.LaneRun{Dir: "/run", Events: events("done", "https://pr/1", run.Event{Kind: run.KindNote, Name: "finding", Note: "Pool leaks"})}, nil
+	}
+	r.forge.failCreate = errors.New("gh down")
+	res, err := r.svc.Work(ctx, 0)
+	if err != nil || res.Status != backlog.Done || len(res.Findings) != 0 {
+		t.Fatalf("lane = %+v, %v", res, err)
+	}
+	st, _ := r.store.Load(ctx)
+	if len(st.Pending) != 1 || st.Pending[0].From != 1 || !strings.Contains(st.Pending[0].Body, "#1 (https://pr/1)") {
+		t.Fatalf("pending = %+v", st.Pending)
+	}
+	// The forge is back: the next sync files it, once.
+	r.forge.failCreate = nil
+	if sync, err := r.svc.Sync(ctx); err != nil || sync.Filed != 1 {
+		t.Fatalf("sync = %+v, %v", sync, err)
+	}
+	if sync, _ := r.svc.Sync(ctx); sync.Filed != 0 || len(r.forge.created) != 1 {
+		t.Fatalf("refiled: %+v, %+v", sync, r.forge.created)
+	}
+	st, _ = r.store.Load(ctx)
+	if len(st.Pending) != 0 || len(st.Findings) != 1 {
+		t.Fatalf("state = pending %+v, findings %+v", st.Pending, st.Findings)
+	}
+	// Another process already filed it: not filed again.
+	if _, err := r.svc.file(ctx, st.Settings, "Pool leaks", "", 1, true); !errors.Is(err, errNotPending) {
+		t.Fatalf("filed a finding no longer pending: %v", err)
+	}
+}
+
+// A finding whose issue exists on the forge but not in the state (an
+// earlier save failed) is matched by the listing taken under the lock.
+func TestFindingMatchesAnIssueCreatedElsewhere(t *testing.T) {
+	r := newRig(t)
+	r.init(t, backlog.Settings{})
+	ctx := context.Background()
+	r.forge.open = append(r.forge.open, backlog.Issue{Number: 77, Title: "Pool leaks", URL: "https://i/77", Assignees: []string{"hum"}})
+	f, err := r.svc.File(ctx, "pool LEAKS", "", 0)
+	if err != nil || !f.Duplicate || f.URL != "https://i/77" || len(r.forge.created) != 0 {
+		t.Fatalf("file = %+v, %v", f, err)
+	}
+}
+
+func TestSyncFilesADeadLanesFindings(t *testing.T) {
+	r := newRig(t, is(5))
+	r.init(t, backlog.Settings{})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.store.Update(ctx, func(st *backlog.State) error {
+		_, err := st.Claim(5, at("/wt/issue-5-1"), time.Time{})
+		return err
+	})
+	r.lanes.runs = map[string]backlog.LaneRun{"/wt/issue-5-1": {Dir: "/run", Events: []run.Event{
+		{Kind: run.KindRun, Run: "r", Name: "t"}, {Kind: run.KindNote, Name: "finding", Note: "Flaky clock test"}}}}
+	res, err := r.svc.Sync(ctx)
+	if err != nil || res.Filed != 1 || len(r.forge.created) != 1 || r.forge.created[0].Title != "Flaky clock test" {
+		t.Fatalf("sync = %+v, %v, created %+v", res, err, r.forge.created)
+	}
+}
+
+func TestSyncRetriesUnconfirmedHandoffs(t *testing.T) {
+	r := newRig(t, is(3))
+	r.init(t, backlog.Settings{})
+	ctx := context.Background()
+	r.svc.Sync(ctx)
+	r.forge.editErr = errors.New("gh down")
+	if _, err := r.svc.Finish(ctx, 3, backlog.Human, "needs a call", false); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := r.store.Load(ctx)
+	if it, _ := st.Item(3); it.HandedOff || !it.Commented {
+		t.Fatalf("after a failed edit = %+v", it)
+	}
+	// Still failing: retried, the comment not posted again.
+	if res, _ := r.svc.Sync(ctx); res.Handed != 0 || len(r.forge.comments[3]) != 1 {
+		t.Fatalf("retry = %+v, comments %d", res, len(r.forge.comments[3]))
+	}
+	r.forge.editErr = nil
+	if res, _ := r.svc.Sync(ctx); res.Handed != 1 || len(r.forge.comments[3]) != 1 {
+		t.Fatalf("retry = %+v, comments %d", res, len(r.forge.comments[3]))
+	}
+	st, _ = r.store.Load(ctx)
+	if it, _ := st.Item(3); !it.HandedOff {
+		t.Fatalf("hand-off not confirmed: %+v", it)
+	}
+	if res, _ := r.svc.Sync(ctx); res.Handed != 0 {
+		t.Fatal("a confirmed hand-off was retried")
+	}
+	// A comment that failed is posted by the retry.
+	r2 := newRig(t, is(4))
+	r2.init(t, backlog.Settings{})
+	r2.svc.Sync(ctx)
+	r2.forge.failComment = errors.New("gh down")
+	r2.svc.Finish(ctx, 4, backlog.Human, "why", false)
+	r2.forge.failComment = nil
+	if res, _ := r2.svc.Sync(ctx); res.Handed != 1 || len(r2.forge.comments[4]) != 1 {
+		t.Fatalf("comment retry = %+v, %v", res, r2.forge.comments[4])
 	}
 }

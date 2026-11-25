@@ -45,6 +45,25 @@ func TestOpenIssues(t *testing.T) {
 	}
 }
 
+func TestOpenPRs(t *testing.T) {
+	calls, r := recorder(`[{"url":"https://github.com/o/r/pull/3"},{"url":"https://github.com/o/r/pull/9"}]`, nil)
+	got, err := NewWith(r).OpenPRs(context.Background(), "o/r")
+	if err != nil || !slices.Equal(got, []string{"https://github.com/o/r/pull/3", "https://github.com/o/r/pull/9"}) {
+		t.Fatalf("prs = %v, %v", got, err)
+	}
+	if a := strings.Join((*calls)[0].args, " "); !strings.Contains(a, "pr list -R o/r --state open --limit 5000 --json url") {
+		t.Fatalf("args = %s", a)
+	}
+	_, r = recorder("not json", nil)
+	if _, err := NewWith(r).OpenPRs(context.Background(), "o/r"); err == nil {
+		t.Fatal("bad json accepted")
+	}
+	_, r = recorder("", errors.New("auth"))
+	if _, err := NewWith(r).OpenPRs(context.Background(), "o/r"); err == nil {
+		t.Fatal("gh error swallowed")
+	}
+}
+
 func TestCreateCommentEdit(t *testing.T) {
 	calls, r := recorder("Creating issue\nhttps://github.com/o/r/issues/9\n", nil)
 	f := NewWith(r)
