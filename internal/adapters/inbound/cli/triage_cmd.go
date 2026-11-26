@@ -148,7 +148,8 @@ func printTriage(a *App, t run.Triage) {
 }
 
 // step implements `loops run step <id>`: "skip" when the run skips it, else
-// "run". An untriaged run runs every step.
+// "run". An untriaged run (triage off, or a run from before triage was
+// required to leave intake) runs every step.
 func (l leadCmd) step(ctx context.Context, args []string) int {
 	fs := l.a.newFlagSet("run step")
 	pos, err := parseFlagsAnywhere(fs, args)

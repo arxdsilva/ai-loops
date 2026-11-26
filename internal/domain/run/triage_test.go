@@ -263,7 +263,9 @@ func TestNextFollowsTriage(t *testing.T) {
 		{"file store, reflect skipped", state(files, tri(trivial), phase(PhaseQA), gateAll), "the gate is green: enter product"},
 		{"trivial product", state(tri(trivial), phase(PhaseProduct)), "open the PR yourself"},
 		{"small product keeps the proof", state(tri(small), phase(PhaseProduct)), "have the product-reviewer prove every AC"},
-		{"trivial reflect", state(tri(trivial), phase(PhaseReflect)), "write a short reflection.md yourself"},
+		{"trivial reflect", state(tri(trivial), phase(PhaseReflect)), "trivial run: no reflection.md"},
+		{"small reflect", state(tri(small), phase(PhaseReflect)), "write a short reflection.md yourself"},
+		{"trivial intake has a short charter", state(tri(trivial), phase(PhaseIntake)), "a short charter.md (the goal and the ACs only)"},
 		{"loop-back brings the reflector back", state(tri(trivial), Event{Kind: KindLoopBack, From: "gate", To: "lead"}, phase(PhaseReflect)), "when reflection.md is written"},
 	}
 	for _, c := range cases {
@@ -286,5 +288,29 @@ func TestBriefShowsTriage(t *testing.T) {
 	}
 	if strings.Contains(Brief(state(), ""), "Triage:") {
 		t.Error("an untriaged brief shows a triage line")
+	}
+}
+
+func TestPhaseRefusal(t *testing.T) {
+	triaged := Event{Kind: KindTriage, Name: string(TierSmall), Note: `{"tier":"small","signals":{"kind":"bugfix","files":2}}`}
+	for _, c := range []struct {
+		name   string
+		s      State
+		to     Phase
+		refuse bool
+	}{
+		{"untriaged leaves intake", state(phase(PhaseIntake)), PhaseResearch, true},
+		{"untriaged jumps to plan", state(), PhasePlan, true},
+		{"untriaged stays in intake", state(phase(PhaseIntake)), PhaseIntake, false},
+		{"triaged leaves intake", state(triaged, phase(PhaseIntake)), PhaseResearch, false},
+		{"a run already past intake is never refused", state(phase(PhaseImplement)), PhaseQA, false},
+	} {
+		got := PhaseRefusal(c.s, c.to)
+		if (got != "") != c.refuse {
+			t.Errorf("%s: %q", c.name, got)
+		}
+		if c.refuse && !strings.Contains(got, "loops run triage --kind") {
+			t.Errorf("%s: the refusal must name the fix: %q", c.name, got)
+		}
 	}
 }

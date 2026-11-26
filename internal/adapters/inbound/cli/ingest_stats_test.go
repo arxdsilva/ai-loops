@@ -41,6 +41,7 @@ const ingestLane = "# QA W1-domain r1\n## Claims\n" +
 func TestRunIngestLane(t *testing.T) {
 	e := rcSetup(t, "")
 	e.do("run", "start", "--title", "x")
+	e.do("run", "triage", "--full") // a run leaves intake only once triaged
 	e.do("run", "phase", "qa")
 	f := writeQA(t, "W1-domain.r1.md", ingestLane)
 	if code := e.do("run", "ingest", f); code != 0 {
@@ -187,6 +188,7 @@ func TestRunIngestErrors(t *testing.T) {
 func TestRunPhasePrintsCheckpoint(t *testing.T) {
 	e := rcSetup(t, "")
 	e.do("run", "start", "--title", "x")
+	e.do("run", "triage", "--full") // a run leaves intake only once triaged
 	e.do("run", "ask", "plan,qa")
 	for ph, want := range map[string]string{"plan": "Checkpoint: ask\n", "implement": "Checkpoint: auto\n", "qa": "Checkpoint: ask\n"} {
 		if code := e.do("run", "phase", ph); code != 0 {

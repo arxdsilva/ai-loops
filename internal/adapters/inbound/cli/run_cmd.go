@@ -150,6 +150,16 @@ func (a *App) runPhase(ctx context.Context, args []string) int {
 	if p.Index() < 0 {
 		return a.usageErr(fmt.Sprintf("run phase: unknown phase %q (want one of %v)", pos[0], run.Phases))
 	}
+	if !a.TriageOff {
+		st, err := a.Tracker.State(ctx, "")
+		if err != nil {
+			return a.fail("run phase", err)
+		}
+		if reason := run.PhaseRefusal(st, p); reason != "" {
+			fmt.Fprintf(a.Err, "loops run phase: refusing %s: %s\n", p, reason)
+			return 1
+		}
+	}
 	if err := a.Tracker.Record(ctx, run.Event{Kind: run.KindPhase, Phase: p, Note: *note}); err != nil {
 		return a.fail("run phase", err)
 	}

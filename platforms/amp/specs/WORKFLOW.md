@@ -40,6 +40,8 @@ QA starts pipelined: a verifier launches as soon as its implementer reports, eve
 
 ### 2.0 Intake
 
+**Is it a run?** Before step 0 the lead decides whether the request needs a run at all. It does not when the request names no ticket (no issue, Jira or Linear reference) and will change no file in the repository: a question, a lookup, reading code, a status check, running a few commands. The lead does it directly and answers, with no `loops run start`, gate or PR. If the work shows that a file must change, the lead starts a run then, with what it learned as the ticket text. A ticket reference always gets a run: a backlog lane that starts none counts as failed (BACKLOG §3).
+
 0. Update: `<plugin root>/bin/loops update --apply --platform <p>` (PLATFORMS §9; the session context gives the path, use `loops` only when it does not). Relay its one line to the user; never block.
 0a. **Init** (once per project): `loops init`. It writes the minimal `.loops/config.json` when the project has none (every value a default, written out so the project's choices are visible and committed), keeps an existing one, re-includes it in `.loops/.gitignore` and prints the detected packs. `loops run start` refuses a project without the file. When `init` created it, the lead tells the user in one line, and the PR commits it (§2.5).
 1. `loops run start --title "<short title>" [--ticket <ref>] [--source <s>]` prints the run ID and the run directory. It also creates the run's scratch folder outside the project and prepares the run-scoped caches and tmp dirs in it (Go: `<scratch>/go/{cache,tmp}`) and records a baseline of the untracked files already present, so cleanup (§2.6) can tell what the run created.
@@ -52,7 +54,7 @@ QA starts pipelined: a verifier launches as soon as its implementer reports, eve
 3. Read the active memory store (§7): ai-memory (`memory_briefing` once, then one `memory_query` with the ticket's key terms) or the file store (grep `.loops/memory/` for the same terms). Save the hits to `research/memory.md`, with a `## Recurring` section listing the pages whose `runs` hold 2+ run ids, and record `loops run event --kind memory --name briefing`. With the file store active, also record `loops run decide --topic memory-store --note "files: <why>"`. With no store, skip silently.
 4. Record the checkpoints: `loops run ask [<list>]` (§2.7). With no list it applies `.loops/config.json`.
 5. **Clarify**: load `loops:clarify` (`skills/clarify`). It scans the ticket for open points, infers each one with a recommended answer and records it in `clarifications.md`. Infer by default and record every inference: `clarifications.md`, a charter assumption that cites its item, and `loops run decide --topic assumption`. Ask only when the `intake` checkpoint is `ask`, the user asked, or an inference would be hard to undo; then ask a reachable user and record the answer with `--by user`. Open points beyond the 5-question cap are inferred (§2.7).
-6. Write `charter.md` from `templates/CHARTER.md` (§2.7): the goal, the ACs as the ticket states them, what is in and out of scope, constraints, and the assumptions taken where the ticket is unclear. The ACs are final when the plan is approved.
+6. Write `charter.md` from `templates/CHARTER.md` (§2.7): the goal, the ACs as the ticket states them, what is in and out of scope, constraints, and the assumptions taken where the ticket is unclear. A `trivial` run (§2.8) writes only the goal and the ACs. The ACs are final when the plan is approved.
 
 Flags on `/loops:work`:
 - `--ask <phases>`: the phases where the lead stops for the user (§2.7), e.g. `--ask plan,pr` or `--ask all`.
@@ -285,7 +287,7 @@ Each decision is recorded: `loops run decide --topic <what> --note "<decision; r
 
 ### 2.8 Triage: the skipper
 
-A one-line typo fix and a new payment flow should not cost the same. The lead triages every run at intake (§2.0, after the ticket is fetched) and again after implement, and skips the steps the task does not need. The engine is `internal/domain/run/triage.go`; the lead only supplies the signals, so the same signals always give the same skips.
+A one-line typo fix and a new payment flow should not cost the same. The lead triages every run at intake (§2.0, after the ticket is fetched) and again after implement, and skips the steps the task does not need. The engine is `internal/domain/run/triage.go`; the lead only supplies the signals, so the same signals always give the same skips. Triage is required: `loops run phase` refuses to leave intake until the run has a triage event (exit 1, naming the command), unless triage is off.
 
 **The floor.** These are not steps and can never be skipped: `loops gate` (every check, its coverage floor and the race policy, §6), the branch and PR rules (§2.7), the project's own rules (§1), the charter's scope, and `loops run end`. Triage never weakens a test.
 
@@ -306,7 +308,7 @@ When unsure, the lead picks the larger estimate and names the touch: triage errs
 | Tier | When | Runs |
 |---|---|---|
 | `standard` | 2+ languages, more than 5 files, an unknown kind, or `api`, `schema` or `concurrency` touched | everything |
-| `trivial` | `docs`, `typo`, `config` or `test`, at most 2 files, nothing touched | the gate only (and clarify when `--unclear`) |
+| `trivial` | `docs`, `typo`, `config` or `test`, at most 2 files, nothing touched | the gate only (and clarify when `--unclear`); the charter holds only the goal and the ACs, and there is no `reflection.md` |
 | `small` | anything else | `memory`, `research-code`, `planner`, `qa-verify`, and `product-proof` when the kind changes behaviour |
 
 Touches add steps back in any tier: `external` or `deps` keeps `research-web`; `security` or `deps` keeps `research-practices` and `qa-security`; `deps` keeps `architect` (wave 0 owns manifests and lockfiles); `--unclear` keeps `clarify`.
@@ -327,13 +329,13 @@ Touches add steps back in any tier: `external` or `deps` keeps `research-web`; `
 | `qa-verify` | qa | no verifier; the gate is the check |
 | `qa-quality`, `qa-security` | qa | the pass does not run |
 | `product-proof` | product | no manual run: the lead records `loops run verdict --name AC-<n> --status VERIFIED --ref <test or gate check>`, writes `pr.md` mapping each AC to that evidence, runs `loops report`, then branches, commits, pushes and opens the PR itself, following §2.5 step 6 |
-| `reflect` | reflect | the lead writes a short `reflection.md` (outcome, triage, decisions, overrides) and posts `overrides.md` as §2.6 step 4 says; no memory pages. With the file store, reflect then runs after the PR. A run with any loop-back runs the reflector anyway: a loop-back is a lesson |
+| `reflect` | reflect | the lead writes a short `reflection.md` (outcome, triage, decisions, overrides) and posts `overrides.md` as §2.6 step 4 says; no memory pages. A `trivial` run writes no `reflection.md`: the end summary (§2.6) carries the outcome, decisions, overrides and the cleanup line. With the file store, reflect then runs after the PR. A run with any loop-back runs the reflector anyway: a loop-back is a lesson |
 
 **Recheck.** When the last lane has reported, before `loops run phase qa`, the lead counts the files the run changed (`git status --porcelain --untracked-files=all`) and runs `loops run triage --recheck --files N` (plus any touch the diff revealed). A recheck only adds work back: the tier never goes down, a step stays skipped only when the fresh decision also skips it, and steps of phases already passed stay as they were.
 
 **Overrides.** `--keep <steps>` runs a step the tier skips; `--skip <steps>` skips one it runs. Either needs `--reason`, and is recorded as a `triage` decision. A recheck does not keep earlier `--skip` overrides: pass them again.
 
-**Off.** `--full` on `/loops:work` (`loops run triage --full`) or `"triage": "off"` in `.loops/config.json` makes the run skip nothing. A run with no triage event skips nothing either.
+**Off.** `--full` on `/loops:work` (`loops run triage --full`) or `"triage": "off"` in `.loops/config.json` makes the run skip nothing. A run with no triage event (triage off, or one already past intake when triage became required) skips nothing either.
 
 **Records.** Each `loops run triage` writes a `triage` event (the last one wins). `loops run step <step>` prints `run` or `skip`; the brief (§2.7), `loops run brief --json` and the report show the tier, the signals and the skipped steps. The lead tells the user in one line: `triage: small; skipping research-web, plan-review, …`.
 
@@ -414,7 +416,7 @@ The user may cap concurrent agents (`--max-agents N`), tokens per phase (`--budg
 | `loops gate` | `gate`, one per check (with `pack` when several packs are detected) plus `all` |
 
 The CLI commands that write these events:
-- `loops run phase <phase> [--note]`: records the phase, then prints the brief (§2.7) and a last line `Checkpoint: ask|auto` for that phase, the answer `loops run checkpoint` gives.
+- `loops run phase <phase> [--note]`: records the phase, then prints the brief (§2.7) and a last line `Checkpoint: ask|auto` for that phase, the answer `loops run checkpoint` gives. Exit 1, recording nothing, when it would leave intake before `loops run triage` (§2.8; not with triage off).
 - `loops run ask [<list>]`: records the checkpoints (phase names, `approve`, `pr`, `all` or `none`; no list = `.loops/config.json` `ask`) and prints them.
 - `loops run checkpoint <phase>`: prints `ask` when the lead stops for the user at that phase, else `auto`. Writes nothing.
 - `loops run decide --topic T --note text [--by lead|user] [--ref f] [--phase P]`: records a decision.

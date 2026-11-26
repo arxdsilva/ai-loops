@@ -23,6 +23,7 @@ func TestBudgetNoRunFitsSilently(t *testing.T) {
 func TestBudgetCheckNoLimits(t *testing.T) {
 	e := rcSetup(t, "")
 	e.do("run", "start", "--title", "x")
+	e.do("run", "triage", "--full") // a run leaves intake only once triaged
 	e.do("run", "phase", "implement")
 	n := len(e.events())
 	if code := e.do("budget", "check", "--phase", "implement", "--spawn", "100", "--role", "r"); code != 0 || e.out.Len() != 0 {
@@ -42,6 +43,7 @@ func TestBudgetCheckNoLimits(t *testing.T) {
 func TestBudgetCheckBlocksAndRecords(t *testing.T) {
 	e := rcSetup(t, "")
 	e.do("run", "start", "--title", "x")
+	e.do("run", "triage", "--full") // a run leaves intake only once triaged
 	// config limits; the run's recorded limits win field by field.
 	e.app.Limits = run.Limits{MaxAgents: 10, Phases: map[run.Phase]run.PhaseLimit{run.PhaseImplement: {MaxTokens: 1_000_000, MaxAgents: 3}}}
 	if e.do("run", "event", "--kind", "limits", "--note", `{"phases":{"implement":{"max_tokens":2000000}}}`) != 0 {
@@ -77,6 +79,7 @@ func TestBudgetCheckBlocksAndRecords(t *testing.T) {
 func TestBudgetCheckTokens(t *testing.T) {
 	e := rcSetup(t, "")
 	e.do("run", "start", "--title", "x")
+	e.do("run", "triage", "--full") // a run leaves intake only once triaged
 	e.do("run", "event", "--kind", "limits", "--note", `{"phases":{"research":{"max_tokens":200000,"roles":["web-researcher"]}}}`)
 	e.do("run", "phase", "research")
 	e.app.Tracker.Record(t.Context(), run.Event{Kind: run.KindAgentStart, Agent: "a1", Role: "web-researcher"})

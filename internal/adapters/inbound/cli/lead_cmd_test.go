@@ -57,6 +57,7 @@ func TestRunCheckpoint(t *testing.T) {
 func TestRunDecide(t *testing.T) {
 	e := rcSetup(t, "")
 	e.do("run", "start", "--title", "x")
+	e.do("run", "triage", "--full") // a run leaves intake only once triaged
 	e.do("run", "phase", "qa")
 	if e.do("run", "decide", "--topic", "W1:C2", "--note", "moved to Open: not needed by any AC", "--ref", "qa/W1.r3.md") != 0 {
 		t.Fatal(e.err)
@@ -91,6 +92,7 @@ func TestRunBriefAndPhase(t *testing.T) {
 		t.Fatal("brief needs a run")
 	}
 	e.do("run", "start", "--title", "Add orders", "--ticket", "#9")
+	e.do("run", "triage", "--full") // a run leaves intake only once triaged
 	e.do("run", "ask", "plan")
 	// Entering a phase prints the brief.
 	if e.do("run", "phase", "plan") != 0 {

@@ -266,7 +266,7 @@ func (h *handler) sessionStart(ctx context.Context, d dialect, p payload, out io
 	root := h.d.Env("LOOPS_PLUGIN_ROOT")
 	text := "loops plugin active."
 	if root != "" {
-		text = fmt.Sprintf("loops plugin active. Plugin root: %s. Work tickets with %s (WORKFLOW: %s/specs/WORKFLOW.md).", root, entryPoint[h.platform], strings.TrimRight(root, "/"))
+		text = fmt.Sprintf("loops plugin active. Plugin root: %s. Work tickets with %s (WORKFLOW: %s/specs/WORKFLOW.md); a request that changes no file and names no ticket (a question, a lookup, running commands) needs no run: do it directly (WORKFLOW §2.0).", root, entryPoint[h.platform], strings.TrimRight(root, "/"))
 	}
 	brief := ""
 	if id, err := h.recorder().Current(ctx); err == nil && id != "" {

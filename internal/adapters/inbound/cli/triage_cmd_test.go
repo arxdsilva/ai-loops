@@ -152,3 +152,26 @@ func TestRunBriefJSONTriage(t *testing.T) {
 		t.Errorf("brief json triage = %+v skipped %v", b.Triage, b.Skipped)
 	}
 }
+
+func TestRunPhaseNeedsTriage(t *testing.T) {
+	e := rcSetup(t, "")
+	e.do("run", "start", "--title", "x")
+	if code := e.do("run", "phase", "research"); code != 1 || !strings.Contains(e.err.String(), "not triaged") || !strings.Contains(e.err.String(), "loops run triage --kind") {
+		t.Fatalf("untriaged: %d %q", code, e.err)
+	}
+	for _, ev := range e.events() {
+		if ev.Kind == run.KindPhase && ev.Phase == run.PhaseResearch {
+			t.Fatal("a refused phase was recorded")
+		}
+	}
+	e.do("run", "triage", "--kind", "typo", "--files", "1")
+	if code := e.do("run", "phase", "plan"); code != 0 {
+		t.Fatalf("triaged: %d %q", code, e.err)
+	}
+	off := rcSetup(t, "")
+	off.app.TriageOff = true
+	off.do("run", "start", "--title", "y")
+	if code := off.do("run", "phase", "research"); code != 0 {
+		t.Fatalf("triage off: %d %q", code, off.err)
+	}
+}

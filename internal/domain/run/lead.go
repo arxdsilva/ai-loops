@@ -153,6 +153,9 @@ func Next(s State) string {
 		if reflectFirst(s) && !visited(s, PhaseProduct) {
 			return "when reflection.md and the memory pages are written: enter product (the PR commit carries the pages)" + gateSuffix(s, PhaseReflect)
 		}
+		if Skips(s, StepReflect) && s.Triage.Tier == TierTrivial {
+			return "trivial run: no reflection.md; put the outcome, decisions and overrides in your summary (post overrides.md if an override was recorded), then loops run end --outcome done" + gateSuffix(s, PhaseReflect)
+		}
 		if Skips(s, StepReflect) {
 			return "triage skipped the reflector: write a short reflection.md yourself (outcome, triage, decisions, overrides), then loops run end --outcome done" + gateSuffix(s, PhaseReflect)
 		}
@@ -162,13 +165,27 @@ func Next(s State) string {
 }
 
 func nextIntake(s State) string {
+	charter := "write charter.md"
+	if s.Triage.Tier == TierTrivial {
+		charter = "write a short charter.md (the goal and the ACs only)"
+	}
 	switch {
 	case s.Triage.Tier == "":
 		return "triage the request (loops run triage), write charter.md, record the checkpoints (loops run ask), then enter research"
 	case researchSkipped(s):
-		return "write charter.md, record the checkpoints (loops run ask), run loops lang detect --write, then enter plan: triage skipped research"
+		return charter + ", record the checkpoints (loops run ask), run loops lang detect --write, then enter plan: triage skipped research"
 	}
-	return "write charter.md, record the checkpoints (loops run ask), then enter research"
+	return charter + ", record the checkpoints (loops run ask), then enter research"
+}
+
+// PhaseRefusal is why `loops run phase to` must not be recorded, or "". A run
+// leaves intake only once it is triaged (WORKFLOW §2.8), so no run silently
+// pays for the full workflow; runs already past intake are never refused.
+func PhaseRefusal(s State, to Phase) string {
+	if s.Triage.Tier != "" || to.Index() <= PhaseIntake.Index() || s.Phase.Index() > PhaseIntake.Index() {
+		return ""
+	}
+	return "the run is not triaged: run loops run triage --kind <docs|typo|config|test|bugfix|feature|refactor|upgrade> --files <estimate> [--touches …] [--unclear] (or --full) first (WORKFLOW §2.8)"
 }
 
 func nextProduct(s State, open []VerdictInfo) string {

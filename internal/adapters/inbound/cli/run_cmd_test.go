@@ -131,6 +131,7 @@ func TestRunNoActiveRun(t *testing.T) {
 func TestRunSubcommands(t *testing.T) {
 	e := rcSetup(t, "")
 	e.do("run", "start", "--title", "x")
+	e.do("run", "triage", "--full") // a run leaves intake only once triaged
 	if e.do("run", "phase", "plan", "--note", "go") != 0 {
 		t.Fatal(e.err)
 	}
@@ -332,6 +333,7 @@ func TestRunOverride(t *testing.T) {
 		t.Fatalf("no run: %d %q", code, e.err)
 	}
 	e.do("run", "start", "--title", "x")
+	e.do("run", "triage", "--full") // a run leaves intake only once triaged
 	e.do("run", "phase", "implement")
 	if e.do("run", "override", "--rule", "SOLID §9", "--project", "AGENTS.md:12 testify", "--note", "used testify", "--agent", "a1", "--role", "domain-engineer") != 0 {
 		t.Fatal(e.err)

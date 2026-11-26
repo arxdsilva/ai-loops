@@ -111,7 +111,7 @@ func TestSessionStart(t *testing.T) {
 	}
 	e.vars["LOOPS_PLUGIN_ROOT"] = "/plug"
 	_, o, _ := e.run("session-start", "{}")
-	if !strings.Contains(o, `"hookEventName":"SessionStart"`) || !strings.Contains(o, "Plugin root: /plug. Work tickets with /loops:work (WORKFLOW: /plug/specs/WORKFLOW.md).") || strings.Contains(o, "Active run") {
+	if !strings.Contains(o, `"hookEventName":"SessionStart"`) || !strings.Contains(o, "Plugin root: /plug. Work tickets with /loops:work (WORKFLOW: /plug/specs/WORKFLOW.md); a request that changes no file and names no ticket (a question, a lookup, running commands) needs no run: do it directly (WORKFLOW §2.0).") || strings.Contains(o, "Active run") {
 		t.Fatalf("%q", o)
 	}
 	e.rec.cur = "r1"
