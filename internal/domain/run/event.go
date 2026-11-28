@@ -60,6 +60,13 @@ const (
 // GateAll is the gate name recorded once the whole gate pipeline passes or fails.
 const GateAll = "all"
 
+// GateScope is the gate name a scoped gate (`loops gate --pkgs`, every
+// check) records when it ends: OK, Target = its scope as comma-separated
+// ScopePattern values relative to the project root, Time = its start. A
+// green one covers the files in its scope edited before it started, once
+// the run's full gate is green (WORKFLOW §6).
+const GateScope = "scope"
+
 // Event is one line of events.jsonl. Fields are optional per Kind (see the
 // Kind constants). Unknown fields are ignored by readers so the schema can
 // grow additively.

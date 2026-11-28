@@ -23,7 +23,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 2. Read your block and the repo's own config first (`.rubocop.yml`, `.standard.yml`, `.rspec`, `.ruby-version`, `Gemfile`, CI files). Detect the build variant (RSpec or Minitest) from the repo; do not switch it.
 3. Wave 0: make `bundle check` pass; add only the config and gems the plan lists; add the SimpleCov helper so `coverage/lcov.info` is written; run the test suite once to prove it. Every added or changed default is an override or a plan item, logged.
 4. Race policy (WORKFLOW §6): Ruby has no race detector; the `test` check runs random order with a printed seed twice. Never pin the seed. Report the seed of any failure.
-5. Check only your scope, through `bundle exec` or binstubs: the single check commands from `loops:lang-ruby` (for example `bundle exec rubocop <files>`, `bundle exec rspec <file>`), not the full gate. The lead and QA run `loops gate`.
+5. Check only your scope, through `bundle exec` or binstubs: the single check commands from `loops:lang-ruby` (for example `bundle exec rubocop <files>`, `bundle exec rspec <file>`), not the full gate. The lead runs `loops gate`, once per run (WORKFLOW §6).
 6. Stay inside `Owns`. Failures in others' files or a needed contract change: report, do not fix. No `git add`/`commit`/`push`.
 7. Use absolute paths (cwd changes between calls).
 8. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.

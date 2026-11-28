@@ -15,7 +15,7 @@ Follow the project's own config and conventions over everything below: `.golangc
 
 ## Toolchain the gate runs
 
-`loops gate` runs these in order; while iterating run one check: `loops gate --only <check> --pkgs <owned>`. Full suite is the lead's and QA's job.
+`loops gate` runs these in order; while iterating run one check: `loops gate --only <check> --pkgs <owned>`. The full suite is the lead's, once per run (WORKFLOW §6).
 
 | Check | Command | Required |
 |---|---|---|

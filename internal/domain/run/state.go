@@ -40,6 +40,10 @@ type State struct {
 	// the last passing GateAll; the Stop gate reads it.
 	SourceDirty      bool      `json:"source_dirty"`
 	LastSourceChange time.Time `json:"last_source_change,omitzero"`
+	// Unchecked lists the source files edited after the latest (green) full
+	// gate that no later green scoped gate covers, sorted; while the full
+	// gate is green, SourceDirty is exactly len(Unchecked) > 0 (WORKFLOW §6).
+	Unchecked []string `json:"unchecked,omitempty"`
 
 	// Overrides are project rules that superseded loops rules (WORKFLOW §1).
 	Overrides []OverrideInfo `json:"overrides"`

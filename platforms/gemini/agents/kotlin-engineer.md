@@ -27,7 +27,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 1. Load `loops:lang-kotlin` first, then `loops:hexagonal` and `loops:testing`. Read `specs/languages/kotlin/pack.json` through `loops lang show kotlin`.
 2. Read your block, the existing build files and the nearest `AGENTS.md`. Search before reading; read ranges.
 3. Strict TDD for any real logic (convention plugins, build-logic tests). A build change is verified by running the check it affects.
-4. Check only your scope with the wrapper: `./gradlew --console=plain :module:test --rerun` or the single gate command. `--rerun` goes after `test`. Keep `GRADLE_USER_HOME` shared; the gate scopes the project cache dir. Never run the full `loops gate` unless the plan says so; the lead and QA do.
+4. Check only your scope with the wrapper: `./gradlew --console=plain :module:test --rerun` or the single gate command. `--rerun` goes after `test`. Keep `GRADLE_USER_HOME` shared; the gate scopes the project cache dir. Never run the full `loops gate` unless the plan says so; the lead does, once per run (WORKFLOW §6).
 5. Race policy (WORKFLOW §6): the JVM has none, so the substitute is mandatory. Make sure `junit-platform.properties` enables parallel execution and `MethodOrderer$Random`, and that `test-repeat` passes. Never add retries.
 6. Coverage: Kover XML at `build/reports/kover/report.xml`, at least 70% on new code. Exclude only generated code.
 7. Dependencies: versions only in the catalog, locks regenerated with `./gradlew dependencies --write-locks` and committed, one upgrade theme per commit-sized change.

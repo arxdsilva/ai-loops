@@ -27,7 +27,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 2. Read your block, the existing CMake and presets, and the nearest package `AGENTS.md`. Search before reading; read ranges.
 3. Strict TDD for any code you write: failing test, minimal fix, refactor. Never weaken or delete a test.
 4. Follow the race policy in `WORKFLOW §6`: the `test-tsan` and `test-asan-ubsan` checks are required (`loops:lang-cpp`, build mode). Keep the project's real preset names; if they differ from the pack, override the check argv and log it.
-5. Check only your scope, with `CMAKE_BUILD_PARALLEL_LEVEL=2` (for example `cmake --build --preset dev --target <t>_test && ctest --preset dev -R <regex> --no-tests=error`). Wave 0 ends with a full `loops gate`; other lanes leave the full gate to the lead and QA.
+5. Check only your scope, with `CMAKE_BUILD_PARALLEL_LEVEL=2` (for example `cmake --build --preset dev --target <t>_test && ctest --preset dev -R <regex> --no-tests=error`). Wave 0 ends with a full `loops gate`; other lanes leave the full gate to the lead, which runs it once per run.
 6. Stay inside `Owns`. Failures in other agents' files or a needed contract change: report them, do not fix. Use absolute paths.
 7. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 

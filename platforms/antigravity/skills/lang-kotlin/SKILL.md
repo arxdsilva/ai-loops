@@ -26,7 +26,7 @@ The project's own config wins over this skill: `.editorconfig`, `config/detekt/d
 | coverage (required) | loops parses `build/reports/kover/report.xml` | JaCoCo schema, new-code at least 70% |
 | osv (off by default) | `osv-scanner scan source -L gradle.lockfile` | `--vuln` |
 
-Narrow scope while working: `./gradlew :module:test --tests 'com.acme.FooTest'` (`KT-TEST-11`). Never run the full gate as an implementer; the lead and QA do (ROLES.md).
+Narrow scope while working: `./gradlew :module:test --tests 'com.acme.FooTest'` (`KT-TEST-11`). Never run the full gate as an implementer; the lead does, once per run (WORKFLOW §6).
 Gradle is a shared daemon host: keep `GRADLE_USER_HOME` shared (it holds downloads), scope only the project cache dir by argv (`KT-OPS-05`). Never set `ORG_GRADLE_PROJECT_*` for it; it does nothing.
 
 ## Race policy (WORKFLOW §6)

@@ -24,9 +24,9 @@ Language: <id> (root <dir>)
 loops run label --agent <agentId from the Agent result> --name W1-domain --role domain-engineer --wave 1
 ```
 
-7. **Pipeline QA.** Launch a `qa-verifier` as soon as its implementer reports; it records its verdicts and loop-back itself with `loops run ingest`. When the last lane reports, start the full gate, the quality pass and the security pass together (WORKFLOW §2.4).
+7. **Pipeline QA.** Launch a `qa-verifier` as soon as its implementer reports; it records its verdicts and loop-back itself with `loops run ingest`. When the last lane reports, start the full gate (the run's only one, WORKFLOW §6), the quality pass and the security pass together (WORKFLOW §2.4).
 8. **Relay** cross-agent facts through the lead with `SendMessage`; broadcast additive contract changes to every affected agent. Do not enter plan mode while agents run.
-9. **Integrate and verify.** After each wave run `loops gate`, which checks every detected pack (`specs/WORKFLOW.md §6`); route failures to the owning agent, resumed with `SendMessage`.
+9. **Integrate and verify.** After each wave check that it integrates with the build and lint checks only (`loops gate --only <build and lint checks>`; Go: `build,vet`); the full gate runs once per run, at the QA tail (`specs/WORKFLOW.md §6`). Route failures to the owning agent, resumed with `SendMessage`.
 10. **Lifecycle** (`specs/PARALLEL_WORK.md §7`). Reuse the owning agent for fixes and the next wave. Do one-fact lookups and edits under ~30 lines yourself. Commit with `git commit -m ... -- <paths>` (only `product-reviewer` commits, after you confirm). `TaskStop` agents you will not resume. Split a worker before about 200 API calls.
 
 ## Agent prompt skeleton

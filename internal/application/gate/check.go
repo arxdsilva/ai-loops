@@ -14,6 +14,7 @@ import (
 	"github.com/arxdsilva/ai-loops/internal/application/langpack"
 	"github.com/arxdsilva/ai-loops/internal/domain/glob"
 	"github.com/arxdsilva/ai-loops/internal/domain/pack"
+	"github.com/arxdsilva/ai-loops/internal/domain/run"
 	"github.com/arxdsilva/ai-loops/internal/domain/workspace"
 )
 
@@ -54,7 +55,7 @@ func (s *service) check(ctx context.Context, o Options, pr *packRun, c pack.Chec
 	case "coverage":
 		return s.coverageCheck(ctx, o, pr)
 	case "arch":
-		return s.archCheck(ctx, pr)
+		return s.archCheck(ctx, o, pr)
 	}
 	race := pr.p.RaceCheck(c.Name)
 	argv, override, early := s.resolveArgv(pr, c, race, o.Missing)
@@ -178,12 +179,17 @@ func (s *service) anyExists(pr *packRun, entries []string) bool {
 	return false
 }
 
-func (s *service) archCheck(ctx context.Context, pr *packRun) CheckResult {
+func (s *service) archCheck(ctx context.Context, o Options, pr *packRun) CheckResult {
 	if s.arch == nil {
 		return CheckResult{Output: "arch: not configured", note: "arch: not configured"}
 	}
 	start := s.clock.Now()
 	text, pass, err := s.arch.Check(ctx, pr.root)
+	dropped := 0
+	if err == nil && !pass && len(o.Pkgs) > 0 {
+		text, dropped = inScope(text, o.Pkgs)
+		pass = strings.TrimSpace(text) == ""
+	}
 	out, ok := text, pass && err == nil
 	if err != nil {
 		out = err.Error() + "\n" + text
@@ -193,7 +199,39 @@ func (s *service) archCheck(ctx context.Context, pr *packRun) CheckResult {
 		cr.Output = trim(out, nil)
 	}
 	cr.note = firstLine(out)
+	if ok && dropped > 0 {
+		cr.note = fmt.Sprintf("%d finding(s) outside --pkgs not counted", dropped)
+	}
 	return cr
+}
+
+// inScope keeps the arch findings ("file:line rule msg", file relative to
+// the pack root) whose file lies in pkgs, and lines it cannot attribute to
+// a file; it returns them and how many findings it dropped. A scoped gate
+// judges only its packages (WORKFLOW §6).
+func inScope(text string, pkgs []string) (string, int) {
+	var pats []string
+	for _, p := range pkgs {
+		if sp := run.ScopePattern(".", p); sp != "" {
+			pats = append(pats, sp)
+		}
+	}
+	var kept []string
+	dropped := 0
+	for _, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+		file, _, found := strings.Cut(l, ":")
+		if found && file != "" && !strings.ContainsAny(file, " \t") && !run.ScopeCovers(pats, filepath.ToSlash(file)) {
+			dropped++
+			continue
+		}
+		if strings.TrimSpace(l) != "" {
+			kept = append(kept, l)
+		}
+	}
+	if len(kept) == 0 {
+		return "", dropped
+	}
+	return strings.Join(kept, "\n") + "\n", dropped
 }
 
 // runArgv runs c (× race variants × repeat) and judges the outcome.

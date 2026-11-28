@@ -13,7 +13,7 @@ description: Use when writing, reviewing or running backend tests in any languag
 
 ## Always the pack's race policy
 
-Every test run follows the pack's race policy (WORKFLOW §6): the race flag (`flag` packs: Go `-race`, Swift `--sanitize=thread`), the race build (`build`: the C++ TSan preset), or the substitute checks (`none`: randomised order with a printed seed, parallel runs, repeats of the changed tests). `loops lang show <id>` shows `race`. The answer to a slow suite is cheaper tests, never a weaker policy: no retries, no fixed order. Agents check their scope with `loops gate --only <check>,… --pkgs <owned>`; the full suite is the lead's and QA's (`ROLES.md`).
+Every test run follows the pack's race policy (WORKFLOW §6): the race flag (`flag` packs: Go `-race`, Swift `--sanitize=thread`), the race build (`build`: the C++ TSan preset), or the substitute checks (`none`: randomised order with a printed seed, parallel runs, repeats of the changed tests). `loops lang show <id>` shows `race`. The answer to a slow suite is cheaper tests, never a weaker policy: no retries, no fixed order. Agents check their scope with `loops gate --only <check>,… --pkgs <owned>`; the full suite is the lead's, once per run (WORKFLOW §6).
 
 ## Pyramid
 

@@ -28,7 +28,7 @@ The project's own config wins over this skill: `rebar.config`, `elvis.config`, `
 | coverage (required) | `rebar3 covertool generate`, then loops parses `_build/test/covertool/*.covertool.xml` | Cobertura, new code at least 70% |
 | audit, sbom (off by default) | `rebar3 audit`, `rebar3 sbom` | `--vuln`; audit needs network (`ERL-TOOL-08`) |
 
-Narrow scope while working: `rebar3 eunit --module=m`, `rebar3 ct --suite=test/x_SUITE --case=c` (`ERL-TEST-10`). Never run the full gate as an implementer; the lead and QA do (ROLES.md). `ERL_CRASH_DUMP` is scoped per run by the gate; `REBAR_CACHE_DIR` and `REBAR_GLOBAL_CONFIG_DIR` stay shared (they hold packages, project plugins and the PLT), only `_build` is per project (`ERL-OPS-05`).
+Narrow scope while working: `rebar3 eunit --module=m`, `rebar3 ct --suite=test/x_SUITE --case=c` (`ERL-TEST-10`). Never run the full gate as an implementer; the lead does, once per run (WORKFLOW §6). `ERL_CRASH_DUMP` is scoped per run by the gate; `REBAR_CACHE_DIR` and `REBAR_GLOBAL_CONFIG_DIR` stay shared (they hold packages, project plugins and the PLT), only `_build` is per project (`ERL-OPS-05`).
 
 ## Race policy (WORKFLOW §6)
 

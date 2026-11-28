@@ -31,7 +31,7 @@ Digest of RULES `PY-TEST`. Pyramid, determinism and the 70% rule: `skills/testin
 
 ## Fast loop
 
-`pytest -x --lf`, `pytest path::test -k expr`, `pytest-testmon` for selection (`PY-TEST-16`). QA scopes the gate: `loops gate --only test,coverage`. Use the single check commands while iterating; the full suite belongs to the lead and QA (`ROLES.md`).
+`pytest -x --lf`, `pytest path::test -k expr`, `pytest-testmon` for selection (`PY-TEST-16`). QA scopes the gate: `loops gate --only test,coverage`. Use the single check commands while iterating; the full suite belongs to the lead, once per run (`ROLES.md`).
 
 ## Django
 

@@ -11,6 +11,8 @@ package gate
 import (
 	"context"
 	"errors"
+	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -250,7 +252,49 @@ func (s *service) Run(ctx context.Context, o Options) (Result, error) {
 	if isFullGate(o) {
 		s.recordAll(ctx, &res, startedAt, st.skippedReq)
 	}
+	if isScopedFull(o) {
+		s.recordScope(ctx, res, startedAt, st.skippedReq, scopeOf(o))
+	}
 	return res, nil
+}
+
+// isScopedFull reports whether o is a scoped gate that runs every check on
+// its packages (--pkgs only), so it ends with a run.GateScope event.
+func isScopedFull(o Options) bool {
+	return len(o.Pkgs) > 0 && len(o.Only) == 0 && len(o.Skip) == 0 && o.PackChecks == nil && !o.NoRecord
+}
+
+// scopeOf renders o.Pkgs for every pack as run.ScopePattern values relative
+// to the project root, sorted and distinct; patterns that name no path (a
+// tool flag such as Rust's -p) are left out.
+func scopeOf(o Options) []string {
+	var out []string
+	for _, d := range o.Packs {
+		rootRel := strings.TrimPrefix(path.Clean(filepath.ToSlash(d.Root)), "./")
+		for _, p := range o.Pkgs {
+			if sp := run.ScopePattern(rootRel, p); sp != "" && !slices.Contains(out, sp) {
+				out = append(out, sp)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// recordScope records the run.GateScope event of a scoped gate: green when
+// every check that ran passed and no required check was config-skipped. It
+// lets a run whose full gate is green re-check later edits on their
+// packages only (WORKFLOW §6). A scope with no path records nothing.
+func (s *service) recordScope(ctx context.Context, res Result, startedAt time.Time, skippedReq string, scope []string) {
+	if len(scope) == 0 {
+		return
+	}
+	ok := res.OK && skippedReq == ""
+	ev := run.Event{Kind: run.KindGate, Name: run.GateScope, OK: run.Bool(ok), Target: strings.Join(scope, ","), Time: startedAt.UTC()}
+	if skippedReq != "" {
+		ev.Note = "required check skipped: " + skippedReq
+	}
+	_ = s.rec.Record(ctx, ev)
 }
 
 // runState is what a Run carries across checks.

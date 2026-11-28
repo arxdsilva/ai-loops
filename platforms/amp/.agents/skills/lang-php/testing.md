@@ -27,7 +27,7 @@ plus `failOnWarning="true"`, `failOnRisky="true"`, `beStrictAboutOutputDuringTes
 `--fail-on-warning --fail-on-risky` (and `--fail-on-deprecation` when the project allows), `--order-by=random --random-order-seed=<n>` (record the seed), inject `Clock`, `Carbon::setTestNow`/`ClockMock`, seeded RNG. Never add retries or `--order-by=default` to hide order dependence (`PHP-CONC-04`). Reset static state between tests (`Mockery::close()`, clear singletons).
 
 ## Iterating (`-10`)
-`vendor/bin/phpunit --filter=FooTest::testBar`, `--group`, `--testdox`, `--stop-on-failure`, `--order-by=defects`; Laravel `php artisan test --parallel`; Pest `--parallel`. Targeted runs while iterating; the lead and QA run the full gate (`loops gate`).
+`vendor/bin/phpunit --filter=FooTest::testBar`, `--group`, `--testdox`, `--stop-on-failure`, `--order-by=defects`; Laravel `php artisan test --parallel`; Pest `--parallel`. Targeted runs while iterating; the lead runs the full gate (`loops gate`), once per run.
 
 ## Extras (`-08`)
 `--strict-coverage` for libraries only; Infection (`--min-msi=70`) on domain code; property tests with `eris/eris`.

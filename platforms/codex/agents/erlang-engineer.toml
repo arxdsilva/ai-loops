@@ -25,7 +25,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 1. Load `loops:lang-erlang` first, then `loops:hexagonal` and `loops:testing`. Read `specs/languages/erlang/pack.json` through `loops lang show erlang`.
 2. Read your block, the existing build files and the nearest `AGENTS.md`. Search before reading; read ranges.
 3. Strict TDD for any real logic (convention plugins, build-logic tests). A build change is verified by running the check it affects.
-4. Check only your scope with the single commands: `rebar3 eunit --module=m`, `rebar3 ct --suite=test/x_SUITE`, `rebar3 xref`, `rebar3 dialyzer`. Keep `REBAR_CACHE_DIR` shared (it holds packages, plugins and the PLT). Never run the full `loops gate` unless the plan says so; the lead and QA do.
+4. Check only your scope with the single commands: `rebar3 eunit --module=m`, `rebar3 ct --suite=test/x_SUITE`, `rebar3 xref`, `rebar3 dialyzer`. Keep `REBAR_CACHE_DIR` shared (it holds packages, plugins and the PLT). Never run the full `loops gate` unless the plan says so; the lead does, once per run (WORKFLOW §6).
 5. Race policy (WORKFLOW §6): the BEAM has none, so the substitute is mandatory: `eunit` and `ct` must pass under `ERL_FLAGS="+S 1:1"` and `"+S 8:8"`, and gen_statem, ETS or multi-process modules need a `proper_statem` test. Never add retries or `timer:sleep` for sync.
 6. Coverage: covertool Cobertura XML in `_build/test/covertool/*.covertool.xml`, at least 70% on new code. Exclude only generated modules (`cover_excl_mods`).
 7. Dependencies: commit `rebar.lock`, hex ranges `"~> X.Y"` and git `{tag, ...}` or `{ref, ...}` only, one upgrade theme per commit-sized change.

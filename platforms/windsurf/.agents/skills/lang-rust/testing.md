@@ -18,7 +18,7 @@ Cites RULES.md. TDD, claims and the 70% new-code rule are neutral (`WORKFLOW §6
 - Never leave a test `#[ignore]`d without a written reason (RUST-TEST-13).
 
 ## Fast loop for agents
-Use only your scope: `cargo check -p <crate>`, `cargo nextest run -p <crate> <filter>` or `cargo test -p <crate> <name> -- --exact`, with `CARGO_BUILD_JOBS=2` (RUST-TEST-12). Do not run the whole workspace; the lead and QA run `loops gate`. Never set `CARGO_TARGET_DIR`; loops scopes it per run. Compile time dominates: a fast linker (`mold`, `lld`) and `[profile.dev] debug = "line-tables-only"` help.
+Use only your scope: `cargo check -p <crate>`, `cargo nextest run -p <crate> <filter>` or `cargo test -p <crate> <name> -- --exact`, with `CARGO_BUILD_JOBS=2` (RUST-TEST-12). Do not run the whole workspace; the lead runs `loops gate`, once per run (WORKFLOW §6). Never set `CARGO_TARGET_DIR`; loops scopes it per run. Compile time dominates: a fast linker (`mold`, `lld`) and `[profile.dev] debug = "line-tables-only"` help.
 
 ## Flakiness
 No shared global state or fixed ports (bind port 0, read `local_addr`); inject the clock; `tokio::time::pause()` (feature `test-util`) for time; never `sleep` to wait. `cargo test` runs tests as threads of one process, nextest one process per test (RUST-TEST-11). No retry flags to hide flakes.

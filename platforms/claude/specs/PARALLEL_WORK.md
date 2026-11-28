@@ -44,7 +44,7 @@ A contract change after wave 0 is additive, made by the architect, and relayed t
 The shared implementer rules are in `ROLES.md` (TDD, targeted checks, ownership, no git writes, absolute paths, claims report). Also:
 
 - Tests run under the pack's race policy, narrowed to your owned scope, with the pack's `env_hints` (Go: `GOFLAGS=-p=2 go test -race -count=1 -cover ./<owned>/...`). The pack's commands are in `skills/lang-<id>`.
-- Never run the whole suite (`go test ./...`, `make all`) or rebuild shared binaries; the lead and QA run the full gates.
+- Never run the whole suite (`go test ./...`, `make all`) or rebuild shared binaries; the lead runs the full gate, once per run (`WORKFLOW §6`). Agents and QA check only the packages they own (`loops gate --pkgs <owned>`).
 - In zsh, split a variable with `${=files}` or `xargs`.
 - Report failures in other agents' files; never fix them.
 

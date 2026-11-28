@@ -67,7 +67,7 @@ These come from rimworld-go PARALLEL_WORK §3.
 
 - **Strict TDD, tests for all new code.** Write the failing test, make it pass, then refactor. Never weaken or delete a test to get green. New code ships with unit tests and at least 70% coverage of new code (`specs/TESTING.md §8.1`); every test run uses the race detector or the pack's race substitute (WORKFLOW §6). Architect stubs are exempt; the implementers' tests cover them later.
 - **Run-scoped environment.** Run your pack's tools normally; the `toolchain-env` hook scopes them to the run's caches (WORKFLOW §6). Where the hook denies with a hint, use `loops exec -- <cmd>` (Go: `loops go …`). Never set cache variables yourself. Don't leave binaries or test artifacts around: build into the run's tmp dir, never into the repo.
-- **Targeted checks only:** the pack's test command narrowed to your owned scope, with its `env_hints` (Go: `GOFLAGS=-p=2 go test -race -count=1 -cover ./<owned>/...` and `go vet ./<owned>/...`). Never the whole suite (`go test ./...`, `make all`); the lead and QA run the full gates.
+- **Targeted checks only:** the pack's test command narrowed to your owned scope, with its `env_hints` (Go: `GOFLAGS=-p=2 go test -race -count=1 -cover ./<owned>/...` and `go vet ./<owned>/...`). Never the whole suite (`go test ./...`, `make all`); the lead runs the full gate, once per run (WORKFLOW §6).
 - **Ownership.**
   - Never edit outside your owned globs.
   - Report failures you see in other agents' files instead of fixing them.

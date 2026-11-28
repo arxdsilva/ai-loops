@@ -153,9 +153,11 @@ func TestNext(t *testing.T) {
 		{"qa round 3", state(phase(PhaseQA), verdict("W1:C1", StatusFailed, 3)), "decide yourself"},
 		{"qa round 3 asks", state(ask("qa"), phase(PhaseQA), verdict("W1:C1", StatusFailed, 3)), "failed 3 rounds: ask the user"},
 		{"qa verified", state(phase(PhaseQA), verdict("W1:C1", StatusVerified, 1)), "start together loops gate in the background, the quality pass, the security pass; once every lane is VERIFIED"},
-		{"qa red gate", state(phase(PhaseQA), gateAll(false)), "start together loops gate in the background"},
+		{"qa red gate", state(phase(PhaseQA), gateAll(false)), "the full gate is red: send each failure to its owning lane"},
+		{"qa red gate then edit", state(phase(PhaseQA), gateAll(false), Event{Kind: KindStep, Name: "Edit", Target: "a.go"}), "start together loops gate in the background"},
 		{"qa green", state(phase(PhaseQA), gateAll(true)), "the gate is green: enter product"},
-		{"qa green then edit", state(phase(PhaseQA), gateAll(true), Event{Kind: KindStep, Name: "Edit", Target: "a.go"}), "start together loops gate in the background"},
+		{"qa green then edit", state(phase(PhaseQA), gateAll(true), Event{Kind: KindStep, Name: "Edit", Target: "a.go"}), "re-check what changed after it with loops gate --pkgs . (each owner's scope run counts), never the full gate again"},
+		{"qa green, edit, covering scope", state(phase(PhaseQA), gateAll(true), Event{Kind: KindStep, Name: "Edit", Target: "a.go"}, Event{Kind: KindGate, Name: GateScope, OK: Bool(true), Target: "..."}), "the gate is green: enter product"},
 		{"product", state(phase(PhaseProduct)), "prove every AC"},
 		{"product gap", state(phase(PhaseProduct), verdict("AC-2", StatusFailed, 0), Event{Kind: KindLoopBack, Phase: PhaseProduct, From: "product-reviewer", To: "W1"}), "AC-2 is FAILED: send its proof to the owning lane (product round 2 of 2)"},
 		{"product pr", state(phase(PhaseProduct), Event{Kind: KindPR, Ref: "u"}), "the PR is open: enter reflect"},
@@ -232,7 +234,7 @@ func TestBriefTrimsLists(t *testing.T) {
 	if strings.Count(got, "  open:") != 3 || !strings.Contains(got, "  …") {
 		t.Errorf("open failures not trimmed to 3:\n%s", got)
 	}
-	if !strings.Contains(got, "Gate: green, but sources changed since.") {
+	if !strings.Contains(got, "Gate: green, but sources changed since: re-check with loops gate --pkgs ., not the full gate.") {
 		t.Errorf("dirty gate:\n%s", got)
 	}
 	clean := Brief(state(Event{Kind: KindGate, Name: GateAll, OK: Bool(true)}), "")

@@ -5,7 +5,7 @@ Digest of RUBY-TEST. Universal testing rules: `specs/TESTING.md` (when present).
 ## Framework and layout (RUBY-TEST-01/02)
 - RSpec (`spec/**/*_spec.rb`, helpers `spec_helper.rb`/`rails_helper.rb`) or Minitest (`test/**/*_test.rb`, `test_helper.rb`). One per project, never mixed.
 - The pack's base is RSpec (`.rspec` or `spec/`); the `minitest` variant is `test/` + `bin/rails`.
-- Quick loops: `bundle exec rspec path/to/file_spec.rb:LINE`, `bin/rails test test/models/user_test.rb:12`, `--only-failures`, `--fail-fast` (RUBY-TEST-10). Lanes run the files they own; the lead and QA run the full gate (`ROLES.md`).
+- Quick loops: `bundle exec rspec path/to/file_spec.rb:LINE`, `bin/rails test test/models/user_test.rb:12`, `--only-failures`, `--fail-fast` (RUBY-TEST-10). Lanes run the files they own; the lead runs the full gate, once per run (`ROLES.md`).
 
 ## Random order and the race substitute (RUBY-TEST-09, RUBY-CONC-05)
 - The gate runs `--order random --seed {seed}` twice (`repeat: 2`). Minitest and Rails randomise by default and accept `--seed`.

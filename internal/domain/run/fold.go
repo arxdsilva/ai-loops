@@ -2,6 +2,7 @@ package run
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/arxdsilva/ai-loops/internal/domain/pack"
@@ -12,6 +13,7 @@ import (
 // never fails on unknown kinds or missing fields.
 func Fold(events []Event) State {
 	var s State
+	var ck checkTrack
 	for _, e := range events {
 		if s.ID != "" && e.Run != "" && e.Run != s.ID {
 			continue
@@ -61,8 +63,12 @@ func Fold(events []Event) State {
 			}
 		case KindStep:
 			foldStep(&s, e)
+			if isEdit(e.Name) && (pack.LooksLikeSource(e.Target) || strings.HasSuffix(e.Target, ".go")) {
+				ck.edit(e.Target, e.Time)
+			}
 		case KindGate:
 			foldGate(&s, e)
+			ck.gate(e)
 		case KindVerdict:
 			foldVerdict(&s, e)
 		case KindLoopBack:
@@ -110,6 +116,7 @@ func Fold(events []Event) State {
 	}
 	s.PlanRounds = planRounds(s.Verdicts)
 	laneQA(&s)
+	ck.apply(&s)
 	return s
 }
 
@@ -182,8 +189,7 @@ func foldStep(s *State, e Event) {
 	if len(s.Recent) > RecentSteps {
 		s.Recent = append([]StepInfo(nil), s.Recent[len(s.Recent)-RecentSteps:]...)
 	}
-	switch e.Name {
-	case "Edit", "Write", "MultiEdit", "NotebookEdit":
+	if isEdit(e.Name) {
 		if strings.HasSuffix(e.Target, ".go") {
 			s.GoDirty = true
 			s.LastGoChange = e.Time
@@ -193,6 +199,15 @@ func foldStep(s *State, e Event) {
 			s.LastSourceChange = e.Time
 		}
 	}
+}
+
+// isEdit reports whether tool is a file-editing tool.
+func isEdit(tool string) bool {
+	switch tool {
+	case "Edit", "Write", "MultiEdit", "NotebookEdit":
+		return true
+	}
+	return false
 }
 
 func foldGate(s *State, e Event) {
@@ -255,7 +270,10 @@ func laneQA(s *State) {
 // the run is active (not Ended), SourceDirty (or GoDirty, for states built
 // before SourceDirty existed) is set, and no lane is Running. Running lanes
 // mean the lead is legitimately waiting for background agents, so it may end
-// its turn. The reason tells the lead to run `loops gate`.
+// its turn. The full gate runs once per run (WORKFLOW §6), so the reason
+// asks for it only when none has checked the current tree: after a green
+// one it names the scoped gate that covers the changed files, and after a
+// red one on an unchanged tree it says to fix the failures instead.
 func StopReason(s State) string {
 	if s.Ended || !s.GoDirty && !s.SourceDirty {
 		return ""
@@ -265,7 +283,21 @@ func StopReason(s State) string {
 			return ""
 		}
 	}
+	if len(s.Unchecked) > 0 {
+		return "loops: source files changed after the run's green full gate (" + listFiles(s.Unchecked) + "). The full gate runs once per run: re-check them with `loops gate --pkgs " + ScopeArg(s.Unchecked) + "` (every check, scoped; or each owner re-runs its scope), never the full gate again. Or `loops run end --outcome abandoned` to stop the run."
+	}
+	if redUnchanged(s) {
+		return "loops: source files changed since the last green `loops gate`, and the full gate is red on this tree: running it again changes nothing. Send each failure to its owning lane (`loops run loopback --from gate --to <id>`), re-check the fixes with `loops gate --pkgs <their packages>`, then run the full gate once more; or `loops run end --outcome failed`."
+	}
 	return "loops: source files changed since the last green `loops gate` (build, lint, tests with the race policy, coverage). Run `loops gate` and fix failures before finishing, or `loops run end --outcome abandoned` to stop the run."
+}
+
+// listFiles renders at most three files, then a count of the rest.
+func listFiles(fs []string) string {
+	if len(fs) <= 3 {
+		return strings.Join(fs, ", ")
+	}
+	return strings.Join(fs[:3], ", ") + fmt.Sprintf(" and %d more", len(fs)-3)
 }
 
 // EndReason returns a non-empty reason when the run must not end "done":
@@ -275,6 +307,9 @@ func StopReason(s State) string {
 // gate result and no source change (no detected pack, a docs-only run) may
 // end done.
 func EndReason(s State) string {
+	if len(s.Unchecked) > 0 && (s.GoDirty || s.SourceDirty) {
+		return "source files changed after the green full gate and no green scoped gate covers them (" + listFiles(s.Unchecked) + "); run `loops gate --pkgs " + ScopeArg(s.Unchecked) + "` first"
+	}
 	if s.GoDirty || s.SourceDirty {
 		return "source files changed since the last green `loops gate`; run `loops gate` and fix failures first"
 	}

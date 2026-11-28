@@ -27,7 +27,7 @@ The project's own config wins over this skill: `deps.edn` aliases, `.clj-kondo/c
 | coverage (required) | loops parses the lcov file | new code at least 70% |
 | nvd (off by default) | `clojure -Tnvd nvd.task/check :classpath ...` | `--vuln`; needs `NVD_API_TOKEN` and the `nvd` tool installed |
 
-Narrow while working: `clojure -M:test --focus my.ns-test/my-test`, `--fail-fast`, or a REPL `(clojure.test/run-tests 'my.ns-test)` (`CLJ-TEST-11`). Never run the full gate as an implementer; the lead and QA do (ROLES.md).
+Narrow while working: `clojure -M:test --focus my.ns-test/my-test`, `--fail-fast`, or a REPL `(clojure.test/run-tests 'my.ns-test)` (`CLJ-TEST-11`). Never run the full gate as an implementer; the lead does, once per run (WORKFLOW §6).
 Caches (D15): keep `~/.m2` and `~/.gitlibs` shared; the gate scopes only the JVM tmp dir (`JAVA_TOOL_OPTIONS=-Djava.io.tmpdir`). `CLJ_CACHE` does nothing with a project `deps.edn`: `.cpcache/` is cleaned after the run instead (`CLJ-OPS-05/06`).
 
 ## Race policy (WORKFLOW §6)

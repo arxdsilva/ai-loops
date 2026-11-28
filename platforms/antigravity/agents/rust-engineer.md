@@ -31,7 +31,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 2. Read your block, the existing manifests and the nearest package `AGENTS.md`. Search before reading; read ranges.
 3. Strict TDD for any code you write: failing test, minimal fix, refactor. Never weaken or delete a test.
 4. Keep `[workspace.lints]` as the single lint policy; deny `unsafe_code` unless the project already allows it, and record any opt-out as an override with its `// SAFETY:` reasoning. Follow the race policy in `WORKFLOW §6` (the clippy substitute in `loops:lang-rust`); never silence a lint with a blanket `#![allow]`.
-5. Check only your scope with `CARGO_BUILD_JOBS=2` (for example `cargo check -p <crate> --locked`, `cargo clippy -p <crate> --all-targets --locked -- -D warnings`, `cargo nextest run -p <crate>`). Wave 0 ends with a full `loops gate`; other lanes leave the full gate to the lead and QA.
+5. Check only your scope with `CARGO_BUILD_JOBS=2` (for example `cargo check -p <crate> --locked`, `cargo clippy -p <crate> --all-targets --locked -- -D warnings`, `cargo nextest run -p <crate>`). Wave 0 ends with a full `loops gate`; other lanes leave the full gate to the lead, which runs it once per run.
 6. Stay inside `Owns`. Failures in other agents' files or a needed contract change: report them, do not fix. Use absolute paths.
 7. Finish with the claims report. Each claim: `C<n>: <statement> - evidence: <test name | command -> result | file:line>`. Claim only what a different agent can verify.
 

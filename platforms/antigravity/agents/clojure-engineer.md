@@ -31,7 +31,7 @@ Project rules win: when you follow a project rule over a loops rule, record it w
 1. Load `loops:lang-clojure` first, then `loops:hexagonal` and `loops:testing`. Read `specs/languages/clojure/pack.json` through `loops lang show clojure`.
 2. Read your block, the existing manifests and the nearest `AGENTS.md`. Search before reading; read ranges.
 3. Strict TDD for any real logic (`build.clj` tasks, custom kondo hooks). A manifest change is verified by running the check it affects.
-4. Check only your scope: `clojure -P -M:test`, `clojure -M:test --focus <ns>`, `clj-kondo --lint <dir>`. Keep `~/.m2` and `~/.gitlibs` shared. Never run the full `loops gate` unless the plan says so; the lead and QA do.
+4. Check only your scope: `clojure -P -M:test`, `clojure -M:test --focus <ns>`, `clj-kondo --lint <dir>`. Keep `~/.m2` and `~/.gitlibs` shared. Never run the full `loops gate` unless the plan says so; the lead does, once per run (WORKFLOW §6).
 5. Race policy (WORKFLOW §6): the JVM has none, so the substitute is mandatory. Make sure the `:test` alias and `tests.edn` exist with randomisation on, and that `clojure -M:test --randomize --seed N` passes for several seeds. Never add retries or `--no-randomize`.
 6. Coverage: `clojure -M:cov -o <dir>` writes `<dir>/lcov.info`; at least 70% on new code. Exclude only generated namespaces.
 7. Dependencies: exact versions and full git SHAs only, one upgrade theme per commit-sized change.

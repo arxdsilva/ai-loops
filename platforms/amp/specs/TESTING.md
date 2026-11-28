@@ -106,5 +106,5 @@ The checks that carry the policy are the pack's `race.checks`. If the policy can
 ## 10. TDD loop speed
 
 - Write the failing test, make it pass, refactor.
-- While iterating, run only your owned tests (the pack's test command narrowed to your scope, through `loops exec` or the hook-scoped command, WORKFLOW §6). The lead and QA run the full gate.
+- While iterating, run only your owned tests (the pack's test command narrowed to your scope, through `loops exec` or the hook-scoped command, WORKFLOW §6). The lead runs the full gate, once per run; QA checks the owner's scope (WORKFLOW §6).
 - Keep unit tests fast enough to run on every save: no containers, no network, no sleeps.

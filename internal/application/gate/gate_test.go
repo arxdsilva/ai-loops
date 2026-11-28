@@ -305,3 +305,77 @@ func TestStaleStaticcheckIsSkipped(t *testing.T) {
 		t.Fatal("real staticcheck failure must fail")
 	}
 }
+
+// scopeEvents returns the run.GateScope events recorded.
+func scopeEvents(evs []run.Event) []run.Event {
+	var out []run.Event
+	for _, e := range evs {
+		if e.Name == run.GateScope {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func TestScopedGateRecordsScope(t *testing.T) {
+	cases := []struct {
+		name  string
+		o     Options
+		f     *fakeCmd
+		want  string // Target; "" = no scope event
+		green bool
+	}{
+		{"every check", opts(Options{Root: "/p", Pkgs: []string{"./internal/x/...", "./cmd/y"}}), &fakeCmd{}, "cmd/y,internal/x/...", true},
+		{"a check fails", opts(Options{Root: "/p", Pkgs: []string{"./internal/x"}}), &fakeCmd{fail: map[string]string{"go vet": "bad"}}, "internal/x", false},
+		{"--only is not a full scoped run", opts(Options{Root: "/p", Pkgs: []string{"./x"}, Only: []string{"test"}}), &fakeCmd{}, "", false},
+		{"--skip is not a full scoped run", opts(Options{Root: "/p", Pkgs: []string{"./x"}, Skip: []string{"staticcheck"}}), &fakeCmd{}, "", false},
+		{"no path in scope", opts(Options{Root: "/p", Pkgs: []string{"-p"}}), &fakeCmd{}, "", false},
+		{"unscoped", opts(Options{Root: "/p"}), &fakeCmd{}, "", false},
+		{"config-skipped required check", opts(Options{Root: "/p", Pkgs: []string{"./x"}, ConfigSkip: []string{"vet"}}), &fakeCmd{}, "x", false},
+		{"pack below the root", Options{Root: "/p", CoverProfile: "/tmp/c.out", Pkgs: []string{"./..."},
+			Packs: []langpack.Detected{{Pack: goPack(), ID: "go", Name: "Go", Root: "svc"}}}, &fakeCmd{}, "svc/...", true},
+	}
+	for _, c := range cases {
+		s, rec := setup(c.f, fakeArch{ok: true})
+		if _, err := s.Run(context.Background(), c.o); err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		got := scopeEvents(rec.evs)
+		if c.want == "" {
+			if len(got) != 0 {
+				t.Errorf("%s: scope recorded: %+v", c.name, got)
+			}
+			continue
+		}
+		if len(got) != 1 || got[0].Target != c.want || *got[0].OK != c.green || got[0].Kind != run.KindGate || got[0].Time.IsZero() {
+			t.Errorf("%s: %+v, want target %q green=%v", c.name, got, c.want, c.green)
+		}
+	}
+}
+
+func TestScopedArchCountsOnlyItsPackages(t *testing.T) {
+	findings := "internal/x/a.go:3 dep domain imports adapter\ninternal/gfx/state.go:22 global package var cur\n"
+	s, _ := setup(&fakeCmd{}, fakeArch{text: findings, ok: false})
+	res, _ := s.Run(context.Background(), opts(Options{Root: "/p", Pkgs: []string{"./internal/x/..."}}))
+	if c := res.Checks[4]; c.Name != "arch" || c.OK || !strings.Contains(c.Output, "internal/x/a.go:3") || strings.Contains(c.Output, "gfx") {
+		t.Fatalf("in-scope finding must fail alone: %+v", c)
+	}
+	s, rec := setup(&fakeCmd{}, fakeArch{text: findings, ok: false})
+	res, _ = s.Run(context.Background(), opts(Options{Root: "/p", Pkgs: []string{"./internal/y"}}))
+	if c := res.Checks[4]; !c.OK || c.note != "2 finding(s) outside --pkgs not counted" {
+		t.Fatalf("out-of-scope findings must not fail a scoped gate: %+v", c)
+	}
+	if sc := scopeEvents(rec.evs); len(sc) != 1 || !*sc[0].OK {
+		t.Fatalf("scope: %+v", sc)
+	}
+	s, _ = setup(&fakeCmd{}, fakeArch{text: "cycle detected somewhere\n" + findings, ok: false})
+	res, _ = s.Run(context.Background(), opts(Options{Root: "/p", Pkgs: []string{"./internal/y"}}))
+	if c := res.Checks[4]; c.OK || !strings.Contains(c.Output, "cycle detected") {
+		t.Fatalf("a finding with no file stays: %+v", c)
+	}
+	s, _ = setup(&fakeCmd{}, fakeArch{text: findings, ok: false})
+	res, _ = s.Run(context.Background(), opts(Options{Root: "/p"}))
+	if c := res.Checks[4]; c.OK || !strings.Contains(c.Output, "gfx") {
+		t.Fatalf("the full gate counts every finding: %+v", c)
+	}
+}
