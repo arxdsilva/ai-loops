@@ -10,7 +10,9 @@ import (
 // The full gate runs once per run (WORKFLOW §6). After it is green, a file
 // edited later is checked by a green scoped gate (`loops gate --pkgs`, every
 // check) whose scope covers it and which started after the edit; only an
-// uncovered edit makes the sources dirty again.
+// uncovered edit makes the sources dirty again. When the full gate failed
+// only FileChecks (coverage, arch), green scoped gates covering every file
+// the run edited stand in for a second full gate.
 
 // ScopePattern turns one package pattern of a pack rooted at rootRel (a
 // slash path relative to the project root; "" or "." = the root) into a
@@ -104,11 +106,13 @@ func ScopeArg(files []string) string {
 // checkTrack is Fold's bookkeeping for the once-per-run full gate: the last
 // edit of each source file, the latest full gate and the green scoped gates.
 type checkTrack struct {
-	edits  map[string]time.Time
-	allAt  time.Time
-	allOK  bool
-	hasAll bool
-	scopes []scopeRun
+	edits     map[string]time.Time
+	allAt     time.Time
+	allOK     bool
+	hasAll    bool
+	allFailed []string // the checks the latest full gate failed
+	allNote   string
+	scopes    []scopeRun
 }
 
 type scopeRun struct {
@@ -130,6 +134,7 @@ func (c *checkTrack) gate(e Event) {
 	switch e.Name {
 	case GateAll:
 		c.allAt, c.allOK, c.hasAll = e.Time, ok, true
+		c.allFailed, c.allNote = ParseScope(e.Target), e.Note
 	case GateScope:
 		if ok {
 			c.scopes = append(c.scopes, scopeRun{pats: ParseScope(e.Target), at: e.Time})
@@ -137,24 +142,51 @@ func (c *checkTrack) gate(e Event) {
 	}
 }
 
-// apply recomputes the dirty flags once the latest full gate is green: a
+// apply recomputes the dirty flags against the latest full gate. Green: a
 // source file edited after it is dirty unless a green scoped gate that
-// started at or after the edit covers it. A red or missing full gate leaves
-// the flags as foldGate set them.
+// started at or after the edit covers it. Red with only FileChecks
+// failed: every source file the run edited must be so covered, and then
+// the run is Rechecked. Otherwise the flags stay as foldGate set them.
 func (c *checkTrack) apply(s *State) {
-	if !c.hasAll || !c.allOK {
+	var since time.Time
+	switch {
+	case c.hasAll && c.allOK:
+		since = c.allAt
+	case c.fileChecksOnly():
+		s.FileChecksOnly = true
+	default:
 		return
 	}
 	var left []string
 	for f, at := range c.edits {
-		if at.After(c.allAt) && !c.covered(f, at) {
+		if at.After(since) && !c.covered(f, at) {
 			left = append(left, f)
 		}
 	}
 	slices.Sort(left)
 	s.Unchecked = left
+	if s.FileChecksOnly {
+		s.Rechecked = len(left) == 0 && len(c.edits) > 0
+		if !s.Rechecked {
+			return
+		}
+	}
 	s.SourceDirty = len(left) > 0
 	s.GoDirty = slices.ContainsFunc(left, func(f string) bool { return strings.HasSuffix(f, ".go") })
+}
+
+// fileChecksOnly reports whether the latest full gate is red and every
+// check it failed is one of FileChecks (no required check was skipped).
+func (c *checkTrack) fileChecksOnly() bool {
+	if !c.hasAll || c.allOK || c.allNote != "" || len(c.allFailed) == 0 {
+		return false
+	}
+	for _, n := range c.allFailed {
+		if !slices.Contains(FileChecks, n) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *checkTrack) covered(file string, at time.Time) bool {
@@ -181,4 +213,25 @@ func latestAll(s State) (GateResult, bool) {
 func redUnchanged(s State) bool {
 	g, ok := latestAll(s)
 	return ok && !g.OK && !s.LastSourceChange.After(g.At) && !s.LastGoChange.After(g.At)
+}
+
+// GateGreen reports whether the run's gate is green on the current tree:
+// the latest full gate is green (or its FileChecks failures were
+// re-checked, Rechecked) and no source file is dirty.
+func GateGreen(s State) bool {
+	g, ok := latestAll(s)
+	return ok && (g.OK || s.Rechecked) && !s.SourceDirty && !s.GoDirty
+}
+
+// beforeQATail reports whether the run has not reached its QA tail yet: no
+// full gate has run and the run is still before the qa phase.
+func beforeQATail(s State) bool {
+	if _, ok := latestAll(s); ok {
+		return false
+	}
+	switch s.Phase {
+	case "", PhaseIntake, PhaseResearch, PhasePlan, PhaseImplement:
+		return true
+	}
+	return false
 }

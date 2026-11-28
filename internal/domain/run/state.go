@@ -44,6 +44,16 @@ type State struct {
 	// gate that no later green scoped gate covers, sorted; while the full
 	// gate is green, SourceDirty is exactly len(Unchecked) > 0 (WORKFLOW §6).
 	Unchecked []string `json:"unchecked,omitempty"`
+	// FileChecksOnly is true when the latest full gate is red and failed
+	// only FileChecks (coverage, arch): green scoped gates over every source
+	// file the run edited can then stand in for a second full gate. Rechecked is
+	// true once they have (WORKFLOW §6).
+	FileChecksOnly bool `json:"file_checks_only,omitempty"`
+	// GateRunning is true while a full gate has started (NoteGateStart) and
+	// not yet recorded its "all" event; GateStarted is when it started.
+	GateRunning bool      `json:"gate_running,omitempty"`
+	GateStarted time.Time `json:"gate_started,omitzero"`
+	Rechecked   bool      `json:"rechecked,omitempty"`
 
 	// Overrides are project rules that superseded loops rules (WORKFLOW §1).
 	Overrides []OverrideInfo `json:"overrides"`

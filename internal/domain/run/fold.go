@@ -104,6 +104,9 @@ func Fold(events []Event) State {
 				s.Triage = t
 			}
 		case KindNote:
+			if e.Name == NoteGateStart {
+				s.GateRunning, s.GateStarted = true, e.Time
+			}
 			if e.Name == NoteLeadTokens && e.Tokens > s.LeadTokens {
 				s.LeadTokens = e.Tokens
 			}
@@ -211,6 +214,9 @@ func isEdit(tool string) bool {
 }
 
 func foldGate(s *State, e Event) {
+	if e.Name == GateAll {
+		s.GateRunning = false
+	}
 	g := GateResult{Name: e.Name, OK: e.OK != nil && *e.OK, At: e.Time, DurationMS: e.DurationMS, Note: e.Note}
 	found := false
 	for i := range s.Gates {
@@ -283,8 +289,17 @@ func StopReason(s State) string {
 			return ""
 		}
 	}
+	if s.GateRunning && s.Updated.Sub(s.GateStarted) < GateRunningMax {
+		return "" // the lead is waiting for its full gate, as for a running lane
+	}
+	if s.FileChecksOnly && !s.Rechecked {
+		return "loops: the full gate failed only per-file checks (coverage, arch), which a scoped gate judges the same way on the run's files. Send the failures in the run's files to their owners (`loops run loopback --from gate --to <id>`); then re-check " + listFiles(s.Unchecked) + " with `loops gate --pkgs " + ScopeArg(s.Unchecked) + "` (every check, scoped), never the full gate again. Or `loops run end --outcome failed`."
+	}
 	if len(s.Unchecked) > 0 {
 		return "loops: source files changed after the run's green full gate (" + listFiles(s.Unchecked) + "). The full gate runs once per run: re-check them with `loops gate --pkgs " + ScopeArg(s.Unchecked) + "` (every check, scoped; or each owner re-runs its scope), never the full gate again. Or `loops run end --outcome abandoned` to stop the run."
+	}
+	if beforeQATail(s) {
+		return "loops: source files changed and the run is not finished: follow `loops run next`. Agents check only their own packages (`loops gate --pkgs <owned>`); the full gate (`loops gate`) runs once per run, at the QA tail, not now. Or `loops run end --outcome abandoned` to stop the run."
 	}
 	if redUnchanged(s) {
 		return "loops: source files changed since the last green `loops gate`, and the full gate is red on this tree: running it again changes nothing. Send each failure to its owning lane (`loops run loopback --from gate --to <id>`), re-check the fixes with `loops gate --pkgs <their packages>`, then run the full gate once more; or `loops run end --outcome failed`."
@@ -314,7 +329,10 @@ func EndReason(s State) string {
 		return "source files changed since the last green `loops gate`; run `loops gate` and fix failures first"
 	}
 	for _, g := range s.Gates {
-		if (g.Name == GateAll || g.Name == "coverage") && !g.OK {
+		if g.Name == GateAll && !g.OK && s.Rechecked {
+			continue // its only failure, coverage, was re-checked on every edited file
+		}
+		if (g.Name == GateAll || g.Name == GateCoverage) && !g.OK {
 			return "the last `loops gate` " + g.Name + " result is red; fix it and run `loops gate` again"
 		}
 	}

@@ -240,6 +240,10 @@ func (s *service) Run(ctx context.Context, o Options) (Result, error) {
 	res := Result{OK: true}
 	st := &runState{}
 	startedAt := s.clock.Now()
+	if isFullGate(o) {
+		// lets the Stop gate wait for this gate as for a running lane
+		_ = s.rec.Record(ctx, run.Event{Kind: run.KindNote, Name: run.NoteGateStart, Time: startedAt.UTC()})
+	}
 	for i, d := range o.Packs {
 		pr := s.newPackRun(o, d, i, startedAt)
 		for _, c := range pr.p.Checks {
@@ -344,13 +348,26 @@ func isFullGate(o Options) bool {
 // check is not green, so it fails the result too (exit code and Stop gate
 // agree).
 func (s *service) recordAll(ctx context.Context, res *Result, startedAt time.Time, skippedReq string) {
-	ev := run.Event{Kind: run.KindGate, Name: run.GateAll, OK: run.Bool(res.OK), Time: startedAt.UTC()}
+	ev := run.Event{Kind: run.KindGate, Name: run.GateAll, OK: run.Bool(res.OK), Time: startedAt.UTC(), Target: failedChecks(*res)}
 	if skippedReq != "" {
 		ev.OK = run.Bool(false)
 		ev.Note = "required check skipped: " + skippedReq
 		res.OK = false
 	}
 	_ = s.rec.Record(ctx, ev) // no active run is fine; gating must not depend on recording
+}
+
+// failedChecks lists the names of the checks that ran and failed, distinct
+// and comma-separated in pipeline order: the "all" event's Target, which
+// tells the run whether a scoped re-check can stand in (run.Fold).
+func failedChecks(res Result) string {
+	var names []string
+	for _, c := range res.Checks {
+		if !c.Skipped && !c.OK && !slices.Contains(names, c.Name) {
+			names = append(names, c.Name)
+		}
+	}
+	return strings.Join(names, ",")
 }
 
 // packSelected reports whether check name may run for pack id under

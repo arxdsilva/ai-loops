@@ -142,3 +142,92 @@ func TestStopReasonOncePerRun(t *testing.T) {
 		t.Errorf("file list not capped: %q", got)
 	}
 }
+
+// A full gate whose only failure is coverage (a diff-only check) is closed
+// by green scoped gates over every edited file, not a second full gate.
+func TestFoldFileChecksOnlyRedIsRecheckedByScopes(t *testing.T) {
+	green, red := Bool(true), Bool(false)
+	edit := func(i int, f string) Event { return at(i, Event{Kind: KindStep, Name: "Edit", Target: f}) }
+	all := func(i int, ok *bool, failed, note string) Event {
+		return at(i, Event{Kind: KindGate, Name: GateAll, OK: ok, Target: failed, Note: note})
+	}
+	scope := func(i int, target string) Event {
+		return at(i, Event{Kind: KindGate, Name: GateScope, OK: green, Target: target})
+	}
+	cov := func(i int, ok *bool) Event { return at(i, Event{Kind: KindGate, Name: GateCoverage, OK: ok}) }
+	cases := []struct {
+		name               string
+		evs                []Event
+		coverOnly, recheck bool
+		unchecked          []string
+	}{
+		{"coverage only, nothing re-checked", []Event{edit(1, "a/x.go"), edit(2, "b/y.go"), cov(3, red), all(3, red, "coverage", "")}, true, false, []string{"a/x.go", "b/y.go"}},
+		{"fix re-checked, other lane's pre-gate scope still holds", []Event{edit(1, "a/x.go"), scope(2, "a"), edit(3, "b/y.go"), cov(4, red), all(4, red, "coverage", ""), edit(5, "b/y.go"), scope(6, "b"), cov(6, green)}, true, true, nil},
+		{"fix not yet re-checked", []Event{edit(1, "a/x.go"), scope(2, "a"), cov(4, red), all(4, red, "coverage", ""), edit(5, "b/y.go")}, true, false, []string{"b/y.go"}},
+		{"arch and coverage", []Event{edit(1, "a/x.go"), all(2, red, "arch,coverage", ""), scope(3, "a")}, true, true, nil},
+		{"another check failed too", []Event{edit(1, "a/x.go"), all(2, red, "vet,coverage", ""), scope(3, "a")}, false, false, nil},
+		{"test failed", []Event{edit(1, "a/x.go"), all(2, red, "test", ""), scope(3, "a")}, false, false, nil},
+		{"required check skipped", []Event{edit(1, "a/x.go"), all(2, red, "coverage", "required check skipped: vet"), scope(3, "a")}, false, false, nil},
+		{"older red all without a failed list", []Event{edit(1, "a/x.go"), all(2, red, "", ""), scope(3, "a")}, false, false, nil},
+		{"no traced edits", []Event{all(2, red, "coverage", "")}, true, false, nil},
+	}
+	for _, c := range cases {
+		s := Fold(c.evs)
+		if s.FileChecksOnly != c.coverOnly || s.Rechecked != c.recheck || !slices.Equal(s.Unchecked, c.unchecked) {
+			t.Errorf("%s: file_checks_only=%v rechecked=%v unchecked=%q, want %v %v %q", c.name, s.FileChecksOnly, s.Rechecked, s.Unchecked, c.coverOnly, c.recheck, c.unchecked)
+		}
+		if c.recheck {
+			if s.SourceDirty || s.GoDirty || EndReason(s) != "" || StopReason(s) != "" || !GateGreen(s) {
+				t.Errorf("%s: rechecked run must be clean: dirty=%v end=%q stop=%q", c.name, s.SourceDirty, EndReason(s), StopReason(s))
+			}
+			continue
+		}
+		if EndReason(s) == "" || GateGreen(s) {
+			t.Errorf("%s: must not end done", c.name)
+		}
+		if c.coverOnly && len(c.unchecked) > 0 {
+			if got := StopReason(s); !strings.Contains(got, "only per-file checks") || !strings.Contains(got, "loops gate --pkgs "+ScopeArg(c.unchecked)) {
+				t.Errorf("%s: stop reason %q", c.name, got)
+			}
+		}
+	}
+}
+
+func TestStopReasonBeforeQATail(t *testing.T) {
+	for _, p := range []Phase{PhaseImplement, PhasePlan, ""} {
+		s := Fold([]Event{
+			at(1, Event{Kind: KindPhase, Phase: p}),
+			at(2, Event{Kind: KindStep, Name: "Edit", Target: "a.go"}),
+		})
+		if got := StopReason(s); !strings.Contains(got, "follow `loops run next`") || !strings.Contains(got, "at the QA tail, not now") {
+			t.Errorf("%q: %q", p, got)
+		}
+	}
+	s := Fold([]Event{
+		at(1, Event{Kind: KindPhase, Phase: PhaseQA}),
+		at(2, Event{Kind: KindStep, Name: "Edit", Target: "a.go"}),
+	})
+	if got := StopReason(s); !strings.Contains(got, "Run `loops gate`") {
+		t.Errorf("qa with no full gate yet: %q", got)
+	}
+}
+
+// A full gate running in the background is waited for like a running lane:
+// the Stop gate must not ask for a second one meanwhile.
+func TestStopReasonWaitsForRunningFullGate(t *testing.T) {
+	start := at(2, Event{Kind: KindNote, Name: NoteGateStart})
+	base := []Event{at(0, Event{Kind: KindPhase, Phase: PhaseQA}), at(1, Event{Kind: KindStep, Name: "Edit", Target: "a.go"}), start}
+	s := Fold(base)
+	if !s.GateRunning || StopReason(s) != "" {
+		t.Fatalf("running gate: running=%v reason=%q", s.GateRunning, StopReason(s))
+	}
+	stale := append(append([]Event(nil), base...), Event{Kind: KindStep, Name: "Read", Time: start.Time.Add(GateRunningMax)})
+	if got := StopReason(Fold(stale)); got == "" {
+		t.Fatal("a gate silent for GateRunningMax no longer counts as running")
+	}
+	done := append(append([]Event(nil), base...), at(2, Event{Kind: KindGate, Name: GateAll, OK: Bool(true)}))
+	s = Fold(done)
+	if s.GateRunning || StopReason(s) != "" || !GateGreen(s) {
+		t.Fatalf("finished green gate: running=%v reason=%q", s.GateRunning, StopReason(s))
+	}
+}

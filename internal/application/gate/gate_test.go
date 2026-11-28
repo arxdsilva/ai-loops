@@ -130,14 +130,18 @@ func TestFullGreen(t *testing.T) {
 			t.Errorf("call %d: %q want %q", i, f.calls[i], w)
 		}
 	}
-	if len(rec.evs) != 8 { // 7 checks + all
+	if len(rec.evs) != 9 { // gate-start + 7 checks + all
 		t.Fatalf("events %d", len(rec.evs))
 	}
+	if first := rec.evs[0]; first.Kind != run.KindNote || first.Name != run.NoteGateStart || first.Time.IsZero() {
+		t.Fatalf("a full gate starts with a gate-start note: %+v", first)
+	}
+	rec.evs = rec.evs[1:]
 	if rec.evs[6].Name != "coverage" || rec.evs[6].Note != "no new statements" || !*rec.evs[6].OK {
 		t.Fatalf("%+v", rec.evs[6])
 	}
 	last := rec.evs[7]
-	if last.Name != run.GateAll || !*last.OK || last.Kind != run.KindGate {
+	if last.Name != run.GateAll || !*last.OK || last.Kind != run.KindGate || last.Target != "" {
 		t.Fatalf("%+v", last)
 	}
 	if rec.evs[5].Name != "test" || rec.evs[5].Note != "ok  \tpkg\t0.1s" || rec.evs[5].DurationMS != 1000 {
@@ -155,14 +159,14 @@ func TestFailuresAndFailFast(t *testing.T) {
 	if !strings.Contains(res.Checks[1].Output, "a.go") || strings.Contains(res.Checks[1].Output, "vendor") {
 		t.Fatalf("%q", res.Checks[1].Output)
 	}
-	if all := rec.evs[len(rec.evs)-1]; all.Name != run.GateAll || *all.OK {
-		t.Fatalf("%+v", all)
+	if all := rec.evs[len(rec.evs)-1]; all.Name != run.GateAll || *all.OK || all.Target != "gofmt,vet" {
+		t.Fatalf("a red all lists its failed checks: %+v", all)
 	}
 
 	f2 := &fakeCmd{fail: map[string]string{"go build": "boom"}}
 	s2, rec2 := setup(f2, fakeArch{ok: true})
 	res2, _ := s2.Run(context.Background(), opts(Options{FailFast: true}))
-	if res2.OK || len(f2.calls) != 1 || len(rec2.evs) != 2 { // build + all
+	if res2.OK || len(f2.calls) != 1 || len(rec2.evs) != 3 { // gate-start + build + all
 		t.Fatalf("%v %d", f2.calls, len(rec2.evs))
 	}
 }
@@ -186,8 +190,8 @@ func TestScopedNeverRecordsAll(t *testing.T) {
 	s2, rec2 := setup(&fakeCmd{}, fakeArch{ok: true})
 	_, _ = s2.Run(context.Background(), goOpts(Options{Pkgs: []string{"./x"}}))
 	for _, e := range rec2.evs {
-		if e.Name == run.GateAll {
-			t.Fatal("all recorded")
+		if e.Name == run.GateAll || e.Name == run.NoteGateStart {
+			t.Fatalf("scoped gate recorded %s", e.Name)
 		}
 	}
 }

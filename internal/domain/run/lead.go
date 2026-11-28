@@ -244,7 +244,7 @@ func nextQA(s State, open []VerdictInfo) string {
 	}
 	if g, ok := latestAll(s); ok {
 		switch {
-		case g.OK && !s.SourceDirty:
+		case GateGreen(s):
 			if reflectFirst(s) && !visited(s, PhaseReflect) {
 				return "the gate is green: enter reflect (file store: the memory pages go in the PR commit)" + gateSuffix(s, PhaseQA)
 			}
@@ -252,6 +252,8 @@ func nextQA(s State, open []VerdictInfo) string {
 				return "the gate is green: enter product and resume the product-reviewer with Gate: green and the lanes changed since it started" + gateSuffix(s, PhaseQA)
 			}
 			return "the gate is green: enter product" + gateSuffix(s, PhaseQA)
+		case s.FileChecksOnly:
+			return "the full gate failed only per-file checks (coverage, arch), which a scoped gate judges the same way: send the failures in the run's files to their owners (loops run loopback --from gate --to <id>); when they report, re-check with loops gate --pkgs " + ScopeArg(s.Unchecked) + ", never the full gate again"
 		case g.OK && len(s.Unchecked) > 0:
 			return "the full gate ran (green) and runs once per run: when the fixing lanes report, re-check what changed after it with loops gate --pkgs " + ScopeArg(s.Unchecked) + " (each owner's scope run counts), never the full gate again"
 		case !g.OK && redUnchanged(s):
@@ -373,11 +375,16 @@ func Brief(s State, dir string) string {
 	for _, g := range s.Gates {
 		if g.Name == GateAll {
 			state := "red"
-			if g.OK && !s.SourceDirty {
+			switch {
+			case GateGreen(s) && !g.OK:
+				state = "green (the full gate's per-file failures re-checked on every edited file)"
+			case GateGreen(s):
 				state = "green"
-			} else if g.OK && len(s.Unchecked) > 0 {
+			case s.FileChecksOnly:
+				state = "red on per-file checks only: re-check with loops gate --pkgs " + ScopeArg(s.Unchecked) + " after the fixes, not the full gate"
+			case g.OK && len(s.Unchecked) > 0:
 				state = "green, but sources changed since: re-check with loops gate --pkgs " + ScopeArg(s.Unchecked) + ", not the full gate"
-			} else if g.OK {
+			case g.OK:
 				state = "green, but sources changed since"
 			}
 			fmt.Fprintf(&b, "Gate: %s.\n", state)

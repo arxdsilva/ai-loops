@@ -42,6 +42,15 @@ const (
 // token total in Event.Tokens (a running total: the highest one counts).
 const NoteLeadTokens = "lead-tokens"
 
+// NoteGateStart is the name of the note event a full gate records when it
+// starts; its "all" event ends it. While one runs the Stop gate lets the
+// lead wait for it, as for a running lane (WORKFLOW §6).
+const NoteGateStart = "gate-start"
+
+// GateRunningMax is how long after its start a full gate with no "all"
+// event still counts as running (a killed gate never records one).
+const GateRunningMax = time.Hour
+
 // Verdict statuses (Event.Status for KindVerdict).
 const (
 	StatusApprove  = "APPROVE"  // plan-reviewer approved the plan
@@ -57,8 +66,18 @@ const (
 	OutcomeFailed    = "failed"
 )
 
-// GateAll is the gate name recorded once the whole gate pipeline passes or fails.
+// GateAll is the gate name recorded once the whole gate pipeline passes or
+// fails. A red one's Target lists the checks that failed, comma-separated.
 const GateAll = "all"
+
+// GateCoverage is the coverage check's gate name.
+const GateCoverage = "coverage"
+
+// FileChecks are the checks that judge each file on its own: coverage (only
+// the changed files) and arch (findings per file). A scoped gate over the
+// run's edited files reaches the same verdict on those files, so a full
+// gate that failed only these is re-checked scoped (WORKFLOW §6).
+var FileChecks = []string{GateCoverage, "arch"}
 
 // GateScope is the gate name a scoped gate (`loops gate --pkgs`, every
 // check) records when it ends: OK, Target = its scope as comma-separated
